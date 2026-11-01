@@ -1,6 +1,7 @@
 package es.vargontoc.agentic.develop.cli.application;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -23,6 +24,8 @@ public class ConfigureProvider {
     private static final Logger log = LoggerFactory.getLogger(ConfigureProvider.class);
 
     private static final String SKILLS_RESOURCE = "/global/skills";
+    private static final String HELPER_DIR = "/global/helper";
+
     private ProviderType type;
     public void execute(Provider provider, boolean global) {
         
@@ -81,6 +84,8 @@ public class ConfigureProvider {
             }
 
             copyTree(skill, target);
+            if(type == ProviderType.CODEX)
+                copyCodexHelper(target);
             System.out.println("Copied skill '" + name + "'");
         }
     }
@@ -95,8 +100,21 @@ public class ConfigureProvider {
                     Files.copy(file, target);
             }
         }
+    }
 
-        
+    private void copyCodexHelper(Path skillDir) throws IOException {
+        Path agents = skillDir.resolve("agents");
+        if(Files.exists(agents))
+            return;
+
+        try(InputStream helper = ConfigureProvider.class.getResourceAsStream(HELPER_DIR + "/openai.yml")) {
+            if(helper == null) {
+                log.error("Resource '{}/openai.yml' not found", HELPER_DIR);
+                return;
+            }
+            Files.createDirectories(agents);
+            Files.copy(helper, agents.resolve("openai.yml"));
+        }
     }
 
     // En un jar, el nombre de una carpeta puede terminar en "/"
