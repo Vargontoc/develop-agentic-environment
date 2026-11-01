@@ -71,7 +71,7 @@ public class SelectProviderState implements TerminalState {
         if(selected.isEmpty())
             return this;
 
-        selected.forEach(i -> configureProvider.execute(providers.get(i)));
+        selected.forEach(i -> configureProvider.execute(providers.get(i), true));
         return parent;
     }
 

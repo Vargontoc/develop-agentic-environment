@@ -12,7 +12,6 @@ public class LocalProviderCatalog implements ProviderCatalog {
 
     static final String CLAUDE_DIR = ".claude";
     static final String CODEX_DIR = ".codex";
-    static final String GEMINI_DIR = ".gemini";
     static final String USERPROFILE_DIR = "USERPROFILE";
 
     private final Map<ProviderType, Path> globalPaths;
@@ -28,7 +27,7 @@ public class LocalProviderCatalog implements ProviderCatalog {
             ProviderType.CLAUDE, Path.of(userProfile, CLAUDE_DIR),
             ProviderType.OPENCODE, Path.of(userProfile, ".config", "opencode"),
             ProviderType.CODEX, Path.of(userProfile, CODEX_DIR),
-            ProviderType.GEMINI, Path.of(userProfile, GEMINI_DIR)
+            ProviderType.GEMINI, Path.of(userProfile, ".gemini", "config")
         );
     }
 
@@ -36,7 +35,7 @@ public class LocalProviderCatalog implements ProviderCatalog {
     public List<Provider> availableProviders() {
         return List.of(ProviderType.values()).stream()
             .filter(this::isInstalled)
-            .map(Provider::new)
+            .map(t -> new Provider(t, globalPaths.get(t)))
             .toList();
     }
 
