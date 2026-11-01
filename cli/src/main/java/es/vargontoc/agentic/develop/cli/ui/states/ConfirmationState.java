@@ -1,4 +1,6 @@
-package es.vargontoc.agentic.develop.cli.domain.states;
+package es.vargontoc.agentic.develop.cli.ui.states;
+
+import es.vargontoc.agentic.develop.cli.ui.TerminalState;
 
 public class ConfirmationState implements TerminalState {
 

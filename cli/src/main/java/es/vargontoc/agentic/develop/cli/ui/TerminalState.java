@@ -1,4 +1,4 @@
-package es.vargontoc.agentic.develop.cli.domain.states;
+package es.vargontoc.agentic.develop.cli.ui;
 
 public interface TerminalState {
     

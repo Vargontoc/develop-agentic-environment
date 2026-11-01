@@ -1,4 +1,4 @@
-package es.vargontoc.agentic.develop.cli.domain.states;
+package es.vargontoc.agentic.develop.cli.ui;
 
 import java.util.Scanner;
 
@@ -12,6 +12,10 @@ public final class StateManager {
 
     public void handleScanner(Scanner input) {
         System.out.println(current.printMenu());
+        if(!input.hasNextLine()) {
+            current = null;
+            return;
+        }
         current = current.handleChoice(input.nextLine());
     }
 

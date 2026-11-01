@@ -1,4 +1,4 @@
-package es.vargontoc.agentic.develop.cli.domain.states;
+package es.vargontoc.agentic.develop.cli.ui.states;
 
 import java.util.List;
 
@@ -6,8 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
-import es.vargontoc.agentic.develop.cli.domain.ProviderType;
-import es.vargontoc.agentic.develop.cli.domain.validators.EnvironmentValidator;
+import es.vargontoc.agentic.develop.cli.infrastructure.config.AppConfiguration;
+import es.vargontoc.agentic.develop.cli.ui.TerminalState;
 
 public class SelectProviderState implements TerminalState {
     
@@ -15,18 +15,14 @@ public class SelectProviderState implements TerminalState {
 
     String errorMessage;
     TerminalState parent;
+    List<Provider> providers;
 
-    public SelectProviderState(TerminalState parent){
+    public SelectProviderState(AppConfiguration config, TerminalState parent){
         this.parent = parent;
+        this.providers = config.getAvailableProviders();
     }
 
 
-    static List<Provider> providers = List.of(
-        new Provider(ProviderType.CLAUDE, EnvironmentValidator.hasProvider(ProviderType.CLAUDE)),
-        new Provider(ProviderType.OPENCODE, EnvironmentValidator.hasProvider(ProviderType.OPENCODE)),
-        new Provider(ProviderType.CODEX, EnvironmentValidator.hasProvider(ProviderType.CODEX)),
-        new Provider(ProviderType.GEMINI, EnvironmentValidator.hasProvider(ProviderType.GEMINI))
-    ).stream().filter(Provider::isAvailable).toList();
 
     @Override
     public String printMenu() {
@@ -74,11 +70,17 @@ public class SelectProviderState implements TerminalState {
                 for(String part : parts){
                     if(part.isEmpty()) continue;
                     int index = Integer.parseInt(part.trim()) - 1;
+                    if(index < 0 || index >= providers.size()) {
+                        errorMessage = "Selección inválida";
+                        providers.forEach(e -> e.setSelected(false));
+                        break;
+                    }
                     providers.get(index).setSelected(true);
                 }
             }catch(NumberFormatException e){
                 log.error(e.getMessage());
                 errorMessage = "Selección inválida";
+                providers.forEach(p -> p.setSelected(false));
             }
         }
 
