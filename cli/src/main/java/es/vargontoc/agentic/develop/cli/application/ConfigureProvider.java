@@ -28,6 +28,8 @@ public class ConfigureProvider {
     private static final String HELPER_DIR = "/global/helper";
     private static final String AGENTS_RESOURCE = "/global/agents";
     private static final String TEMPLATES_RESOURCE = "/global/agents/shared";
+    private static final String PROFILES_RESOURCE = "/global/profiles";
+    private static final String CODEX_PROFILE = "sdd.config.toml";
 
     private ProviderType type;
     public void execute(Provider provider, boolean global) {
@@ -207,6 +209,25 @@ public class ConfigureProvider {
         }
     }
 
+    private void copyCodexProfile(Path providerDir) {
+        Path target = providerDir.resolve(CODEX_PROFILE);
+        if(Files.exists(target)) {
+            System.out.println("Profile '" + CODEX_PROFILE + "' exists");
+            return;
+        }
+
+        try(InputStream profile = ConfigureProvider.class.getResourceAsStream(PROFILES_RESOURCE + "/" + CODEX_PROFILE)) {
+            if(profile == null) {
+                log.error("Resource '{}/{}' not found", PROFILES_RESOURCE, CODEX_PROFILE);
+                return;
+            }
+            Files.copy(profile, target);
+            System.out.println("Copied profile '" + CODEX_PROFILE + "'");
+        } catch(IOException e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
     // En un jar, el nombre de una carpeta puede terminar en "/"
     private String skillName(Path skill) {
         String name = skill.getFileName().toString();
@@ -229,6 +250,10 @@ public class ConfigureProvider {
             if(type == ProviderType.CLAUDE) {
 
             }
+
+            // Profiles (Codex)
+            if(type == ProviderType.CODEX)
+                copyCodexProfile(provider.getPath());
         }
     }
 }

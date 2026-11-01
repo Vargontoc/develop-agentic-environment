@@ -1,0 +1,13 @@
+default_permissions = "sdd-specs"
+
+[permissions.sdd-specs]
+description = "Sesión SDD: lectura del proyecto y escritura solo en specs/."
+extends = ":read-only"
+
+[permissions.sdd-specs.filesystem]
+glob_scan_max_depth = 3
+
+[permissions.sdd-specs.filesystem.":workspace_roots"]
+"specs" = "write"
+"README.md" = "write"
+"**/*.env" = "deny"
