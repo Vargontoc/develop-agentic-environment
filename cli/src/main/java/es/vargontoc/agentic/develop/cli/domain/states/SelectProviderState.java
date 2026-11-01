@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
+import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.validators.EnvironmentValidator;
 
 public class SelectProviderState implements TerminalState {
@@ -21,10 +22,10 @@ public class SelectProviderState implements TerminalState {
 
 
     static List<Provider> providers = List.of(
-        new Provider("Claude", EnvironmentValidator.hasClaude()),
-        new Provider("OpenCode", EnvironmentValidator.hasOpenCode()),
-        new Provider("Codex", EnvironmentValidator.hasCodex()),
-        new Provider("Gemini", EnvironmentValidator.hasGemini())
+        new Provider(ProviderType.CLAUDE, EnvironmentValidator.hasProvider(ProviderType.CLAUDE)),
+        new Provider(ProviderType.OPENCODE, EnvironmentValidator.hasProvider(ProviderType.OPENCODE)),
+        new Provider(ProviderType.CODEX, EnvironmentValidator.hasProvider(ProviderType.CODEX)),
+        new Provider(ProviderType.GEMINI, EnvironmentValidator.hasProvider(ProviderType.GEMINI))
     ).stream().filter(Provider::isAvailable).toList();
 
     @Override
@@ -54,7 +55,11 @@ public class SelectProviderState implements TerminalState {
         errorMessage = null;
         if(choice.isEmpty() && providers.stream().anyMatch(x -> x.isSelected()))
         {
-            // TODO: proceso de configuración de los proveedores seleccionado
+            for(Provider p : providers) {
+                if(p.isSelected()) {
+                    manage(p);
+                }
+            }
 
             return parent;
         }
@@ -78,5 +83,13 @@ public class SelectProviderState implements TerminalState {
         }
 
         return this;
+    }
+    private void manage(Provider p) {
+        switch(p.getType()){
+            case CLAUDE -> log.info("Configurando Claude");
+            case OPENCODE -> log.info("Configurando OpenCode");
+            case CODEX -> log.info("Configurando Codex");
+            case GEMINI -> log.info("Configurando Gemini");
+        }
     }
 }

@@ -16,14 +16,13 @@ public final class App {
         if(!EnvironmentValidator.canRunApp())
             throw new DomainException(AppErrorCode.INCOMPATIBLE_ENVIRONMENT);
 
-        Scanner sc = new Scanner(System.in);
-        StateManager sm = new StateManager(new MainState());
-
-        do {
-            sm.handleScanner(sc);
-        }while(sm.getCurrent() != null);
-        
-        sc.close();
+        try (Scanner sc = new Scanner(System.in)) {
+            StateManager sm = new StateManager(new MainState());
+            
+            do {
+                sm.handleScanner(sc);
+            }while(sm.getCurrent() != null);
+        }
     }
 
 }
