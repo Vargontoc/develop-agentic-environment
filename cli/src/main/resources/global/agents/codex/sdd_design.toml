@@ -1,0 +1,4 @@
+name = "sdd_design"
+model = "gpt-5.6-terra"
+description = "Subagente de la fase de diseño de SDD. Crea o revisa specs/<feature>/design.md a nivel de arquitectura, con trazabilidad a los requisitos. Lo invoca el router $sdd-agent; no escribe código."
+developer_instructions = 

@@ -1,0 +1,4 @@
+name = "docs-readme"
+model = "gpt-5.6-terra"
+description = "Subagente que mantiene el bloque SDD del README.md (descripción, alcance, tecnologías, organización y funcionalidades terminadas) en lenguaje de usuario. Solo a petición del usuario mediante $sdd-agent; no escribe código ni contratos."
+developer_instructions = 

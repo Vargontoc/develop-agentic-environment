@@ -1,0 +1,4 @@
+name = "sdd_requirements"
+model = "gpt-5.6-terra"
+description = "Subagente de la fase de requisitos de SDD. Crea o revisa specs/<feature>/requirements.md en formato EARS. Lo invoca el router $sdd-agent; no escribe código."
+developer_instructions = 

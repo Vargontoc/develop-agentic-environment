@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -25,6 +26,8 @@ public class ConfigureProvider {
 
     private static final String SKILLS_RESOURCE = "/global/skills";
     private static final String HELPER_DIR = "/global/helper";
+    private static final String AGENTS_RESOURCE = "/global/agents";
+    private static final String TEMPLATES_RESOURCE = "/global/agents/shared";
 
     private ProviderType type;
     public void execute(Provider provider, boolean global) {
@@ -39,6 +42,93 @@ public class ConfigureProvider {
         manageConfiguration(provider, global);
     }
 
+
+    private String getDirectoryByType() {
+        return switch(type) {
+            case CLAUDE -> "/claude";
+            case OPENCODE -> "/opencode";
+            case CODEX -> "/codex";
+            case GEMINI -> "/gemini";
+        };
+    }
+
+    private void loadAgents(Path providerDir){
+        String realPath = AGENTS_RESOURCE +  getDirectoryByType(); 
+
+        URL resource = ConfigureProvider.class.getResource(realPath);
+        if(resource == null) {
+            log.error("Resource '{}' not found", realPath);
+            return;
+        }
+
+        try {
+            URI uri = resource.toURI();
+            Path destRoot = providerDir.resolve("agents");
+            if("jar".equals(uri.getScheme())) {
+                try(FileSystem fs = FileSystems.newFileSystem(uri, Map.of())) {
+                    createAgents(fs.getPath(realPath), destRoot);
+                }
+            }else {
+                createAgents(Path.of(uri), destRoot);
+            }
+        }catch(URISyntaxException | IOException e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
+    private void createAgents(Path agentsDir, Path destRoot) throws IOException {
+        Files.createDirectories(destRoot);
+
+        List<Path> agents;
+        try(Stream<Path> files = Files.list(agentsDir)) {
+            agents = files.filter(Files::isRegularFile).toList();
+        }
+
+        for(Path agent : agents) {
+            String fileName = agent.getFileName().toString();
+            Path target = destRoot.resolve(fileName);
+
+            if(Files.exists(target)) {
+                System.out.println("Agent '" + fileName + "' exists");
+                continue;
+            }
+
+            String body = readAgentBody(fileName);
+            if(body == null)
+                continue;
+
+            Path temp = Files.createTempFile("agent-", ".md");
+            try {
+                Files.writeString(temp, composeAgent(Files.readString(agent), body));
+                Files.copy(temp, target);
+                System.out.println("Copied agent '" + fileName + "'");
+            } finally {
+                Files.deleteIfExists(temp);
+            }
+        }
+    }
+
+    // Codex: el cuerpo se añade tal cual entre comillas triples (cadena multilínea TOML),
+    // pegado a "developer_instructions = ". El resto: frontmatter + cuerpo.
+    private String composeAgent(String agent, String body) {
+        if(type == ProviderType.CODEX)
+            return agent + "\"\"\"" + body + "\"\"\"";
+        return agent.stripTrailing() + "\n\n" + body;
+    }
+
+    // <agente>.<ext> -> shared/<agente>-body.md (los "_" del nombre se corresponden con "-")
+    private String readAgentBody(String agentFileName) throws IOException {
+        String baseName = agentFileName.substring(0, agentFileName.lastIndexOf('.')).replace('_', '-');
+        String bodyResource = TEMPLATES_RESOURCE + "/" + baseName + "-body.md";
+
+        try(InputStream body = ConfigureProvider.class.getResourceAsStream(bodyResource)) {
+            if(body == null) {
+                log.error("Resource '{}' not found", bodyResource);
+                return null;
+            }
+            return new String(body.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
 
 
 
@@ -133,8 +223,12 @@ public class ConfigureProvider {
             loadSkills(provider.getPath());
 
             // Agents
+            loadAgents(provider.getPath());
 
             // Hooks
+            if(type == ProviderType.CLAUDE) {
+
+            }
         }
     }
 }

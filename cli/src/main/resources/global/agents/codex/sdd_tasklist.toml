@@ -1,0 +1,4 @@
+name = "sdd_tasklist"
+model = "gpt-5.6-terra"
+description = "Subagente de la fase de tareas de SDD. Crea o revisa specs/<feature>/tasks.md con tareas pequeñas, verificables y trazables. Lo invoca el router $sdd-agent; no escribe código."
+developer_instructions = 
