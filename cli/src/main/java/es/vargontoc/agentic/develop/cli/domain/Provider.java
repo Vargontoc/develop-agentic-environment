@@ -2,20 +2,9 @@ package es.vargontoc.agentic.develop.cli.domain;
 
 public class Provider {
     private final ProviderType type;
-    private final boolean available;
-    private boolean selected;
 
-    public Provider(ProviderType type, boolean available) {
+    public Provider(ProviderType type) {
         this.type = type;
-        this.available = available;
-    }
-
-    public boolean isAvailable() {
-        return available;
-    }
-
-    public boolean isSelected() {
-        return selected;
     }
 
     public String getName() {
@@ -24,10 +13,6 @@ public class Provider {
 
     public ProviderType getType() {
         return type;
-    }
-
-    public void setSelected(boolean selected) {
-        this.selected = selected;
     }
 
 }

@@ -1,15 +1,15 @@
-package es.vargontoc.agentic.develop.cli.infrastructure.config;
+package es.vargontoc.agentic.develop.cli.infrastructure.providers;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
+import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 
-public class AppConfiguration {
-    
+public class LocalProviderCatalog implements ProviderCatalog {
+
     static final String CLAUDE_DIR = ".claude";
     static final String CODEX_DIR = ".codex";
     static final String GEMINI_DIR = ".gemini";
@@ -17,7 +17,7 @@ public class AppConfiguration {
 
     private final Map<ProviderType, Path> globalPaths;
 
-    public AppConfiguration() {
+    public LocalProviderCatalog() {
         String userProfile = System.getenv(USERPROFILE_DIR);
         if(userProfile == null || userProfile.isEmpty()) {
             globalPaths = Map.of();
@@ -32,27 +32,16 @@ public class AppConfiguration {
         );
     }
 
+    @Override
+    public List<Provider> availableProviders() {
+        return List.of(ProviderType.values()).stream()
+            .filter(this::isInstalled)
+            .map(Provider::new)
+            .toList();
+    }
 
-    public  boolean hasProvider(ProviderType type) {
+    private boolean isInstalled(ProviderType type) {
         Path path = globalPaths.get(type);
         return path != null && path.toFile().exists();
-    }
-
-    public Path getPath(ProviderType type) {
-        return globalPaths.get(type);
-    }
-
-
-    public boolean canRunApp(){
-        return List.of(ProviderType.values()).stream().anyMatch(this::hasProvider);
-    }
-
-
-    public List<Provider> getAvailableProviders() {
-        List<Provider> available = new ArrayList<>();
-        List.of(ProviderType.values()).forEach(t -> {
-            if(hasProvider(t)) available.add(new Provider(t, true));
-        });
-        return available;
     }
 }

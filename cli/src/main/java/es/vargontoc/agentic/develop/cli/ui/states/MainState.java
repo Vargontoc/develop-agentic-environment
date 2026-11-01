@@ -1,6 +1,7 @@
 package es.vargontoc.agentic.develop.cli.ui.states;
 
-import es.vargontoc.agentic.develop.cli.infrastructure.config.AppConfiguration;
+import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
+import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.ui.TerminalState;
 
 public class MainState implements TerminalState {
@@ -16,23 +17,31 @@ public class MainState implements TerminalState {
         Se va a proceder a la configuración global del entorno de desarrollo. ¿Desea continuar?
     """;
 
-    final AppConfiguration config;
+    private final ProviderCatalog catalog;
+    private final ConfigureProvider configureProvider;
+    private String errorMessage;
 
-    public MainState(AppConfiguration config){ this.config = config; } 
+    public MainState(ProviderCatalog catalog, ConfigureProvider configureProvider){
+        this.catalog = catalog;
+        this.configureProvider = configureProvider;
+    }
 
     @Override
     public String printMenu() {
-        return MENU_PRINT;
+        if(errorMessage == null)
+            return MENU_PRINT;
+        return "[ERROR] " + errorMessage + "\n" + MENU_PRINT;
     }
 
     @Override
     public TerminalState handleChoice(String choice) {
+        errorMessage = null;
         if(choice.equals("3")) return null;
         if(choice.equals("1"))
-            return new ConfirmationState(MESSAGE_CONFIG, new SelectProviderState(config, this),  this);
+            return new ConfirmationState(MESSAGE_CONFIG, new SelectProviderState(catalog, configureProvider, this),  this);
 
-        System.out.println("Opción no válida");
+        errorMessage = "Opción no válida";
         return this;
     }
-    
+
 }

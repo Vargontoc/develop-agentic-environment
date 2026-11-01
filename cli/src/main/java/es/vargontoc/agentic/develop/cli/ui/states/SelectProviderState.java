@@ -1,28 +1,30 @@
 package es.vargontoc.agentic.develop.cli.ui.states;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
 import es.vargontoc.agentic.develop.cli.domain.Provider;
-import es.vargontoc.agentic.develop.cli.infrastructure.config.AppConfiguration;
+import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.ui.TerminalState;
 
 public class SelectProviderState implements TerminalState {
-    
-    static final  Logger log = LoggerFactory.getLogger(SelectProviderState.class);
 
-    String errorMessage;
-    TerminalState parent;
-    List<Provider> providers;
+    static final String INVALID_SELECTION = "Selección inválida";
 
-    public SelectProviderState(AppConfiguration config, TerminalState parent){
+    private final TerminalState parent;
+    private final ConfigureProvider configureProvider;
+    private final List<Provider> providers;
+    private Set<Integer> selected = Set.of();
+    private String errorMessage;
+
+    public SelectProviderState(ProviderCatalog catalog, ConfigureProvider configureProvider, TerminalState parent){
         this.parent = parent;
-        this.providers = config.getAvailableProviders();
+        this.configureProvider = configureProvider;
+        this.providers = catalog.availableProviders();
     }
-
-
 
     @Override
     public String printMenu() {
@@ -31,67 +33,61 @@ public class SelectProviderState implements TerminalState {
         if(errorMessage != null)
             sb.append("[ERROR] ").append(errorMessage).append("\n");
 
-
         sb.append("Seleccione el proveedor: (Ej: 1,2)\n");
 
         for(int i = 0; i < providers.size(); i++){
-            String elementSelected = providers.get(i).isSelected() ? "[" + (i + 1) + "]" : "" + (i + 1);
-            sb.append(elementSelected).append(". ").append(providers.get(i).getName()).append("\n");
+            String number = selected.contains(i) ? "[" + (i + 1) + "]" : "" + (i + 1);
+            sb.append(number).append(". ").append(providers.get(i).getName()).append("\n");
         }
-        
+
         sb.append("\n\n0. Cancelar\n");
-        if(providers.stream().anyMatch(x -> x.isSelected()))
+        if(!selected.isEmpty())
             sb.append("\nPulse ENTER para confirmar selección");
 
         return sb.toString();
-
     }
+
     @Override
     public TerminalState handleChoice(String choice) {
         errorMessage = null;
-        if(choice.isEmpty() && providers.stream().anyMatch(x -> x.isSelected()))
-        {
-            for(Provider p : providers) {
-                if(p.isSelected()) {
-                    manage(p);
-                }
-            }
-
-            return parent;
-        }
 
         if("0".equals(choice))
             return parent;
 
-        if(!choice.isEmpty()) {
-            providers.forEach(e -> e.setSelected(false));
-            String[] parts = choice.split(",");
-            try {
-                for(String part : parts){
-                    if(part.isEmpty()) continue;
-                    int index = Integer.parseInt(part.trim()) - 1;
-                    if(index < 0 || index >= providers.size()) {
-                        errorMessage = "Selección inválida";
-                        providers.forEach(e -> e.setSelected(false));
-                        break;
-                    }
-                    providers.get(index).setSelected(true);
-                }
-            }catch(NumberFormatException e){
-                log.error(e.getMessage());
-                errorMessage = "Selección inválida";
-                providers.forEach(p -> p.setSelected(false));
-            }
-        }
+        if(choice.isEmpty())
+            return confirm();
 
+        Optional<Set<Integer>> parsed = parseSelection(choice);
+        if(parsed.isPresent()) {
+            selected = parsed.get();
+        } else {
+            selected = Set.of();
+            errorMessage = INVALID_SELECTION;
+        }
         return this;
     }
-    private void manage(Provider p) {
-        switch(p.getType()){
-            case CLAUDE -> log.info("Configurando Claude");
-            case OPENCODE -> log.info("Configurando OpenCode");
-            case CODEX -> log.info("Configurando Codex");
-            case GEMINI -> log.info("Configurando Gemini");
+
+    private TerminalState confirm() {
+        if(selected.isEmpty())
+            return this;
+
+        selected.forEach(i -> configureProvider.execute(providers.get(i)));
+        return parent;
+    }
+
+    private Optional<Set<Integer>> parseSelection(String choice) {
+        Set<Integer> indexes = new TreeSet<>();
+        for(String part : choice.split(",")) {
+            if(part.isBlank()) continue;
+            try {
+                int index = Integer.parseInt(part.trim()) - 1;
+                if(index < 0 || index >= providers.size())
+                    return Optional.empty();
+                indexes.add(index);
+            } catch(NumberFormatException e) {
+                return Optional.empty();
+            }
         }
+        return Optional.of(indexes);
     }
 }
