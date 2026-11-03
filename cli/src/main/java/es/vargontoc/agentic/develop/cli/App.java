@@ -3,6 +3,7 @@ package es.vargontoc.agentic.develop.cli;
 import java.util.Scanner;
 
 import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
+import es.vargontoc.agentic.develop.cli.application.InitProject;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
@@ -20,7 +21,7 @@ public final class App {
             throw new DomainException(AppErrorCode.INCOMPATIBLE_ENVIRONMENT);
 
         try (Scanner sc = new Scanner(System.in)) {
-            StateManager sm = new StateManager(new MainState(catalog, new ConfigureProvider()));
+            StateManager sm = new StateManager(new MainState(catalog, new ConfigureProvider(), new InitProject()));
 
             do {
                 sm.handleScanner(sc);

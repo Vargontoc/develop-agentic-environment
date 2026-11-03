@@ -199,13 +199,13 @@ public class ConfigureProvider {
         if(Files.exists(agents))
             return;
 
-        try(InputStream helper = ConfigureProvider.class.getResourceAsStream(HELPER_DIR + "/openai.yml")) {
+        try(InputStream helper = ConfigureProvider.class.getResourceAsStream(HELPER_DIR + "/openai.yaml")) {
             if(helper == null) {
-                log.error("Resource '{}/openai.yml' not found", HELPER_DIR);
+                log.error("Resource '{}/openai.yaml' not found", HELPER_DIR);
                 return;
             }
             Files.createDirectories(agents);
-            Files.copy(helper, agents.resolve("openai.yml"));
+            Files.copy(helper, agents.resolve("openai.yaml"));
         }
     }
 

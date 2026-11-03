@@ -1,6 +1,7 @@
 package es.vargontoc.agentic.develop.cli.ui.states;
 
 import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
+import es.vargontoc.agentic.develop.cli.application.InitProject;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.ui.TerminalState;
 
@@ -20,11 +21,13 @@ public class MainState implements TerminalState {
 
     private final ProviderCatalog catalog;
     private final ConfigureProvider configureProvider;
+    private final InitProject initProject;
     private String errorMessage;
 
-    public MainState(ProviderCatalog catalog, ConfigureProvider configureProvider){
+    public MainState(ProviderCatalog catalog, ConfigureProvider configureProvider, InitProject initProject){
         this.catalog = catalog;
         this.configureProvider = configureProvider;
+        this.initProject = initProject;
     }
 
     @Override
@@ -40,9 +43,20 @@ public class MainState implements TerminalState {
         if(choice.equals("4")) return null;
         if(choice.equals("1"))
             return new ConfirmationState(MESSAGE_CONFIG, new SelectProviderState(catalog, configureProvider, this),  this);
+        if(choice.equals("2"))
+            return startProject();
 
         errorMessage = "Opción no válida";
         return this;
+    }
+
+    private TerminalState startProject() {
+        TerminalState init = new InitProjectState(initProject, this);
+
+        return initProject.currentProject()
+            .<TerminalState>map(path -> new ConfirmationState(
+                "Ya hay un proyecto iniciado en " + path + ". ¿Desea iniciar otro?", init, this))
+            .orElse(init);
     }
 
 }
