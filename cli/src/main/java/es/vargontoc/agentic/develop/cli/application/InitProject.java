@@ -34,21 +34,23 @@ public class InitProject {
     }
 
     /**
-     * Valida la ruta (vacía = directorio actual), copia el recurso .sdd y recuerda el proyecto.
+     * Valida la ruta (vacía = directorio actual) y recuerda el proyecto.
+     * Si el directorio aún no tiene .sdd lo copia; si ya lo tiene, lo da por configurado sin tocarlo.
      */
-    public Path start(String input) {
+    public ProjectStart start(String input) {
         Path dir = parse(input);
 
         if(!Files.exists(dir))
             throw new DomainException(AppErrorCode.PROJECT_PATH_NOT_FOUND);
         if(!Files.isDirectory(dir))
             throw new DomainException(AppErrorCode.PROJECT_PATH_NOT_DIRECTORY);
-        if(Files.exists(dir.resolve(SDD_DIR)))
-            throw new DomainException(AppErrorCode.PROJECT_ALREADY_CONFIGURED);
 
-        copySdd(dir.resolve(SDD_DIR));
+        boolean alreadyConfigured = Files.exists(dir.resolve(SDD_DIR));
+        if(!alreadyConfigured)
+            copySdd(dir.resolve(SDD_DIR));
+
         currentProject = dir;
-        return dir;
+        return new ProjectStart(dir, alreadyConfigured);
     }
 
     // Admite rutas absolutas y relativas con separadores de Windows o Linux

@@ -1,6 +1,7 @@
 package es.vargontoc.agentic.develop.cli.ui.states;
 
 import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
+import es.vargontoc.agentic.develop.cli.application.CreateModule;
 import es.vargontoc.agentic.develop.cli.application.InitProject;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.ui.TerminalState;
@@ -22,12 +23,14 @@ public class MainState implements TerminalState {
     private final ProviderCatalog catalog;
     private final ConfigureProvider configureProvider;
     private final InitProject initProject;
+    private final CreateModule createModule;
     private String errorMessage;
 
-    public MainState(ProviderCatalog catalog, ConfigureProvider configureProvider, InitProject initProject){
+    public MainState(ProviderCatalog catalog, ConfigureProvider configureProvider, InitProject initProject, CreateModule createModule){
         this.catalog = catalog;
         this.configureProvider = configureProvider;
         this.initProject = initProject;
+        this.createModule = createModule;
     }
 
     @Override
@@ -45,9 +48,24 @@ public class MainState implements TerminalState {
             return new ConfirmationState(MESSAGE_CONFIG, new SelectProviderState(catalog, configureProvider, this),  this);
         if(choice.equals("2"))
             return startProject();
+        if(choice.equals("3"))
+            return newModule();
 
         errorMessage = "Opción no válida";
         return this;
+    }
+
+    // Sin proyecto en memoria se ofrece iniciarlo y, al terminar, se continúa con el módulo
+    private TerminalState newModule() {
+        TerminalState module = new CreateModuleState(createModule, catalog, this);
+
+        if(initProject.currentProject().isPresent())
+            return module;
+
+        return new ConfirmationState(
+            "No hay un proyecto iniciado. ¿Desea iniciarlo ahora?",
+            new InitProjectState(initProject, module, this),
+            this);
     }
 
     private TerminalState startProject() {
