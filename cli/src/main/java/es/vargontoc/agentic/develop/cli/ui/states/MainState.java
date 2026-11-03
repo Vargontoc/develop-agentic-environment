@@ -8,8 +8,9 @@ public class MainState implements TerminalState {
 
     static String MENU_PRINT = """
         1. Configuración entorno
-        2. Configurar proyecto
-        3. Salir
+        2. Iniciar proyecto 
+        3. Crear módulo
+        4. Salir
         Selecciona una opción
     """;
 
@@ -36,7 +37,7 @@ public class MainState implements TerminalState {
     @Override
     public TerminalState handleChoice(String choice) {
         errorMessage = null;
-        if(choice.equals("3")) return null;
+        if(choice.equals("4")) return null;
         if(choice.equals("1"))
             return new ConfirmationState(MESSAGE_CONFIG, new SelectProviderState(catalog, configureProvider, this),  this);
 
