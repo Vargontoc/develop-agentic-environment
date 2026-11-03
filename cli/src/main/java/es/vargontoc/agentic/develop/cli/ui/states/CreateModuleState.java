@@ -1,8 +1,11 @@
 package es.vargontoc.agentic.develop.cli.ui.states;
 
+import java.nio.file.Path;
 import java.util.List;
 
 import es.vargontoc.agentic.develop.cli.application.CreateModule;
+import es.vargontoc.agentic.develop.cli.application.InitProject;
+import es.vargontoc.agentic.develop.cli.application.ModuleResult;
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.domain.Technician;
@@ -18,12 +21,14 @@ public class CreateModuleState implements TerminalState {
     static final String PROMPT = "Nombre del módulo (solo letras y '-', mínimo 3; vacío o 0 = cancelar):";
 
     private final CreateModule createModule;
+    private final InitProject initProject;
     private final ProviderCatalog catalog;
     private final TerminalState parent;
     private String errorMessage;
 
-    public CreateModuleState(CreateModule createModule, ProviderCatalog catalog, TerminalState parent) {
+    public CreateModuleState(CreateModule createModule, InitProject initProject, ProviderCatalog catalog, TerminalState parent) {
         this.createModule = createModule;
+        this.initProject = initProject;
         this.catalog = catalog;
         this.parent = parent;
     }
@@ -60,20 +65,47 @@ public class CreateModuleState implements TerminalState {
             parent);
     }
 
+    // Solo los instalados y con soporte a nivel de proyecto (Codex queda fuera de momento)
     private TerminalState selectProviders(String module, List<Technician> technicians) {
+        List<Provider> supported = catalog.availableProviders().stream()
+            .filter(p -> p.getType().supportsProject())
+            .toList();
+
+        if(supported.isEmpty()) {
+            System.out.println("[ERROR] No hay proveedores instalados compatibles con proyectos");
+            return parent;
+        }
+
         return new MultiSelectState<>(
             "Seleccione los proveedores: (Ej: 1,2)",
-            catalog.availableProviders(),
+            supported,
             Provider::getName,
             providers -> finish(module, technicians, providers),
             parent);
     }
 
     private TerminalState finish(String module, List<Technician> technicians, List<Provider> providers) {
-        createModule.execute(module, technicians, providers);
-        System.out.println("Módulo '" + module + "' creado. Técnicos: " + names(technicians)
-            + ". Proveedores: " + names(providers.stream().map(Provider::getName).toList()));
+        try {
+            Path project = initProject.currentProject()
+                .orElseThrow(() -> new DomainException(AppErrorCode.MODULE_NO_PROJECT));
+            ModuleResult result = createModule.execute(project, module, technicians, providers);
+            printSummary(module, technicians, providers, result);
+        } catch(DomainException e) {
+            System.out.println("[ERROR] " + describe(e));
+        }
         return parent;
+    }
+
+    private void printSummary(String module, List<Technician> technicians, List<Provider> providers, ModuleResult result) {
+        System.out.println("Módulo '" + module + "' procesado. Técnicos: " + names(technicians)
+            + ". Proveedores: " + names(providers.stream().map(Provider::getName).toList()));
+        printSection("Creado", result.created());
+        printSection("Omitido", result.skipped());
+        printSection("Aviso", result.warnings());
+    }
+
+    private void printSection(String title, List<String> lines) {
+        lines.forEach(line -> System.out.println("  [" + title + "] " + line));
     }
 
     private String names(List<?> items) {
@@ -88,6 +120,10 @@ public class CreateModuleState implements TerminalState {
             case MODULE_NAME_INVALID_CHARS -> "El nombre solo admite letras (a-z) y guiones";
             case MODULE_NAME_INVALID_HYPHENS -> "El guion no puede ir al inicio, al final ni repetido";
             case MODULE_NAME_TOO_SHORT -> "El nombre debe tener al menos 3 caracteres";
+            case MODULE_NO_PROJECT -> "No hay un proyecto iniciado";
+            case MODULE_SKILLS_NOT_FOUND -> "No se encontraron las skills del proyecto en la aplicación";
+            case PROJECT_COPY_FAILED -> "No se pudieron copiar las skills al proyecto";
+            case MODULE_WRITE_FAILED -> "No se pudo escribir un agente en el proyecto";
             default -> "Error: " + code.value();
         };
     }

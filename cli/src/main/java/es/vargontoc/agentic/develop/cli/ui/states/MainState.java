@@ -57,7 +57,7 @@ public class MainState implements TerminalState {
 
     // Sin proyecto en memoria se ofrece iniciarlo y, al terminar, se continúa con el módulo
     private TerminalState newModule() {
-        TerminalState module = new CreateModuleState(createModule, catalog, this);
+        TerminalState module = new CreateModuleState(createModule, initProject, catalog, this);
 
         if(initProject.currentProject().isPresent())
             return module;

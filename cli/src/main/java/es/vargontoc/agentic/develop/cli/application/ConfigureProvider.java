@@ -2,23 +2,17 @@ package es.vargontoc.agentic.develop.cli.application;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
+import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResources;
 
 public class ConfigureProvider {
 
@@ -31,63 +25,30 @@ public class ConfigureProvider {
     private static final String PROFILES_RESOURCE = "/global/profiles";
     private static final String CODEX_PROFILE = "sdd.config.toml";
 
-    private ProviderType type;
     public void execute(Provider provider, boolean global) {
-        
-        type = provider.getType();
-        switch(provider.getType()){
-            case CLAUDE -> System.out.println("Configurando Claude");
-            case OPENCODE -> System.out.println("Configurando OpenCode");
-            case CODEX -> System.out.println("Configurando Codex");
-            case GEMINI -> System.out.println("Configurando Gemini");
-        }
+        System.out.println("Configurando " + provider.getType());
         manageConfiguration(provider, global);
     }
 
-
-    private String getDirectoryByType() {
-        return switch(type) {
-            case CLAUDE -> "/claude";
-            case OPENCODE -> "/opencode";
-            case CODEX -> "/codex";
-            case GEMINI -> "/gemini";
-        };
-    }
-
-    private void loadAgents(Path providerDir){
-        String realPath = AGENTS_RESOURCE +  getDirectoryByType(); 
-
-        URL resource = ConfigureProvider.class.getResource(realPath);
-        if(resource == null) {
-            log.error("Resource '{}' not found", realPath);
-            return;
-        }
+    private void loadAgents(Path providerDir, ProviderType type) {
+        String realPath = AGENTS_RESOURCE + "/" + type.resourceDir();
 
         try {
-            URI uri = resource.toURI();
-            Path destRoot = providerDir.resolve("agents");
-            if("jar".equals(uri.getScheme())) {
-                try(FileSystem fs = FileSystems.newFileSystem(uri, Map.of())) {
-                    createAgents(fs.getPath(realPath), destRoot);
-                }
-            }else {
-                createAgents(Path.of(uri), destRoot);
+            Optional<List<String>> agents = ClasspathResources.listFiles(realPath);
+            if(agents.isEmpty()) {
+                log.error("Resource '{}' not found", realPath);
+                return;
             }
-        }catch(URISyntaxException | IOException e) {
+            createAgents(realPath, agents.get(), providerDir.resolve("agents"), type);
+        }catch(IOException e) {
             log.error(e.getMessage(), e);
         }
     }
 
-    private void createAgents(Path agentsDir, Path destRoot) throws IOException {
+    private void createAgents(String agentsResource, List<String> agents, Path destRoot, ProviderType type) throws IOException {
         Files.createDirectories(destRoot);
 
-        List<Path> agents;
-        try(Stream<Path> files = Files.list(agentsDir)) {
-            agents = files.filter(Files::isRegularFile).toList();
-        }
-
-        for(Path agent : agents) {
-            String fileName = agent.getFileName().toString();
+        for(String fileName : agents) {
             Path target = destRoot.resolve(fileName);
 
             if(Files.exists(target)) {
@@ -99,9 +60,15 @@ public class ConfigureProvider {
             if(body == null)
                 continue;
 
+            String agent = ClasspathResources.readText(agentsResource + "/" + fileName).orElse(null);
+            if(agent == null) {
+                log.error("Resource '{}/{}' not found", agentsResource, fileName);
+                continue;
+            }
+
             Path temp = Files.createTempFile("agent-", ".md");
             try {
-                Files.writeString(temp, composeAgent(Files.readString(agent), body));
+                Files.writeString(temp, composeAgent(agent, body, type));
                 Files.copy(temp, target);
                 System.out.println("Copied agent '" + fileName + "'");
             } finally {
@@ -112,7 +79,7 @@ public class ConfigureProvider {
 
     // Codex: el cuerpo se añade tal cual entre comillas triples (cadena multilínea TOML),
     // pegado a "developer_instructions = ". El resto: frontmatter + cuerpo.
-    private String composeAgent(String agent, String body) {
+    private String composeAgent(String agent, String body, ProviderType type) {
         if(type == ProviderType.CODEX)
             return agent + "\"\"\"" + body + "\"\"\"";
         return agent.stripTrailing() + "\n\n" + body;
@@ -123,51 +90,29 @@ public class ConfigureProvider {
         String baseName = agentFileName.substring(0, agentFileName.lastIndexOf('.')).replace('_', '-');
         String bodyResource = TEMPLATES_RESOURCE + "/" + baseName + "-body.md";
 
-        try(InputStream body = ConfigureProvider.class.getResourceAsStream(bodyResource)) {
-            if(body == null) {
-                log.error("Resource '{}' not found", bodyResource);
-                return null;
-            }
-            return new String(body.readAllBytes(), StandardCharsets.UTF_8);
-        }
+        Optional<String> body = ClasspathResources.readText(bodyResource);
+        if(body.isEmpty())
+            log.error("Resource '{}' not found", bodyResource);
+        return body.orElse(null);
     }
 
-
-
-    private void loadSkills(Path providerDir)
-    {
-        URL resource = ConfigureProvider.class.getResource(SKILLS_RESOURCE);
-        if(resource == null) {
-            log.error("Resource '{}' not found", SKILLS_RESOURCE);
-            return;
-        }
-
+    private void loadSkills(Path providerDir, ProviderType type) {
         try {
-            URI uri = resource.toURI();
-            Path destRoot = providerDir.resolve("skills");
-
-            if("jar".equals(uri.getScheme())) {
-                try(FileSystem fs = FileSystems.newFileSystem(uri, Map.of())) {
-                    copySkills(fs.getPath(SKILLS_RESOURCE), destRoot);
-                }
-            }else {
-                copySkills(Path.of(uri), destRoot);
+            Optional<List<String>> skills = ClasspathResources.listDirectories(SKILLS_RESOURCE);
+            if(skills.isEmpty()) {
+                log.error("Resource '{}' not found", SKILLS_RESOURCE);
+                return;
             }
-        }catch(URISyntaxException | IOException e) {
+            copySkills(skills.get(), providerDir.resolve("skills"), type);
+        }catch(IOException e) {
             log.error(e.getMessage(), e);
         }
     }
 
-    private void copySkills(Path srcRoot, Path destRoot) throws IOException {
+    private void copySkills(List<String> skills, Path destRoot, ProviderType type) throws IOException {
         Files.createDirectories(destRoot);
 
-        List<Path> skills;
-        try(Stream<Path> list = Files.list(srcRoot)) {
-            skills = list.filter(Files::isDirectory).toList();
-        }
-
-        for(Path skill : skills) {
-            String name = skillName(skill);
+        for(String name : skills) {
             Path target = destRoot.resolve(name);
 
             if(Files.exists(target)) {
@@ -175,22 +120,10 @@ public class ConfigureProvider {
                 continue;
             }
 
-            copyTree(skill, target);
+            ClasspathResources.copyTreeIfAbsent(SKILLS_RESOURCE + "/" + name, target);
             if(type == ProviderType.CODEX)
                 copyCodexHelper(target);
             System.out.println("Copied skill '" + name + "'");
-        }
-    }
-
-    private void copyTree(Path src, Path dest) throws IOException {
-        try(Stream<Path> files = Files.walk(src)) {
-            for(Path file : files.toList()) {
-                Path target = dest.resolve(src.relativize(file).toString());
-                if(Files.isDirectory(file))
-                    Files.createDirectories(target);
-                else
-                    Files.copy(file, target);
-            }
         }
     }
 
@@ -228,23 +161,17 @@ public class ConfigureProvider {
         }
     }
 
-    // En un jar, el nombre de una carpeta puede terminar en "/"
-    private String skillName(Path skill) {
-        String name = skill.getFileName().toString();
-        return name.endsWith("/") ? name.substring(0, name.length() - 1) : name;
-    }
-
-
-
     void manageConfiguration(Provider provider, boolean global)
     {
+        ProviderType type = provider.getType();
+
         if(global)
         {
             // Skills
-            loadSkills(provider.getPath());
+            loadSkills(provider.getPath(), type);
 
             // Agents
-            loadAgents(provider.getPath());
+            loadAgents(provider.getPath(), type);
 
             // Hooks
             if(type == ProviderType.CLAUDE) {
