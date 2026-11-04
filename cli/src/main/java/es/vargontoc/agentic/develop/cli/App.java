@@ -3,9 +3,11 @@ package es.vargontoc.agentic.develop.cli;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
+import java.util.function.Supplier;
 
 import es.vargontoc.agentic.develop.cli.command.CommandLine;
 import es.vargontoc.agentic.develop.cli.command.CommandRegistry;
+import es.vargontoc.agentic.develop.cli.command.Commands;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.ui.StateManager;
@@ -26,9 +28,18 @@ public final class App {
         System.exit(new CommandLine(commands()).run(args, out));
     }
 
-    // Los comandos se registran aquí a medida que se implementan (status, tree, describe, init…)
+    // Los servicios se montan solo cuando un comando los usa, y una sola vez
     static CommandRegistry commands() {
-        return new CommandRegistry();
+        return Commands.standard(new Supplier<>() {
+            private Services services;
+
+            @Override
+            public synchronized Services get() {
+                if(services == null)
+                    services = Services.system();
+                return services;
+            }
+        });
     }
 
 

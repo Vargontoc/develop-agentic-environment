@@ -18,6 +18,11 @@ public class PathDomainException extends DomainException {
         this.location = location;
     }
 
+    public PathDomainException(ErrorCode code, String location, Throwable cause) {
+        super(code, cause);
+        this.location = location;
+    }
+
     public PathDomainException(ErrorCode code, Path path) {
         this(code, path.toString());
     }
