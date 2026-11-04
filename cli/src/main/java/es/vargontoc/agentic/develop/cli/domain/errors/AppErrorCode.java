@@ -16,6 +16,7 @@ public enum AppErrorCode implements ErrorCode {
     MODULE_NAME_INVALID_CHARS("validation.module.name_invalid_chars", ErrorCategory.VALIDATION, List.of()),
     MODULE_NAME_INVALID_HYPHENS("validation.module.name_invalid_hyphens", ErrorCategory.VALIDATION, List.of()),
     MODULE_NAME_TOO_SHORT("validation.module.name_too_short", ErrorCategory.VALIDATION, List.of()),
+    MODULE_NAME_RESERVED("validation.module.name_reserved", ErrorCategory.VALIDATION, List.of()),
     SDD_RESOURCE_NOT_FOUND("internal.project.sdd_resource", ErrorCategory.INTERNAL, List.of()),
     PROJECT_COPY_FAILED("internal.project.copy", ErrorCategory.INTERNAL, List.of()),
     MODULE_NO_PROJECT("validation.module.no_project", ErrorCategory.VALIDATION, List.of()),

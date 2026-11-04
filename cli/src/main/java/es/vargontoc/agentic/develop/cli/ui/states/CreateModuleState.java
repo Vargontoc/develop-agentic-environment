@@ -120,6 +120,7 @@ public class CreateModuleState implements TerminalState {
             case MODULE_NAME_INVALID_CHARS -> "El nombre solo admite letras (a-z) y guiones";
             case MODULE_NAME_INVALID_HYPHENS -> "El guion no puede ir al inicio, al final ni repetido";
             case MODULE_NAME_TOO_SHORT -> "El nombre debe tener al menos 3 caracteres";
+            case MODULE_NAME_RESERVED -> "El nombre 'router' está reservado";
             case MODULE_NO_PROJECT -> "No hay un proyecto iniciado";
             case MODULE_SKILLS_NOT_FOUND -> "No se encontraron las skills del proyecto en la aplicación";
             case PROJECT_COPY_FAILED -> "No se pudieron copiar las skills al proyecto";
