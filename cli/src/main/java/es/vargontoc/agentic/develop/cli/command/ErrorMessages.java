@@ -32,6 +32,8 @@ final class ErrorMessages {
             case PATH_OUT_OF_SCOPE -> "La ruta queda fuera del ámbito permitido";
             case TEXT_READ_FAILED -> "No se pudo leer el fichero";
             case TEXT_WRITE_FAILED -> "No se pudo escribir el fichero";
+            case ARTIFACT_CONFLICT -> "El artefacto ha cambiado fuera de la aplicación; confirma para sobrescribirlo";
+            case GROUP_NOT_FOUND -> "El grupo de artefactos no existe";
         };
     }
 }

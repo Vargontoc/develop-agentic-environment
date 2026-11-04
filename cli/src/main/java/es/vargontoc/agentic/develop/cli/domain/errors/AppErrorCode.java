@@ -31,7 +31,9 @@ public enum AppErrorCode implements ErrorCode {
     PATH_OUT_OF_SCOPE("validation.path.out_of_scope", ErrorCategory.VALIDATION, List.of()),
     ARTIFACT_FORMAT_INVALID("validation.artifact.format_invalid", ErrorCategory.VALIDATION, List.of()),
     TEXT_READ_FAILED("internal.text.read", ErrorCategory.INTERNAL, List.of()),
-    TEXT_WRITE_FAILED("internal.text.write", ErrorCategory.INTERNAL, List.of());
+    TEXT_WRITE_FAILED("internal.text.write", ErrorCategory.INTERNAL, List.of()),
+    ARTIFACT_CONFLICT("conflict.artifact.modified_externally", ErrorCategory.CONFLICT, List.of()),
+    GROUP_NOT_FOUND("not_found.group", ErrorCategory.NOT_FOUND, List.of());
 
     private final String value;
     private final ErrorCategory category;

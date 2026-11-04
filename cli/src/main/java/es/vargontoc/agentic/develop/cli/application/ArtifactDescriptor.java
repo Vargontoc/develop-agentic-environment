@@ -32,8 +32,6 @@ import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResour
  */
 public class ArtifactDescriptor {
 
-    private record Located(ProviderType provider, ArtifactScope scope, Path root, CatalogEntry entry) {}
-
     private final PathResolver paths;
     private final ArtifactCatalog catalog;
     private final ArtifactInventory inventory;
@@ -57,7 +55,7 @@ public class ArtifactDescriptor {
      */
     public ArtifactDescription describe(String input, Path project) {
         Path path = locate(input);
-        Located located = find(path, project);
+        ArtifactLocation located = find(path, project);
 
         try {
             InstalledArtifact installed = inventory.inspect(located.entry(), located.root());
@@ -67,6 +65,11 @@ public class ArtifactDescriptor {
         } catch(DomainException e) {
             throw new PathDomainException(e.code(), path, e);
         }
+    }
+
+    /** Identifica el artefacto de la aplicación al que apunta la ruta, o lanza un error con la ruta afectada. */
+    public ArtifactLocation resolve(String input, Path project) {
+        return find(locate(input), project);
     }
 
     // Una ruta que solo existe como recurso del jar no es un artefacto editable
@@ -94,10 +97,10 @@ public class ArtifactDescriptor {
         return path;
     }
 
-    private Located find(Path path, Path project) {
+    private ArtifactLocation find(Path path, Path project) {
         if(paths.hasHome()) {
             for(ProviderType provider : ProviderType.values()) {
-                Optional<Located> found = match(path, provider, ArtifactScope.GLOBAL, paths.providerHome(provider), List.of());
+                Optional<ArtifactLocation> found = match(path, provider, ArtifactScope.GLOBAL, paths.providerHome(provider), List.of());
                 if(found.isPresent())
                     return found.get();
             }
@@ -108,7 +111,7 @@ public class ArtifactDescriptor {
             for(ProviderType provider : ProviderType.values()) {
                 if(!provider.supportsProject())
                     continue;
-                Optional<Located> found = match(path, provider, ArtifactScope.PROJECT,
+                Optional<ArtifactLocation> found = match(path, provider, ArtifactScope.PROJECT,
                     project.resolve(provider.projectDir()), modules);
                 if(found.isPresent())
                     return found.get();
@@ -117,7 +120,7 @@ public class ArtifactDescriptor {
         throw new PathDomainException(AppErrorCode.ARTIFACT_NOT_CATALOGUED, path);
     }
 
-    private Optional<Located> match(Path path, ProviderType provider, ArtifactScope scope, Path root, List<String> modules) {
+    private Optional<ArtifactLocation> match(Path path, ProviderType provider, ArtifactScope scope, Path root, List<String> modules) {
         Path normalizedRoot = root.toAbsolutePath().normalize();
         if(!path.startsWith(normalizedRoot) || path.equals(normalizedRoot))
             return Optional.empty();
@@ -133,7 +136,7 @@ public class ArtifactDescriptor {
         } catch(DomainException e) {
             throw new PathDomainException(e.code(), path, e);
         }
-        return Optional.of(new Located(provider, scope, normalizedRoot, entry.get()));
+        return Optional.of(new ArtifactLocation(provider, scope, normalizedRoot, entry.get()));
     }
 
     // Un fichero dentro de una skill (SKILL.md, assets) describe la skill entera
@@ -142,7 +145,7 @@ public class ArtifactDescriptor {
         return parts.length > 2 && "skills".equals(parts[0]) ? parts[0] + "/" + parts[1] : relative;
     }
 
-    private ArtifactDescription build(Located located, InstalledArtifact installed) {
+    private ArtifactDescription build(ArtifactLocation located, InstalledArtifact installed) {
         CatalogEntry entry = located.entry();
         Path artifact = installed.path();
         Optional<ArtifactRecord> record = metadata.artifact(artifact);

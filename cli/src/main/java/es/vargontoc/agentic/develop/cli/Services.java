@@ -5,8 +5,10 @@ import java.util.List;
 
 import es.vargontoc.agentic.develop.cli.application.ArtifactDescriptor;
 import es.vargontoc.agentic.develop.cli.application.ArtifactInventory;
+import es.vargontoc.agentic.develop.cli.application.ArtifactSaver;
 import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
 import es.vargontoc.agentic.develop.cli.application.CreateModule;
+import es.vargontoc.agentic.develop.cli.application.GroupPropagator;
 import es.vargontoc.agentic.develop.cli.application.InitProject;
 import es.vargontoc.agentic.develop.cli.application.ProjectTreeBuilder;
 import es.vargontoc.agentic.develop.cli.application.ProjectWorkspace;
@@ -32,6 +34,8 @@ public record Services(
         StatusService status,
         ProjectTreeBuilder tree,
         ArtifactDescriptor descriptor,
+        ArtifactSaver saver,
+        GroupPropagator propagator,
         ConfigureProvider configureProvider,
         CreateModule createModule) {
 
@@ -49,12 +53,16 @@ public record Services(
             new TextStore(paths, List.of(appHome), backups));
         ProjectWorkspace workspace = new ProjectWorkspace(paths, backups);
         ArtifactInventory inventory = new ArtifactInventory(paths, artifacts, metadata, backups);
+        ArtifactDescriptor descriptor = new ArtifactDescriptor(paths, artifacts, inventory, metadata, workspace, backups);
+        ArtifactSaver saver = new ArtifactSaver(paths, inventory, metadata, backups);
 
         return new Services(paths, providers, artifacts, workspace,
             new InitProject(paths, workspace),
             new StatusService(providers, workspace),
             new ProjectTreeBuilder(providers, inventory, workspace),
-            new ArtifactDescriptor(paths, artifacts, inventory, metadata, workspace, backups),
+            descriptor,
+            saver,
+            new GroupPropagator(metadata, descriptor, saver),
             new ConfigureProvider(),
             new CreateModule());
     }
