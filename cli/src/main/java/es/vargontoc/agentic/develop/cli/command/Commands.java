@@ -14,6 +14,7 @@ public final class Commands {
 
     public static CommandRegistry standard(Supplier<Services> services) {
         return new CommandRegistry()
+            .register(new InitCommand(services))
             .register(new StatusCommand(services))
             .register(new TreeCommand(services))
             .register(new DescribeCommand(services));
