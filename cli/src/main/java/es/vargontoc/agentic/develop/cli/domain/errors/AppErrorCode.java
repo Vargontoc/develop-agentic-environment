@@ -23,6 +23,8 @@ public enum AppErrorCode implements ErrorCode {
     MODULE_SKILLS_NOT_FOUND("internal.module.skills_resource", ErrorCategory.INTERNAL, List.of()),
     TERMINAL_COMMAND_UNKNOWN("internal.terminal.command", ErrorCategory.INTERNAL, List.of()),
     MODULE_WRITE_FAILED("internal.module.write", ErrorCategory.INTERNAL, List.of()),
+    RESOURCE_READ_FAILED("internal.resource.read", ErrorCategory.INTERNAL, List.of()),
+    PROVIDER_UNKNOWN("validation.provider.unknown", ErrorCategory.VALIDATION, List.of()),
     PATH_OUT_OF_SCOPE("validation.path.out_of_scope", ErrorCategory.VALIDATION, List.of()),
     ARTIFACT_FORMAT_INVALID("validation.artifact.format_invalid", ErrorCategory.VALIDATION, List.of()),
     TEXT_READ_FAILED("internal.text.read", ErrorCategory.INTERNAL, List.of()),

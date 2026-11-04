@@ -30,6 +30,10 @@ public final class ClasspathResources {
 
     private ClasspathResources() {}
 
+    public static boolean exists(String resource) {
+        return ClasspathResources.class.getResource(resource) != null;
+    }
+
     public static Optional<String> readText(String resource) throws IOException {
         try(InputStream in = ClasspathResources.class.getResourceAsStream(resource)) {
             if(in == null)

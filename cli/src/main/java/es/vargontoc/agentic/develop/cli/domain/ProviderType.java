@@ -1,5 +1,8 @@
 package es.vargontoc.agentic.develop.cli.domain;
 
+import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
+import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
+
 public enum ProviderType {
     CLAUDE("Claude", "claude", ".claude"),
     CODEX("Codex", "codex", null),
@@ -14,6 +17,20 @@ public enum ProviderType {
         this.name = name;
         this.resourceDir = resourceDir;
         this.projectDir = projectDir;
+    }
+
+    /** Identificador estable (el de la carpeta de recursos), distinto del nombre visible. */
+    public String id() {
+        return resourceDir;
+    }
+
+    /** Lanza {@code PROVIDER_UNKNOWN} si el identificador no corresponde a ningún proveedor. */
+    public static ProviderType fromId(String id) {
+        for(ProviderType type : values()) {
+            if(type.resourceDir.equals(id))
+                return type;
+        }
+        throw new DomainException(AppErrorCode.PROVIDER_UNKNOWN);
     }
 
     /** Carpeta bajo project/agents con las cabeceras de este proveedor. */
