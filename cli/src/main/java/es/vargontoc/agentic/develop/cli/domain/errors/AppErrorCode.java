@@ -22,7 +22,11 @@ public enum AppErrorCode implements ErrorCode {
     MODULE_NO_PROJECT("validation.module.no_project", ErrorCategory.VALIDATION, List.of()),
     MODULE_SKILLS_NOT_FOUND("internal.module.skills_resource", ErrorCategory.INTERNAL, List.of()),
     TERMINAL_COMMAND_UNKNOWN("internal.terminal.command", ErrorCategory.INTERNAL, List.of()),
-    MODULE_WRITE_FAILED("internal.module.write", ErrorCategory.INTERNAL, List.of());
+    MODULE_WRITE_FAILED("internal.module.write", ErrorCategory.INTERNAL, List.of()),
+    PATH_OUT_OF_SCOPE("validation.path.out_of_scope", ErrorCategory.VALIDATION, List.of()),
+    ARTIFACT_FORMAT_INVALID("validation.artifact.format_invalid", ErrorCategory.VALIDATION, List.of()),
+    TEXT_READ_FAILED("internal.text.read", ErrorCategory.INTERNAL, List.of()),
+    TEXT_WRITE_FAILED("internal.text.write", ErrorCategory.INTERNAL, List.of());
 
     private final String value;
     private final ErrorCategory category;

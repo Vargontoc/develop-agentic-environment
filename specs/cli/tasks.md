@@ -1,6 +1,6 @@
 # Tareas: cli
 
-Estado: borrador
+Estado: aprobado
 
 ## Resumen
 

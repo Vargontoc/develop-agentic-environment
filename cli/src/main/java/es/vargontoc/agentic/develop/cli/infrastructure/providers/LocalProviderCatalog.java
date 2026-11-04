@@ -1,46 +1,33 @@
 package es.vargontoc.agentic.develop.cli.infrastructure.providers;
 
-import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.List;
-import java.util.Map;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
+import es.vargontoc.agentic.develop.cli.infrastructure.paths.PathResolver;
 
 public class LocalProviderCatalog implements ProviderCatalog {
 
-    static final String CLAUDE_DIR = ".claude";
-    static final String CODEX_DIR = ".codex";
-    static final String USERPROFILE_DIR = "USERPROFILE";
-
-    private final Map<ProviderType, Path> globalPaths;
+    private final PathResolver paths;
 
     public LocalProviderCatalog() {
-        String userProfile = System.getenv(USERPROFILE_DIR);
-        if(userProfile == null || userProfile.isEmpty()) {
-            globalPaths = Map.of();
-            return;
-        }
+        this(PathResolver.system());
+    }
 
-        globalPaths = Map.of(
-            ProviderType.CLAUDE, Path.of(userProfile, CLAUDE_DIR),
-            ProviderType.OPENCODE, Path.of(userProfile, ".config", "opencode"),
-            ProviderType.CODEX, Path.of(userProfile, CODEX_DIR),
-            ProviderType.GEMINI, Path.of(userProfile, ".gemini", "config")
-        );
+    public LocalProviderCatalog(PathResolver paths) {
+        this.paths = paths;
     }
 
     @Override
     public List<Provider> availableProviders() {
-        return List.of(ProviderType.values()).stream()
-            .filter(this::isInstalled)
-            .map(t -> new Provider(t, globalPaths.get(t)))
-            .toList();
-    }
+        if(!paths.hasHome())
+            return List.of();
 
-    private boolean isInstalled(ProviderType type) {
-        Path path = globalPaths.get(type);
-        return path != null && path.toFile().exists();
+        return List.of(ProviderType.values()).stream()
+            .map(t -> new Provider(t, paths.providerHome(t)))
+            .filter(p -> Files.exists(p.getPath()))
+            .toList();
     }
 }

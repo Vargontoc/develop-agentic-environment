@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
+import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
 import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResources;
 
 public class ConfigureProvider {
@@ -80,9 +81,8 @@ public class ConfigureProvider {
     // Codex: el cuerpo se añade tal cual entre comillas triples (cadena multilínea TOML),
     // pegado a "developer_instructions = ". El resto: frontmatter + cuerpo.
     private String composeAgent(String agent, String body, ProviderType type) {
-        if(type == ProviderType.CODEX)
-            return agent + "\"\"\"" + body + "\"\"\"";
-        return agent.stripTrailing() + "\n\n" + body;
+        ArtifactFormat format = type == ProviderType.CODEX ? ArtifactFormat.CODEX_TOML : ArtifactFormat.MARKDOWN;
+        return format.assemble(agent, body);
     }
 
     // <agente>.<ext> -> shared/<agente>-body.md (los "_" del nombre se corresponden con "-")
