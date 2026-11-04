@@ -1,6 +1,7 @@
 package es.vargontoc.agentic.develop.cli.domain.artifact;
 
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
+import es.vargontoc.agentic.develop.cli.domain.Technician;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
 
 /**
@@ -10,6 +11,8 @@ import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
  * @param format       formato del agente; null para skills y perfiles
  * @param resource     recurso del jar del que se instala: cabecera del agente, directorio de la skill o fichero del perfil
  * @param bodyResource recurso del cuerpo compartido o plantilla del agente; null para skills y perfiles
+ * @param technician   rol al que pertenece un router o un especialista de proyecto; null en el resto
+ * @param module       módulo de un especialista de proyecto; null en el resto (el router no es de ningún módulo)
  */
 public record CatalogEntry(
         ProviderType provider,
@@ -19,7 +22,9 @@ public record CatalogEntry(
         String relativePath,
         ArtifactFormat format,
         String resource,
-        String bodyResource) {
+        String bodyResource,
+        Technician technician,
+        String module) {
 
     /** Las skills se instalan, describen y propagan como directorio completo. */
     public boolean isDirectory() {

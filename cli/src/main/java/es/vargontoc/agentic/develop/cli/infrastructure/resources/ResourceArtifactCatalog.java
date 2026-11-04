@@ -66,14 +66,14 @@ public final class ResourceArtifactCatalog implements ArtifactCatalog {
         for(String file : ClasspathResources.listFiles(agentsDir).orElse(List.of())) {
             String name = baseName(file);
             entries.add(new CatalogEntry(provider, ArtifactScope.GLOBAL, ArtifactKind.AGENT, name, "agents/" + file, format,
-                agentsDir + "/" + file, GLOBAL_AGENTS + SHARED + name.replace('_', '-') + "-body.md"));
+                agentsDir + "/" + file, GLOBAL_AGENTS + SHARED + name.replace('_', '-') + "-body.md", null, null));
         }
 
         entries.addAll(skills(provider, ArtifactScope.GLOBAL, GLOBAL_SKILLS));
 
         if(provider == ProviderType.CODEX && ClasspathResources.exists(GLOBAL_PROFILE)) {
             entries.add(new CatalogEntry(provider, ArtifactScope.GLOBAL, ArtifactKind.PROFILE, "sdd.config", "sdd.config.toml",
-                null, GLOBAL_PROFILE, null));
+                null, GLOBAL_PROFILE, null, null, null));
         }
         return List.copyOf(entries);
     }
@@ -87,7 +87,7 @@ public final class ResourceArtifactCatalog implements ArtifactCatalog {
             String header = PROJECT_AGENTS + "/" + provider.id() + "/" + name + ".md";
             if(ClasspathResources.exists(header)) {
                 entries.add(new CatalogEntry(provider, ArtifactScope.PROJECT, ArtifactKind.AGENT, name, "agents/" + name + ".md",
-                    ArtifactFormat.MARKDOWN, header, PROJECT_AGENTS + SHARED + name + "-template.md"));
+                    ArtifactFormat.MARKDOWN, header, PROJECT_AGENTS + SHARED + name + "-template.md", technician, null));
             }
         }
         return List.copyOf(entries);
@@ -102,7 +102,8 @@ public final class ResourceArtifactCatalog implements ArtifactCatalog {
                     continue;
                 String name = technician.slug() + "-" + module;
                 entries.add(new CatalogEntry(provider, ArtifactScope.PROJECT, ArtifactKind.AGENT, name, "agents/" + name + ".md",
-                    ArtifactFormat.MARKDOWN, header, PROJECT_AGENTS + SHARED + technician.slug() + "-template.md"));
+                    ArtifactFormat.MARKDOWN, header, PROJECT_AGENTS + SHARED + technician.slug() + "-template.md",
+                    technician, module));
             }
         }
         return entries;
@@ -112,7 +113,7 @@ public final class ResourceArtifactCatalog implements ArtifactCatalog {
         List<CatalogEntry> entries = new ArrayList<>();
         for(String skill : ClasspathResources.listDirectories(skillsDir).orElse(List.of())) {
             entries.add(new CatalogEntry(provider, scope, ArtifactKind.SKILL, skill, "skills/" + skill, null,
-                skillsDir + "/" + skill, null));
+                skillsDir + "/" + skill, null, null, null));
         }
         return entries;
     }

@@ -68,19 +68,27 @@ public class ArtifactInventory {
         if(!Files.isDirectory(root))
             return new Inventory(installed, problems);
 
-        TextStore text = new TextStore(paths, List.of(root), backupRoot);
         for(CatalogEntry entry : catalog.entries(provider, scope, modules)) {
             Path path = root.resolve(entry.relativePath());
             if(!Files.exists(path))
                 continue;
 
             try {
-                installed.add(describe(entry, path, root, text));
+                installed.add(inspect(entry, root));
             } catch(DomainException e) {
                 problems.add(new Inventory.Problem(path, e.code()));
             }
         }
         return new Inventory(installed, problems);
+    }
+
+    /**
+     * Estado de un único artefacto del catálogo bajo la carpeta del proveedor {@code root}.
+     * Lanza {@code DomainException} si es ilegible o de un tipo distinto al esperado.
+     */
+    public InstalledArtifact inspect(CatalogEntry entry, Path root) {
+        Path path = root.resolve(entry.relativePath());
+        return describe(entry, path, root, new TextStore(paths, List.of(root), backupRoot));
     }
 
     private InstalledArtifact describe(CatalogEntry entry, Path path, Path root, TextStore text) {
