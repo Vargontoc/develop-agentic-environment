@@ -60,8 +60,8 @@ public class CreateModule {
      * Por cada proveedor copia las skills del proyecto (sin sobrescribir) y genera, por técnico,
      * su router y su especialista del módulo. Nada existente se sobrescribe.
      */
-    public ModuleResult execute(Path project, String module, List<Technician> technicians, List<Provider> providers) {
-        ModuleResult result = new ModuleResult();
+    public OperationResult execute(Path project, String module, List<Technician> technicians, List<Provider> providers) {
+        OperationResult result = new OperationResult();
 
         registerInTeam(project, module, result);
 
@@ -86,7 +86,7 @@ public class CreateModule {
     }
 
     // Añade "- <modulo> | - | -" al final de la sección "## Módulos" de .sdd/team.md, sin duplicar
-    private void registerInTeam(Path project, String module, ModuleResult result) {
+    private void registerInTeam(Path project, String module, OperationResult result) {
         Path team = project.resolve(TEAM_FILE);
         String label = TEAM_FILE + ": módulo '" + module + "'";
 
@@ -143,7 +143,7 @@ public class CreateModule {
         }
     }
 
-    private void copySkills(Path providerDir, ProviderType type, ModuleResult result) {
+    private void copySkills(Path providerDir, ProviderType type, OperationResult result) {
         try {
             Optional<ClasspathResources.CopyStats> stats =
                 ClasspathResources.copyTreeIfAbsent(SKILLS_RESOURCE, providerDir.resolve("skills"));
@@ -163,7 +163,7 @@ public class CreateModule {
 
     // Une cabecera del proveedor + plantilla compartida y sustituye los slugs
     private void generateAgent(Path providerDir, ProviderType type, String module,
-                               String headerName, String templateName, String targetName, ModuleResult result) {
+                               String headerName, String templateName, String targetName, OperationResult result) {
         Path target = providerDir.resolve("agents").resolve(targetName + ".md");
         String label = type + ": " + type.projectDir() + "/agents/" + targetName + ".md";
 
@@ -197,7 +197,7 @@ public class CreateModule {
         }
     }
 
-    private void warn(ModuleResult result, String message) {
+    private void warn(OperationResult result, String message) {
         log.warn(message);
         result.warnings().add(message);
     }

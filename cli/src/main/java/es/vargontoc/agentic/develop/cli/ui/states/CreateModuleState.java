@@ -5,7 +5,7 @@ import java.util.List;
 
 import es.vargontoc.agentic.develop.cli.application.CreateModule;
 import es.vargontoc.agentic.develop.cli.application.InitProject;
-import es.vargontoc.agentic.develop.cli.application.ModuleResult;
+import es.vargontoc.agentic.develop.cli.application.OperationResult;
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.domain.Technician;
@@ -88,7 +88,7 @@ public class CreateModuleState implements TerminalState {
         try {
             Path project = initProject.currentProject()
                 .orElseThrow(() -> new DomainException(AppErrorCode.MODULE_NO_PROJECT));
-            ModuleResult result = createModule.execute(project, module, technicians, providers);
+            OperationResult result = createModule.execute(project, module, technicians, providers);
             printSummary(module, technicians, providers, result);
         } catch(DomainException e) {
             System.out.println("[ERROR] " + describe(e));
@@ -96,7 +96,7 @@ public class CreateModuleState implements TerminalState {
         return parent;
     }
 
-    private void printSummary(String module, List<Technician> technicians, List<Provider> providers, ModuleResult result) {
+    private void printSummary(String module, List<Technician> technicians, List<Provider> providers, OperationResult result) {
         System.out.println("Módulo '" + module + "' procesado. Técnicos: " + names(technicians)
             + ". Proveedores: " + names(providers.stream().map(Provider::getName).toList()));
         printSection("Creado", result.created());

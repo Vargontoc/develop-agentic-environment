@@ -75,6 +75,23 @@
 
 
     <build>
+        <resources>
+            <!-- Solo este fichero se filtra: lleva la version del proyecto para la opcion de version -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>cli-version.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>cli-version.properties</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <pluginManagement>
             
             <plugins>

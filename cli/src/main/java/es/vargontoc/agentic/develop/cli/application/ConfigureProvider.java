@@ -15,6 +15,10 @@ import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
 import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResources;
 
+/**
+ * Instala en un proveedor los agentes, skills y perfiles globales de la aplicación sin sobrescribir lo existente.
+ * Las rutas del resultado son relativas a la carpeta del proveedor (por ejemplo {@code skills/sdd-design}).
+ */
 public class ConfigureProvider {
 
     private static final Logger log = LoggerFactory.getLogger(ConfigureProvider.class);
@@ -26,115 +30,116 @@ public class ConfigureProvider {
     private static final String PROFILES_RESOURCE = "/global/profiles";
     private static final String CODEX_PROFILE = "sdd.config.toml";
 
-    public void execute(Provider provider, boolean global) {
-        System.out.println("Configurando " + provider.getType());
-        manageConfiguration(provider, global);
+    public OperationResult execute(Provider provider, boolean global) {
+        OperationResult result = new OperationResult();
+        manageConfiguration(provider, global, result);
+        return result;
     }
 
-    private void loadAgents(Path providerDir, ProviderType type) {
+    private void loadAgents(Path providerDir, ProviderType type, OperationResult result) {
         String realPath = AGENTS_RESOURCE + "/" + type.resourceDir();
 
         try {
             Optional<List<String>> agents = ClasspathResources.listFiles(realPath);
             if(agents.isEmpty()) {
-                log.error("Resource '{}' not found", realPath);
+                fail(result, "Resource '" + realPath + "' not found", null);
                 return;
             }
-            createAgents(realPath, agents.get(), providerDir.resolve("agents"), type);
+            createAgents(realPath, agents.get(), providerDir.resolve("agents"), type, result);
         }catch(IOException e) {
-            log.error(e.getMessage(), e);
+            fail(result, e.getMessage(), e);
         }
     }
 
-    private void createAgents(String agentsResource, List<String> agents, Path destRoot, ProviderType type) throws IOException {
+    private void createAgents(String agentsResource, List<String> agents, Path destRoot, ProviderType type,
+                              OperationResult result) throws IOException {
         Files.createDirectories(destRoot);
 
         for(String fileName : agents) {
             Path target = destRoot.resolve(fileName);
+            String relative = "agents/" + fileName;
 
             if(Files.exists(target)) {
-                System.out.println("Agent '" + fileName + "' exists");
+                result.skipped().add(relative);
                 continue;
             }
 
-            String body = readAgentBody(fileName);
-            if(body == null)
+            String body = readAgentBody(fileName, result);
+            String agent = body == null ? null : readResource(agentsResource + "/" + fileName, result);
+            if(agent == null)
                 continue;
-
-            String agent = ClasspathResources.readText(agentsResource + "/" + fileName).orElse(null);
-            if(agent == null) {
-                log.error("Resource '{}/{}' not found", agentsResource, fileName);
-                continue;
-            }
 
             Path temp = Files.createTempFile("agent-", ".md");
             try {
                 Files.writeString(temp, composeAgent(agent, body, type));
                 Files.copy(temp, target);
-                System.out.println("Copied agent '" + fileName + "'");
+                result.created().add(relative);
             } finally {
                 Files.deleteIfExists(temp);
             }
         }
     }
 
-    // Codex: el cuerpo se añade tal cual entre comillas triples (cadena multilínea TOML),
-    // pegado a "developer_instructions = ". El resto: frontmatter + cuerpo.
+    // Codex: el cuerpo se añade entre comillas triples (cadena multilínea TOML) pegado a "developer_instructions = ".
+    // El resto: frontmatter + cuerpo.
     private String composeAgent(String agent, String body, ProviderType type) {
         ArtifactFormat format = type == ProviderType.CODEX ? ArtifactFormat.CODEX_TOML : ArtifactFormat.MARKDOWN;
         return format.assemble(agent, body);
     }
 
     // <agente>.<ext> -> shared/<agente>-body.md (los "_" del nombre se corresponden con "-")
-    private String readAgentBody(String agentFileName) throws IOException {
+    private String readAgentBody(String agentFileName, OperationResult result) throws IOException {
         String baseName = agentFileName.substring(0, agentFileName.lastIndexOf('.')).replace('_', '-');
-        String bodyResource = TEMPLATES_RESOURCE + "/" + baseName + "-body.md";
-
-        Optional<String> body = ClasspathResources.readText(bodyResource);
-        if(body.isEmpty())
-            log.error("Resource '{}' not found", bodyResource);
-        return body.orElse(null);
+        return readResource(TEMPLATES_RESOURCE + "/" + baseName + "-body.md", result);
     }
 
-    private void loadSkills(Path providerDir, ProviderType type) {
+    private String readResource(String resource, OperationResult result) throws IOException {
+        Optional<String> text = ClasspathResources.readText(resource);
+        if(text.isEmpty())
+            fail(result, "Resource '" + resource + "' not found", null);
+        return text.orElse(null);
+    }
+
+    private void loadSkills(Path providerDir, ProviderType type, OperationResult result) {
         try {
             Optional<List<String>> skills = ClasspathResources.listDirectories(SKILLS_RESOURCE);
             if(skills.isEmpty()) {
-                log.error("Resource '{}' not found", SKILLS_RESOURCE);
+                fail(result, "Resource '" + SKILLS_RESOURCE + "' not found", null);
                 return;
             }
-            copySkills(skills.get(), providerDir.resolve("skills"), type);
+            copySkills(skills.get(), providerDir.resolve("skills"), type, result);
         }catch(IOException e) {
-            log.error(e.getMessage(), e);
+            fail(result, e.getMessage(), e);
         }
     }
 
-    private void copySkills(List<String> skills, Path destRoot, ProviderType type) throws IOException {
+    private void copySkills(List<String> skills, Path destRoot, ProviderType type, OperationResult result) throws IOException {
         Files.createDirectories(destRoot);
 
         for(String name : skills) {
             Path target = destRoot.resolve(name);
+            String relative = "skills/" + name;
 
             if(Files.exists(target)) {
-                System.out.println("Skill '" + name + "' exists");
+                result.skipped().add(relative);
                 continue;
             }
 
             ClasspathResources.copyTreeIfAbsent(SKILLS_RESOURCE + "/" + name, target);
             if(type == ProviderType.CODEX)
-                copyCodexHelper(target);
-            System.out.println("Copied skill '" + name + "'");
+                copyCodexHelper(target, result);
+            result.created().add(relative);
         }
     }
 
-    private void copyCodexHelper(Path skillDir) throws IOException {
+    private void copyCodexHelper(Path skillDir, OperationResult result) throws IOException {
         Path agents = skillDir.resolve("agents");
         if(Files.exists(agents))
             return;
 
         try(InputStream helper = ConfigureProvider.class.getResourceAsStream(HELPER_DIR + "/openai.yaml")) {
             if(helper == null) {
-                log.error("Resource '{}/openai.yaml' not found", HELPER_DIR);
+                fail(result, "Resource '" + HELPER_DIR + "/openai.yaml' not found", null);
                 return;
             }
             Files.createDirectories(agents);
@@ -142,45 +147,49 @@ public class ConfigureProvider {
         }
     }
 
-    private void copyCodexProfile(Path providerDir) {
+    private void copyCodexProfile(Path providerDir, OperationResult result) {
         Path target = providerDir.resolve(CODEX_PROFILE);
         if(Files.exists(target)) {
-            System.out.println("Profile '" + CODEX_PROFILE + "' exists");
+            result.skipped().add(CODEX_PROFILE);
             return;
         }
 
         try(InputStream profile = ConfigureProvider.class.getResourceAsStream(PROFILES_RESOURCE + "/" + CODEX_PROFILE)) {
             if(profile == null) {
-                log.error("Resource '{}/{}' not found", PROFILES_RESOURCE, CODEX_PROFILE);
+                fail(result, "Resource '" + PROFILES_RESOURCE + "/" + CODEX_PROFILE + "' not found", null);
                 return;
             }
             Files.copy(profile, target);
-            System.out.println("Copied profile '" + CODEX_PROFILE + "'");
+            result.created().add(CODEX_PROFILE);
         } catch(IOException e) {
-            log.error(e.getMessage(), e);
+            fail(result, e.getMessage(), e);
         }
     }
 
-    void manageConfiguration(Provider provider, boolean global)
+    // Un fallo parcial no detiene la configuración: queda en el log y como aviso del resultado
+    private void fail(OperationResult result, String message, Exception cause) {
+        if(cause == null)
+            log.error(message);
+        else
+            log.error(message, cause);
+        result.warnings().add(message);
+    }
+
+    void manageConfiguration(Provider provider, boolean global, OperationResult result)
     {
         ProviderType type = provider.getType();
 
         if(global)
         {
             // Skills
-            loadSkills(provider.getPath(), type);
+            loadSkills(provider.getPath(), type, result);
 
             // Agents
-            loadAgents(provider.getPath(), type);
-
-            // Hooks
-            if(type == ProviderType.CLAUDE) {
-
-            }
+            loadAgents(provider.getPath(), type, result);
 
             // Profiles (Codex)
             if(type == ProviderType.CODEX)
-                copyCodexProfile(provider.getPath());
+                copyCodexProfile(provider.getPath(), result);
         }
     }
 }

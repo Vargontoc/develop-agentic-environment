@@ -21,7 +21,6 @@ public enum AppErrorCode implements ErrorCode {
     PROJECT_COPY_FAILED("internal.project.copy", ErrorCategory.INTERNAL, List.of()),
     MODULE_NO_PROJECT("validation.module.no_project", ErrorCategory.VALIDATION, List.of()),
     MODULE_SKILLS_NOT_FOUND("internal.module.skills_resource", ErrorCategory.INTERNAL, List.of()),
-    TERMINAL_COMMAND_UNKNOWN("internal.terminal.command", ErrorCategory.INTERNAL, List.of()),
     MODULE_WRITE_FAILED("internal.module.write", ErrorCategory.INTERNAL, List.of()),
     ARTIFACT_NOT_FOUND("not_found.artifact.path", ErrorCategory.NOT_FOUND, List.of()),
     ARTIFACT_NOT_EDITABLE("validation.artifact.not_editable", ErrorCategory.VALIDATION, List.of()),
