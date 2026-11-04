@@ -1,26 +1,18 @@
 package es.vargontoc.agentic.develop.cli.application;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
-import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.infrastructure.paths.PathResolver;
-import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResources;
 
+/**
+ * Inicio de proyecto del menú interactivo: resuelve la ruta, inicializa el espacio de trabajo y recuerda el proyecto activo.
+ * El estado en memoria es solo de la sesión del menú; las operaciones en sí están en {@link ProjectWorkspace}.
+ */
 public class InitProject {
 
-    private static final Logger log = LoggerFactory.getLogger(InitProject.class);
-
-    private static final String SDD_DIR = ".sdd";
-    private static final String SDD_RESOURCE = "/project/.sdd";
-
     private final PathResolver paths;
+    private final ProjectWorkspace workspace;
 
     // Ruta del proyecto activo; solo vive en memoria durante la sesión
     private Path currentProject;
@@ -30,7 +22,12 @@ public class InitProject {
     }
 
     public InitProject(PathResolver paths) {
+        this(paths, new ProjectWorkspace(paths, paths.appHome().resolve("backups")));
+    }
+
+    public InitProject(PathResolver paths, ProjectWorkspace workspace) {
         this.paths = paths;
+        this.workspace = workspace;
     }
 
     public Optional<Path> currentProject() {
@@ -42,25 +39,9 @@ public class InitProject {
      * Si el directorio aún no tiene .sdd lo copia; si ya lo tiene, lo da por configurado sin tocarlo.
      */
     public ProjectStart start(String input) {
-        Path dir = paths.resolveProject(input);
+        ProjectWorkspace.InitResult result = workspace.initialize(paths.resolveProject(input));
 
-        boolean alreadyConfigured = Files.exists(dir.resolve(SDD_DIR));
-        if(!alreadyConfigured)
-            copySdd(dir.resolve(SDD_DIR));
-
-        currentProject = dir;
-        return new ProjectStart(dir, alreadyConfigured);
-    }
-
-    private void copySdd(Path target) {
-        try {
-            if(ClasspathResources.copyTreeIfAbsent(SDD_RESOURCE, target).isEmpty()) {
-                log.error("Resource '{}' not found", SDD_RESOURCE);
-                throw new DomainException(AppErrorCode.SDD_RESOURCE_NOT_FOUND);
-            }
-        }catch(IOException e) {
-            log.error(e.getMessage(), e);
-            throw new DomainException(AppErrorCode.PROJECT_COPY_FAILED, e);
-        }
+        currentProject = result.path();
+        return new ProjectStart(result.path(), result.alreadyConfigured());
     }
 }
