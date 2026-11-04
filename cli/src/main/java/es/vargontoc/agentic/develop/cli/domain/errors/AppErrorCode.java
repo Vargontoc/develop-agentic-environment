@@ -20,6 +20,7 @@ public enum AppErrorCode implements ErrorCode {
     PROJECT_COPY_FAILED("internal.project.copy", ErrorCategory.INTERNAL, List.of()),
     MODULE_NO_PROJECT("validation.module.no_project", ErrorCategory.VALIDATION, List.of()),
     MODULE_SKILLS_NOT_FOUND("internal.module.skills_resource", ErrorCategory.INTERNAL, List.of()),
+    TERMINAL_COMMAND_UNKNOWN("internal.terminal.command", ErrorCategory.INTERNAL, List.of()),
     MODULE_WRITE_FAILED("internal.module.write", ErrorCategory.INTERNAL, List.of());
 
     private final String value;

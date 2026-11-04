@@ -39,6 +39,12 @@
                 <version>${vargontoc-framework.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>es.vargontoc.framework</groupId>
+                <artifactId>framework-json</artifactId>
+                <version>${vargontoc-framework.version}</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -46,6 +52,10 @@
         <dependency>
             <groupId>es.vargontoc.framework</groupId>
             <artifactId>framework-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>es.vargontoc.framework</groupId>
+            <artifactId>framework-json</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
