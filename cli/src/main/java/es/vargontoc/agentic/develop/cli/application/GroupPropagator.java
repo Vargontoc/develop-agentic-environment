@@ -12,6 +12,7 @@ import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.domain.errors.PathDomainException;
+import es.vargontoc.agentic.develop.cli.domain.format.BodyPlaceholders;
 import es.vargontoc.agentic.develop.cli.domain.metadata.ArtifactRecord;
 import es.vargontoc.agentic.develop.cli.domain.metadata.GroupRecord;
 import es.vargontoc.agentic.develop.cli.domain.metadata.LinkState;
@@ -20,16 +21,14 @@ import es.vargontoc.agentic.develop.cli.infrastructure.metadata.MetadataStore;
 /**
  * Propaga un cuerpo compartido a los artefactos que ya existen de un mismo grupo (DEC-006). Nunca crea artefactos
  * ausentes ni cruza entre el ámbito global y el de proyecto. En los especialistas de proyecto el cuerpo compartido
- * lleva el placeholder {@value #MODULE_PLACEHOLDER}, que se sustituye por el módulo de cada artefacto; la cabecera de
+ * lleva placeholders ({@link BodyPlaceholders}) que se resuelven con el módulo y el proveedor de cada artefacto; la cabecera de
  * cada artefacto no se toca (DEC-007). Los desvinculados se omiten siempre y los modificados fuera de la aplicación
  * se omiten salvo que se pida sobrescribir de forma explícita.
  */
 public class GroupPropagator {
 
-    public static final String MODULE_PLACEHOLDER = "{module}";
-
     public enum Outcome {
-        UPDATED, UNCHANGED, CONFLICT, DETACHED, MISSING, OUT_OF_SCOPE, FAILED
+        UPDATED, UNCHANGED, CONFLICT, DETACHED, CUSTOM, MISSING, OUT_OF_SCOPE, FAILED
     }
 
     /**
@@ -50,8 +49,10 @@ public class GroupPropagator {
     private final MetadataStore metadata;
     private final ArtifactDescriptor descriptor;
     private final ArtifactSaver saver;
+    private final MigrationService migration;
 
-    public GroupPropagator(MetadataStore metadata, ArtifactDescriptor descriptor, ArtifactSaver saver) {
+    public GroupPropagator(MetadataStore metadata, ArtifactDescriptor descriptor, ArtifactSaver saver, MigrationService migration) {
+        this.migration = migration;
         this.metadata = metadata;
         this.descriptor = descriptor;
         this.saver = saver;
@@ -66,8 +67,7 @@ public class GroupPropagator {
             .orElseThrow(() -> new PathDomainException(AppErrorCode.GROUP_NOT_FOUND, groupId));
 
         List<Member> members = members(group, project, location -> {
-            String module = location.entry().module();
-            String body = module == null ? sharedBody : sharedBody.replace(MODULE_PLACEHOLDER, module);
+            String body = BodyPlaceholders.resolve(sharedBody, location.provider(), location.entry().module());
             ArtifactSaver.SaveResult saved = saver.saveInstance(location, body, overwrite);
             return new Written(saved.written(), saved.diff(), saved.backup() == null ? List.of() : List.of(saved.backup()));
         });
@@ -106,10 +106,14 @@ public class GroupPropagator {
     private record Written(boolean written, String diff, List<Path> backups) {}
 
     private List<Member> members(GroupRecord group, Path project, Function<ArtifactLocation, Written> write) {
-        return metadata.artifactsOfGroup(group.id()).stream()
+        List<Member> members = new java.util.ArrayList<>(metadata.artifactsOfGroup(group.id()).stream()
             .sorted(Comparator.comparing(ArtifactRecord::path))
             .map(r -> propagateTo(group, r, project, write))
-            .toList();
+            .toList());
+        // Los legacy son personalizados (DEC-013): no se tocan, solo se informan
+        migration.legacyOf(group, project).forEach(l ->
+            members.add(skipped(l.path(), l.provider(), l.entry().module(), Outcome.CUSTOM)));
+        return members;
     }
 
     private Member propagateTo(GroupRecord group, ArtifactRecord record, Path project, Function<ArtifactLocation, Written> write) {

@@ -10,11 +10,13 @@ import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
 import es.vargontoc.agentic.develop.cli.application.CreateModule;
 import es.vargontoc.agentic.develop.cli.application.GroupPropagator;
 import es.vargontoc.agentic.develop.cli.application.InitProject;
+import es.vargontoc.agentic.develop.cli.application.MigrationService;
 import es.vargontoc.agentic.develop.cli.application.ProjectTreeBuilder;
 import es.vargontoc.agentic.develop.cli.application.ProjectWorkspace;
 import es.vargontoc.agentic.develop.cli.application.StatusService;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactCatalog;
+import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
 import es.vargontoc.agentic.develop.cli.infrastructure.files.TextStore;
 import es.vargontoc.agentic.develop.cli.infrastructure.metadata.MetadataStore;
 import es.vargontoc.agentic.develop.cli.infrastructure.paths.PathResolver;
@@ -36,6 +38,7 @@ public record Services(
         ArtifactDescriptor descriptor,
         ArtifactSaver saver,
         GroupPropagator propagator,
+        MigrationService migration,
         ConfigureProvider configureProvider,
         CreateModule createModule) {
 
@@ -44,6 +47,7 @@ public record Services(
     }
 
     public static Services of(PathResolver paths) {
+        TargetOs targetOs = paths.os() == PathResolver.Os.WINDOWS ? TargetOs.WINDOWS : TargetOs.LINUX;
         Path appHome = paths.appHome();
         Path backups = appHome.resolve("backups");
 
@@ -55,6 +59,7 @@ public record Services(
         ArtifactInventory inventory = new ArtifactInventory(paths, artifacts, metadata, backups);
         ArtifactDescriptor descriptor = new ArtifactDescriptor(paths, artifacts, inventory, metadata, workspace, backups);
         ArtifactSaver saver = new ArtifactSaver(paths, inventory, metadata, backups);
+        MigrationService migration = new MigrationService(paths, inventory, workspace, metadata, saver);
 
         return new Services(paths, providers, artifacts, workspace,
             new InitProject(paths, workspace),
@@ -62,8 +67,9 @@ public record Services(
             new ProjectTreeBuilder(providers, inventory, workspace),
             descriptor,
             saver,
-            new GroupPropagator(metadata, descriptor, saver),
-            new ConfigureProvider(),
-            new CreateModule());
+            new GroupPropagator(metadata, descriptor, saver, migration),
+            migration,
+            new ConfigureProvider(targetOs),
+            new CreateModule(targetOs, paths, artifacts, inventory, metadata, backups));
     }
 }

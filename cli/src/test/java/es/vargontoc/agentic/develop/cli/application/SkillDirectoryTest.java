@@ -57,7 +57,8 @@ class SkillDirectoryTest {
         inventory = new ArtifactInventory(paths, catalog, metadata, backups);
         descriptor = new ArtifactDescriptor(paths, catalog, inventory, metadata, new ProjectWorkspace(paths, backups), backups);
         saver = new ArtifactSaver(paths, inventory, metadata, backups);
-        propagator = new GroupPropagator(metadata, descriptor, saver);
+        propagator = new GroupPropagator(metadata, descriptor, saver,
+            new MigrationService(paths, inventory, new ProjectWorkspace(paths, backups), metadata, saver));
     }
 
     private Path skill(ProviderType provider, String... filesAndContents) throws IOException {

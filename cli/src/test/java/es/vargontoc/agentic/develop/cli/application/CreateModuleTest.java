@@ -18,9 +18,17 @@ import org.junit.jupiter.api.io.TempDir;
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.Technician;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
+import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
+import es.vargontoc.agentic.develop.cli.domain.metadata.ContentHash;
+import es.vargontoc.agentic.develop.cli.domain.metadata.GroupRecord;
+import es.vargontoc.agentic.develop.cli.domain.metadata.LinkState;
+import es.vargontoc.agentic.develop.cli.infrastructure.files.TextStore;
+import es.vargontoc.agentic.develop.cli.infrastructure.metadata.MetadataStore;
 import es.vargontoc.agentic.develop.cli.infrastructure.paths.PathResolver;
+import es.vargontoc.agentic.develop.cli.infrastructure.resources.ResourceArtifactCatalog;
 import es.vargontoc.agentic.develop.cli.support.Console;
 
 class CreateModuleTest {
@@ -29,14 +37,22 @@ class CreateModuleTest {
     Path tmp;
 
     Path project;
-    final CreateModule createModule = new CreateModule();
+    PathResolver paths;
+    MetadataStore metadata;
+    CreateModule createModule;
     final List<Provider> claude = List.of(new Provider(ProviderType.CLAUDE, Path.of("ignorado")));
 
     @BeforeEach
     void setUp() throws IOException {
         project = Files.createDirectories(tmp.resolve("proyecto"));
-        PathResolver paths = new PathResolver(Map.of("HOME", tmp.toString()), PathResolver.Os.LINUX);
-        new ProjectWorkspace(paths, tmp.resolve("backups")).initialize(project);
+        paths = new PathResolver(Map.of("HOME", tmp.toString()), PathResolver.Os.LINUX);
+        Path backups = tmp.resolve("backups");
+        new ProjectWorkspace(paths, backups).initialize(project);
+
+        var catalog = new ResourceArtifactCatalog();
+        metadata = new MetadataStore(tmp.resolve("app-home/metadata.json"), new TextStore(paths, List.of(tmp), backups));
+        var inventory = new ArtifactInventory(paths, catalog, metadata, backups);
+        createModule = new CreateModule(TargetOs.LINUX, paths, catalog, inventory, metadata, backups);
     }
 
     private static void assertInvalid(AppErrorCode expected, String name, CreateModule createModule) {
@@ -134,5 +150,85 @@ class CreateModuleTest {
 
         assertTrue(result.warnings().stream().anyMatch(w -> w.contains("team.md")));
         assertTrue(Files.isRegularFile(project.resolve(".claude/agents/analista-alfa.md")));
+    }
+
+    @Test
+    void generatedArtifactsAreRegisteredWithGroupHashAndLinkedState() throws IOException {
+        createModule.execute(project, "alfa", List.of(Technician.ANALYST), claude);
+
+        Path specialist = project.resolve(".claude/agents/analista-alfa.md").toAbsolutePath().normalize();
+        var record = metadata.artifact(specialist).orElseThrow();
+        assertEquals("project/specialist/analista", record.groupId());
+        assertEquals(LinkState.LINKED, record.state());
+        assertEquals(ContentHash.of(Files.readString(specialist)), record.hash());
+        assertTrue(metadata.artifact(project.resolve(".claude/agents/analista-router.md").toAbsolutePath().normalize()).isPresent());
+        assertEquals("project/skill/team-changes",
+            metadata.artifact(project.resolve(".claude/skills/team-changes").toAbsolutePath().normalize()).orElseThrow().groupId());
+        // El cuerpo compartido conserva los placeholders sin resolver
+        assertTrue(metadata.group("project/specialist/analista").orElseThrow().sharedBody().contains("{module}"));
+    }
+
+    @Test
+    void aNewModuleUsesTheSharedBodyOfTheGroupWhenItExists() throws IOException {
+        createModule.execute(project, "alfa", List.of(Technician.ANALYST), claude);
+        metadata.putGroup(new GroupRecord("project/specialist/analista", ArtifactScope.PROJECT,
+            "Cuerpo personalizado de {module} en {slug-provider}.\n"));
+
+        createModule.execute(project, "beta", List.of(Technician.ANALYST), claude);
+
+        String beta = Files.readString(project.resolve(".claude/agents/analista-beta.md"));
+        assertTrue(beta.endsWith("Cuerpo personalizado de beta en .claude.\n"));
+        assertTrue(beta.contains("name: analista-beta"));
+        // El módulo anterior no cambia
+        assertFalse(Files.readString(project.resolve(".claude/agents/analista-alfa.md")).contains("personalizado"));
+    }
+
+    @Test
+    void anInvalidNameOrProjectCreatesNothing() throws IOException {
+        long before;
+        try(var files = Files.walk(project)) {
+            before = files.count();
+        }
+
+        assertEquals(AppErrorCode.MODULE_NAME_RESERVED, assertThrows(DomainException.class,
+            () -> createModule.execute(project, "router", List.of(Technician.ANALYST), claude)).code());
+        assertEquals(AppErrorCode.PROJECT_PATH_NOT_FOUND, assertThrows(DomainException.class,
+            () -> createModule.execute(tmp.resolve("no-existe"), "alfa", List.of(Technician.ANALYST), claude)).code());
+
+        try(var files = Files.walk(project)) {
+            assertEquals(before, files.count());
+        }
+        assertFalse(Files.exists(project.resolve(".claude")));
+        assertTrue(metadata.snapshot().artifacts().isEmpty());
+    }
+
+    @Test
+    void aFailureInTheMiddleReturnsAPartialResultInsteadOfThrowing() throws IOException {
+        // .claude/agents es un fichero: no se pueden generar agentes, pero el registro y las skills sí
+        Files.createDirectories(project.resolve(".claude"));
+        Files.writeString(project.resolve(".claude/agents"), "no soy una carpeta");
+
+        OperationResult result = createModule.execute(project, "alfa", List.of(Technician.ANALYST), claude);
+
+        assertTrue(result.created().stream().anyMatch(c -> c.contains("team.md")));
+        assertTrue(result.created().stream().anyMatch(c -> c.contains("skills")));
+        assertFalse(result.warnings().isEmpty());
+        assertTrue(result.warnings().stream().anyMatch(w -> w.contains("analista-alfa.md")));
+        assertTrue(Files.readString(project.resolve(".sdd/team.md")).contains("- alfa | - | -"));
+    }
+
+    @Test
+    void theTeamFileKeepsItsLineEndingsAndKeepsABackup() throws IOException {
+        Path team = project.resolve(".sdd/team.md");
+        Files.writeString(team, Files.readString(team).replace("\r\n", "\n").replace("\n", "\r\n"));
+
+        createModule.execute(project, "alfa", List.of(Technician.ANALYST), claude);
+
+        String content = Files.readString(team);
+        assertTrue(content.contains("- alfa | - | -"));
+        assertFalse(content.replace("\r\n", "").contains("\n"));
+        try(var backups = Files.list(tmp.resolve("backups"))) {
+            assertTrue(backups.anyMatch(b -> b.getFileName().toString().endsWith("team.md.bak")));
+        }
     }
 }

@@ -43,6 +43,16 @@ public enum ProviderType {
         return projectDir;
     }
 
+    /** Carpeta global del proveedor relativa al home del usuario, con {@code /} (la que usan los hooks de las cabeceras). */
+    public String globalDirName() {
+        return switch(this) {
+            case CLAUDE -> ".claude";
+            case CODEX -> ".codex";
+            case GEMINI -> ".gemini/config";
+            case OPENCODE -> ".config/opencode";
+        };
+    }
+
     public boolean supportsProject() {
         return projectDir != null;
     }

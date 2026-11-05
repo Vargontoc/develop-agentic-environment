@@ -55,7 +55,9 @@ class GroupPropagatorTest {
         metadata = new MetadataStore(appHome.resolve("metadata.json"), new TextStore(paths, List.of(appHome), backups));
         var inventory = new ArtifactInventory(paths, catalog, metadata, backups);
         var descriptor = new ArtifactDescriptor(paths, catalog, inventory, metadata, new ProjectWorkspace(paths, backups), backups);
-        propagator = new GroupPropagator(metadata, descriptor, new ArtifactSaver(paths, inventory, metadata, backups));
+        var workspace = new ProjectWorkspace(paths, backups);
+        var saver = new ArtifactSaver(paths, inventory, metadata, backups);
+        propagator = new GroupPropagator(metadata, descriptor, saver, new MigrationService(paths, inventory, workspace, metadata, saver));
     }
 
     private Path file(Path path, String content) throws IOException {

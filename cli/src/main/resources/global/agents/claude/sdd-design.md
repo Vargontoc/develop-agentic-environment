@@ -10,8 +10,8 @@ hooks:
     - matcher: "Edit|Write"
       hooks:
         - type: command
-          shell: powershell
-          command: '& "$env:USERPROFILE\.claude\hooks\sdd-specs-only.bat" specs; exit $LASTEXITCODE'
+          shell: {shell}
+          command: '{hook:sdd-specs-only specs}'
 model: claude-sonnet-5-5
 omitClaudeMd: true
 ---

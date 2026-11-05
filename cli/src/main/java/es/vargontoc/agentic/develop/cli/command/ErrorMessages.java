@@ -34,6 +34,8 @@ final class ErrorMessages {
             case TEXT_WRITE_FAILED -> "No se pudo escribir el fichero";
             case ARTIFACT_CONFLICT -> "El artefacto ha cambiado fuera de la aplicación; confirma para sobrescribirlo";
             case GROUP_NOT_FOUND -> "El grupo de artefactos no existe";
+            case ARTIFACT_NOT_LEGACY -> "El artefacto ya está vinculado a un grupo";
+            case HEADER_MARKER_INVALID -> "Un recurso de la aplicación tiene un marcador de cabecera no válido";
         };
     }
 }

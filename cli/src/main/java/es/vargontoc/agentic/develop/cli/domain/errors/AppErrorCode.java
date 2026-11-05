@@ -33,7 +33,9 @@ public enum AppErrorCode implements ErrorCode {
     TEXT_READ_FAILED("internal.text.read", ErrorCategory.INTERNAL, List.of()),
     TEXT_WRITE_FAILED("internal.text.write", ErrorCategory.INTERNAL, List.of()),
     ARTIFACT_CONFLICT("conflict.artifact.modified_externally", ErrorCategory.CONFLICT, List.of()),
-    GROUP_NOT_FOUND("not_found.group", ErrorCategory.NOT_FOUND, List.of());
+    GROUP_NOT_FOUND("not_found.group", ErrorCategory.NOT_FOUND, List.of()),
+    ARTIFACT_NOT_LEGACY("conflict.artifact.already_tracked", ErrorCategory.CONFLICT, List.of()),
+    HEADER_MARKER_INVALID("internal.resource.header_marker", ErrorCategory.INTERNAL, List.of());
 
     private final String value;
     private final ErrorCategory category;

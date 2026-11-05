@@ -12,7 +12,10 @@ import org.slf4j.LoggerFactory;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
+import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
+import es.vargontoc.agentic.develop.cli.domain.format.HeaderMarkers;
+import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
 import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResources;
 
 /**
@@ -29,6 +32,17 @@ public class ConfigureProvider {
     private static final String TEMPLATES_RESOURCE = "/global/agents/shared";
     private static final String PROFILES_RESOURCE = "/global/profiles";
     private static final String CODEX_PROFILE = "sdd.config.toml";
+
+    private final TargetOs os;
+
+    public ConfigureProvider() {
+        this(TargetOs.current());
+    }
+
+    /** @param os sistema para el que se generan las cabeceras (DEC-012) */
+    public ConfigureProvider(TargetOs os) {
+        this.os = os;
+    }
 
     public OperationResult execute(Provider provider, boolean global) {
         OperationResult result = new OperationResult();
@@ -68,6 +82,12 @@ public class ConfigureProvider {
             String agent = body == null ? null : readResource(agentsResource + "/" + fileName, result);
             if(agent == null)
                 continue;
+            try {
+                agent = HeaderMarkers.render(agent, os, type);
+            } catch(DomainException e) {
+                fail(result, "Resource '" + agentsResource + "/" + fileName + "' has an invalid header marker", e);
+                continue;
+            }
 
             Path temp = Files.createTempFile("agent-", ".md");
             try {

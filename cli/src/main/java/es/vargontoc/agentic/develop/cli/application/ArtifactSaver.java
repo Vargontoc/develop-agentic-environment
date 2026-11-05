@@ -167,6 +167,32 @@ public class ArtifactSaver {
         return true;
     }
 
+    /** Cuerpo lógico actual de un agente (sin cabecera); el contenido completo si no tiene formato. */
+    public String currentBody(ArtifactLocation location) {
+        Path path = location.path();
+        try {
+            String content = new TextStore(paths, List.of(location.root()), backupRoot).read(path).content();
+            return location.entry().format() == null ? content : location.entry().format().split(content).body();
+        } catch(PathDomainException e) {
+            throw e;
+        } catch(DomainException e) {
+            throw new PathDomainException(e.code(), path, e);
+        }
+    }
+
+    /** Contenido actual de un fichero de una skill, o vacío si aún no existe. */
+    public String currentFile(ArtifactLocation skill, String relative) {
+        Path dir = skill.path();
+        try {
+            Path target = fileInside(dir, relative);
+            return Files.isRegularFile(target) ? new TextStore(paths, List.of(dir), backupRoot).read(target).content() : "";
+        } catch(PathDomainException e) {
+            throw e;
+        } catch(DomainException e) {
+            throw new PathDomainException(e.code(), dir, e);
+        }
+    }
+
     private static String compose(CatalogEntry entry, String current, String newBody) {
         ArtifactParts parts = entry.format().split(current);
         return entry.format().compose(parts.withBody(newBody));

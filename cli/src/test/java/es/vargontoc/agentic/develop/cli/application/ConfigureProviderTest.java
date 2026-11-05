@@ -1,6 +1,7 @@
 package es.vargontoc.agentic.develop.cli.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -14,6 +15,7 @@ import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactParts;
+import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
 import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResources;
 import es.vargontoc.agentic.develop.cli.support.Console;
 
@@ -71,6 +73,27 @@ class ConfigureProviderTest {
         ArtifactParts parts = ArtifactFormat.CODEX_TOML.split(toml);
         String expectedBody = ClasspathResources.readText("/global/agents/shared/sdd-agent-body.md").orElseThrow();
         assertEquals(expectedBody, parts.body());
+    }
+
+    @Test
+    void theSameCatalogEntryGetsTheHeaderOfEachTargetSystem() throws IOException {
+        Provider forWindows = new Provider(ProviderType.CLAUDE, Files.createDirectories(tmp.resolve("win")));
+        Provider forLinux = new Provider(ProviderType.CLAUDE, Files.createDirectories(tmp.resolve("lin")));
+
+        assertTrue(new ConfigureProvider(TargetOs.WINDOWS).execute(forWindows, true).warnings().isEmpty());
+        assertTrue(new ConfigureProvider(TargetOs.LINUX).execute(forLinux, true).warnings().isEmpty());
+
+        for(String agent : new String[] {"sdd-agent", "sdd-design", "sdd-requirements", "sdd-tasklist"}) {
+            String win = Files.readString(forWindows.getPath().resolve("agents/" + agent + ".md"));
+            String lin = Files.readString(forLinux.getPath().resolve("agents/" + agent + ".md"));
+            assertTrue(win.contains("shell: powershell"), agent);
+            assertTrue(win.contains("$env:USERPROFILE"), agent);
+            assertTrue(lin.contains("shell: bash"), agent);
+            assertTrue(lin.contains("\"$HOME/.claude/hooks/sdd-specs-only.sh\" specs"), agent);
+            assertFalse(lin.toLowerCase().contains("powershell"), agent);
+            assertFalse(lin.contains("USERPROFILE"), agent);
+            assertFalse(lin.contains("{shell}") || lin.contains("{hook:"), agent);
+        }
     }
 
     @Test

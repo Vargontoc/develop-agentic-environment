@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
@@ -14,6 +15,7 @@ import es.vargontoc.agentic.develop.cli.domain.artifact.InstalledArtifact;
 import es.vargontoc.agentic.develop.cli.domain.diff.TextDiff;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.PathDomainException;
+import es.vargontoc.agentic.develop.cli.domain.format.BodyPlaceholders;
 import es.vargontoc.agentic.develop.cli.domain.metadata.ArtifactRecord;
 import es.vargontoc.agentic.develop.cli.domain.metadata.GroupIds;
 import es.vargontoc.agentic.develop.cli.domain.metadata.GroupRecord;
@@ -88,11 +90,10 @@ public class MigrationService {
         Path path = location.path();
         requireLegacy(location);
 
-        String module = location.entry().module();
-        String body = module == null ? group.sharedBody() : group.sharedBody().replace(GroupPropagator.MODULE_PLACEHOLDER, module);
+        String body = BodyPlaceholders.resolve(group.sharedBody(), location.provider(), location.entry().module());
 
         if(!confirm) {
-            String current = new ArtifactDescriptor.Reader(paths).body(location);
+            String current = saver.currentBody(location);
             return new Adoption(path, groupId, false, TextDiff.between(current, body), null);
         }
 
@@ -108,9 +109,8 @@ public class MigrationService {
 
         if(!confirm) {
             StringBuilder preview = new StringBuilder();
-            for(var file : new java.util.TreeMap<>(files).entrySet()) {
-                Path target = location.path().resolve(file.getKey()).normalize();
-                String current = java.nio.file.Files.isRegularFile(target) ? read(target) : "";
+            for(var file : new TreeMap<>(files).entrySet()) {
+                String current = saver.currentFile(location, file.getKey());
                 if(!preview.isEmpty())
                     preview.append('\n');
                 preview.append("@@ ").append(file.getKey());
@@ -124,7 +124,7 @@ public class MigrationService {
         ArtifactSaver.SkillSaveResult saved = saver.saveSkillFiles(location, files, true);
         register(location, groupId, group);
         StringBuilder diff = new StringBuilder();
-        new java.util.TreeMap<>(saved.diffs()).forEach((file, d) -> {
+        new TreeMap<>(saved.diffs()).forEach((file, d) -> {
             if(!diff.isEmpty())
                 diff.append('\n');
             diff.append("@@ ").append(file);
@@ -162,13 +162,5 @@ public class MigrationService {
     private void register(ArtifactLocation location, String groupId, GroupRecord group) {
         InstalledArtifact now = inventory.inspect(location.entry(), location.root());
         metadata.putArtifactHash(location.path(), groupId, now.hash(), LinkState.LINKED);
-    }
-
-    private String read(Path file) {
-        return new ArtifactDescriptor.Reader(paths).text(file, location0(file));
-    }
-
-    private static Path location0(Path file) {
-        return file.getParent();
     }
 }
