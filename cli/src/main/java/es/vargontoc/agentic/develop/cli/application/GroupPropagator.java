@@ -63,17 +63,25 @@ public class GroupPropagator {
      * @param overwrite sobrescribe también los artefactos con cambios externos (se conserva copia de cada uno)
      */
     public Result propagate(String groupId, String sharedBody, Path project, boolean overwrite) {
+        return propagate(groupId, sharedBody, project, overwrite, false);
+    }
+
+    /**
+     * @param dryRun solo calcula: devuelve los miembros, sus diffs y sus conflictos sin escribir nada ni cambiar el
+     *               cuerpo compartido del grupo; {@code UPDATED} significa «se actualizaría» y no hay copias
+     */
+    public Result propagate(String groupId, String sharedBody, Path project, boolean overwrite, boolean dryRun) {
         GroupRecord group = metadata.group(groupId)
             .orElseThrow(() -> new PathDomainException(AppErrorCode.GROUP_NOT_FOUND, groupId));
 
         List<Member> members = members(group, project, location -> {
             String body = BodyPlaceholders.resolve(sharedBody, location.provider(), location.entry().module());
-            ArtifactSaver.SaveResult saved = saver.saveInstance(location, body, overwrite);
+            ArtifactSaver.SaveResult saved = saver.saveInstance(location, body, overwrite, dryRun);
             return new Written(saved.written(), saved.diff(), saved.backup() == null ? List.of() : List.of(saved.backup()));
         });
 
         boolean groupUpdated = !sharedBody.equals(group.sharedBody());
-        if(groupUpdated)
+        if(groupUpdated && !dryRun)
             metadata.putGroup(new GroupRecord(group.id(), group.scope(), sharedBody));
         return new Result(groupId, members, groupUpdated);
     }
@@ -85,11 +93,16 @@ public class GroupPropagator {
      * @param files ruta relativa a la skill (con {@code /}) y su nuevo contenido
      */
     public Result propagateFiles(String groupId, Map<String, String> files, Path project, boolean overwrite) {
+        return propagateFiles(groupId, files, project, overwrite, false);
+    }
+
+    /** @param dryRun igual que en {@link #propagate(String, String, Path, boolean, boolean)} */
+    public Result propagateFiles(String groupId, Map<String, String> files, Path project, boolean overwrite, boolean dryRun) {
         GroupRecord group = metadata.group(groupId)
             .orElseThrow(() -> new PathDomainException(AppErrorCode.GROUP_NOT_FOUND, groupId));
 
         List<Member> members = members(group, project, location -> {
-            ArtifactSaver.SkillSaveResult saved = saver.saveSkillFiles(location, files, overwrite);
+            ArtifactSaver.SkillSaveResult saved = saver.saveSkillFiles(location, files, overwrite, dryRun);
             StringBuilder diff = new StringBuilder();
             new TreeMap<>(saved.diffs()).forEach((file, d) -> {
                 if(!diff.isEmpty())

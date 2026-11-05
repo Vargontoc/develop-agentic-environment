@@ -62,6 +62,23 @@ public class ArtifactSaver {
      * @param overwrite confirma que se sobrescriba aunque haya cambios externos
      */
     public SaveResult saveInstance(ArtifactLocation location, String newBody, boolean overwrite) {
+        return saveParts(location, null, newBody, overwrite, false);
+    }
+
+    /** Como {@link #saveInstance(ArtifactLocation, String, boolean)}; con {@code dryRun} no escribe nada (ver {@link #saveParts}). */
+    public SaveResult saveInstance(ArtifactLocation location, String newBody, boolean overwrite, boolean dryRun) {
+        return saveParts(location, null, newBody, overwrite, dryRun);
+    }
+
+    /**
+     * Guarda la cabecera, el cuerpo o ambos de un agente; lo que sea null se conserva tal cual. Una cabecera que no
+     * respete el formato del agente, o que se tragara el cuerpo al volver a leerlo, se rechaza con
+     * {@code ARTIFACT_FORMAT_INVALID} sin escribir nada. Los conflictos por cambios externos se comprueban igual.
+     *
+     * @param dryRun solo calcula: no escribe ni toca los metadatos, {@code written} indica si habría cambios y
+     *               {@code backup} es null
+     */
+    public SaveResult saveParts(ArtifactLocation location, String newHeader, String newBody, boolean overwrite, boolean dryRun) {
         CatalogEntry entry = location.entry();
         Path path = location.path();
         try {
@@ -74,7 +91,14 @@ public class ArtifactSaver {
 
             TextStore text = new TextStore(paths, List.of(location.root()), backupRoot);
             String current = text.read(path).content();
-            String composed = entry.format() == null ? newBody : compose(entry, current, newBody);
+            if(newHeader != null && entry.format() == null)
+                throw new DomainException(AppErrorCode.ARTIFACT_KIND_MISMATCH);
+            String composed = entry.format() == null ? newBody : compose(entry, current, newHeader, newBody);
+
+            if(dryRun) {
+                String preview = TextDiff.between(current, composed);
+                return new SaveResult(path, !preview.isEmpty(), null, metadata.artifact(path).isPresent(), preview);
+            }
 
             TextStore.WriteResult result = text.write(path, composed);
             String diff = result.written() ? TextDiff.between(current, composed) : "";
@@ -96,6 +120,12 @@ public class ArtifactSaver {
      * @param overwrite confirma que se sobrescriba aunque la skill tenga cambios externos
      */
     public SkillSaveResult saveSkillFiles(ArtifactLocation location, Map<String, String> files, boolean overwrite) {
+        return saveSkillFiles(location, files, overwrite, false);
+    }
+
+    /** @param dryRun solo calcula los diffs: no escribe ni toca los metadatos; {@code written} indica si habría cambios */
+    public SkillSaveResult saveSkillFiles(ArtifactLocation location, Map<String, String> files, boolean overwrite,
+                                          boolean dryRun) {
         CatalogEntry entry = location.entry();
         Path skill = location.path();
         try {
@@ -123,6 +153,12 @@ public class ArtifactSaver {
             List<Path> backups = new ArrayList<>();
             for(Map.Entry<Path, String> target : targets.entrySet()) {
                 String current = Files.exists(target.getKey()) ? text.read(target.getKey()).content() : "";
+                if(dryRun) {
+                    String preview = TextDiff.between(current, target.getValue());
+                    if(!preview.isEmpty() || !Files.exists(target.getKey()))
+                        diffs.put(names.get(target.getKey()), preview);
+                    continue;
+                }
                 TextStore.WriteResult result = text.write(target.getKey(), target.getValue());
                 if(!result.written())
                     continue;
@@ -132,7 +168,8 @@ public class ArtifactSaver {
             }
 
             boolean written = !diffs.isEmpty();
-            boolean tracked = syncDirectoryRecord(location, written || overwrite);
+            boolean tracked = dryRun ? metadata.artifact(location.path()).isPresent()
+                : syncDirectoryRecord(location, written || overwrite);
             return new SkillSaveResult(skill, written, List.copyOf(backups), tracked, diffs);
         } catch(PathDomainException e) {
             throw e;
@@ -193,9 +230,16 @@ public class ArtifactSaver {
         }
     }
 
-    private static String compose(CatalogEntry entry, String current, String newBody) {
+    private static String compose(CatalogEntry entry, String current, String newHeader, String newBody) {
         ArtifactParts parts = entry.format().split(current);
-        return entry.format().compose(parts.withBody(newBody));
+        ArtifactParts next = new ArtifactParts(newHeader != null ? newHeader : parts.header(),
+            newBody != null ? newBody : parts.body(), parts.suffix());
+        String composed = entry.format().compose(next);
+
+        // Una cabecera editada debe volver a leerse como cabecera y dejar el cuerpo exactamente como estaba
+        if(newHeader != null && !entry.format().split(composed).body().equals(next.body()))
+            throw new DomainException(AppErrorCode.ARTIFACT_FORMAT_INVALID);
+        return composed;
     }
 
     // El registro sigue al contenido en disco; un artefacto legacy no tiene registro y se queda como está

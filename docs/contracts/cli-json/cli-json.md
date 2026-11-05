@@ -155,6 +155,32 @@ ni `team.md`. Lo que ya existe se omite. Idempotente.
 
 `data`: la misma forma que `create-module`. Error propio: `not_found.module`.
 
+### `catalog`
+
+Solo lee. Lo que se puede crear con `create-artifact` y su plantilla compuesta, para que un cliente pueda mostrar la
+plantilla editable antes de escribir nada.
+
+| Opción | Obligatoria | Descripción |
+|---|---|---|
+| `--provider` | sí | Proveedor. |
+| `--scope` | sí | `global` o `project`. |
+| `--kind` | sí | `agent` o `skill`. |
+| `--name` | no | Nombre de una entrada: devuelve solo esa, con su plantilla. |
+| `--project` | no | Necesaria con `--scope project`. |
+
+`data`: `{"provider","scope","kind","entries":[Entrada]}`.
+`Entrada`: `{"name","relativePath","path","module"|null,"technician"|null,"exists","template"|null}`.
+`relativePath` es relativa a la carpeta del proveedor; `path` es la ruta absoluta donde se crearía; `exists` indica si
+ya hay algo en esa ruta. Sin `--name`, `template` es `null`. Con `--name`, `template` es
+`{"header"|null,"body"|null,"content"|null,"files":[{"path","content"|null}]}`:
+- agente: `header` y `body` ya con el sistema operativo y los placeholders de módulo resueltos, y `content` con el texto
+  completo, idéntico al que escribiría `create-artifact` sin contenido; `files` vacío;
+- skill: `files` con los ficheros que se copiarían (`content` es `null` si no es texto UTF-8) y el resto a `null`.
+
+Los proyectos solo ofrecen especialistas de los módulos registrados en `.sdd/team.md`.
+Errores: `validation.artifact.not_catalogued`, `validation.artifact.scope_unsupported`, `validation.provider.unknown`,
+`validation.module.no_project`.
+
 ### `create-artifact`
 
 Crea un agente o una skill del catálogo a partir de su plantilla.
@@ -179,21 +205,66 @@ Guarda el contenido de un artefacto o lo propaga a su grupo.
 | Opción | Obligatoria | Descripción |
 |---|---|---|
 | `--path` | sí | Ruta del agente o de la skill. |
-| `--content-file` / `--stdin` | sí (una) | Contenido nuevo; excluyentes. |
+| `--content-file` / `--stdin` | sí (una), salvo que se indique cabecera | Contenido nuevo; excluyentes. |
+| `--header-file` / `--header-stdin` | no | Cabecera nueva de un agente, que sustituye a la actual conservando el cuerpo; excluyentes. Solo con `--mode instance`. No se pueden usar `--stdin` y `--header-stdin` a la vez. |
 | `--mode` | no | `instance` (por defecto) o `group`. |
 | `--file` | no | Solo skills: fichero de la skill que se guarda (por defecto `SKILL.md`). |
 | `--project` | no | Proyecto, para artefactos de proyecto. |
 | `--overwrite` | no | Sobrescribe aunque haya cambios externos (se conserva copia). |
+| `--dry-run` | no | Devuelve miembros, diffs y conflictos sin escribir nada. |
 
-`data`: `{"mode","path","groupId"|null,"written","tracked","groupUpdated","diff","backups":[ruta],"members":[Miembro]}`.
+`data`: `{"mode","dryRun","path","groupId"|null,"written","tracked","groupUpdated","diff","backups":[ruta],"members":[Miembro]}`.
 `Miembro`: `{"path","provider"|null,"module"|null,"outcome","diff","backups":[ruta]}`.
 `outcome`: `updated`, `unchanged`, `conflict`, `detached`, `custom`, `missing`, `out_of_scope`, `failed`.
 En `instance`, `members` está vacío y `diff` lleva el cambio (`-`/`+` por línea; en skills, `@@ <fichero>` antes de cada
 fichero). En `group`, `written` indica si algún miembro cambió y cada miembro lleva su `diff`. La propagación nunca
 crea artefactos ausentes ni cruza de ámbito; los miembros en conflicto se omiten sin error global. Un guardado sin
 cambios no escribe nada.
+
+Cabecera: la cabecera es propia de cada proveedor, así que solo se edita en una instancia. Debe seguir el formato del
+agente (Markdown: frontmatter entre `---`; Codex: la cabecera TOML) y volver a leerse dejando el cuerpo intacto; si no,
+`validation.artifact.format_invalid` y no se escribe nada. El registro de hash se actualiza como en cualquier guardado.
+Con cabecera y contenido a la vez se guardan los dos; con solo cabecera el cuerpo no cambia. No vale para skills.
+
+Simulación (`--dry-run`): hace los mismos cálculos y comprobaciones sin escribir ficheros, copias ni metadatos.
+`dryRun` es `true`; `written` significa «habría cambios»; `diff` es el que se escribiría; `backups` está vacío; en
+`group` cada miembro lleva su `outcome` (`updated` = se actualizaría, `conflict`, `missing`, `custom`…) y su `diff`, y
+`groupUpdated` indica si cambiaría el cuerpo compartido. Una instancia en conflicto devuelve el mismo error que sin
+`--dry-run`. Lo simulado coincide con lo que escribe la misma orden sin `--dry-run`.
+
 Errores: `conflict.artifact.modified_externally` (solo en `instance`), `not_found.group` (`group` sobre un artefacto sin
-registro), `validation.artifact.not_catalogued`, `validation.content.unreadable`.
+registro), `validation.artifact.not_catalogued`, `validation.artifact.format_invalid`, `validation.content.unreadable`.
+
+### `adopt`
+
+Hace que un artefacto **legacy** (sin registro) o **desvinculado** vuelva a su grupo. Sin `--confirm` solo calcula.
+
+| Opción | Obligatoria | Descripción |
+|---|---|---|
+| `--path` | sí | Ruta del agente o de la skill. |
+| `--group` | no | Grupo al que se vincula. Por defecto, el que ya tenía registrado o el que le corresponde por el catálogo. |
+| `--project` | no | Proyecto, para artefactos de proyecto. |
+| `--dry-run` | no | Solo devuelve el diff (es lo que ocurre sin `--confirm`). Incompatible con `--confirm`. |
+| `--confirm` | no | Aplica el cambio: escribe, deja una copia del contenido anterior y registra el artefacto como vinculado. |
+| `--file` | no | Solo skills: fichero al que se aplica el contenido (por defecto `SKILL.md`). |
+| `--content-file` / `--stdin` | no | Solo skills: contenido de ese fichero. |
+
+`data`: `{"path","groupId","dryRun","applied","diff","backup"|null}`. `dryRun` es `true` si no se confirmó; `applied` solo
+es `true` si se escribió algo.
+- **Agente:** su cuerpo pasa a ser el cuerpo compartido del grupo, con el módulo y el proveedor del propio artefacto; el
+  grupo debe existir (`not_found.group`).
+- **Skill:** no tiene cuerpo compartido, así que se vincula tal cual, sin escribir, salvo que se pase contenido para uno de
+  sus ficheros. Si nadie había registrado todavía su grupo, se crea.
+- Un artefacto ya vinculado no se adopta: `conflict.artifact.already_tracked`.
+- Un agente no admite `--file` ni contenido (`usage.unexpected_argument`).
+
+## Lectura de ficheros `.sdd` por un cliente
+
+El CLI no tiene un comando de lectura de `.sdd/project.md`, `.sdd/team.md` ni `.sdd/architecture.md`. Un cliente (el
+visor) puede **leerlos directamente del disco**, siempre en solo lectura. Es una excepción documentada a NFR-006: esos
+ficheros son texto del usuario sin estructura propia del CLI y no tienen metadatos. Toda **escritura** sobre un proyecto
+debe pasar por los comandos de este contrato, que son los que conservan copias y registran los cambios. El formato de
+`team.md` está en el contrato `sdd-team`.
 
 ## Errores
 
@@ -255,4 +326,5 @@ registro), `validation.artifact.not_catalogued`, `validation.content.unreadable`
   `--overwrite`) no sobrescriben nada al repetirse; lo existente se informa como omitido o como conflicto.
 - **Atomicidad y copias:** toda escritura de texto es atómica y, si sustituye contenido, deja una copia en el
   directorio de copias de la aplicación.
-- **Entrada:** solo `save --stdin` y `create-artifact --stdin` leen la entrada estándar, y solo cuando se piden.
+- **Entrada:** solo `save` (`--stdin`, `--header-stdin`), `create-artifact --stdin` y `adopt --stdin` leen la entrada
+  estándar, y solo cuando se piden.

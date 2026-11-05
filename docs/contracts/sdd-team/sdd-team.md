@@ -3,6 +3,14 @@
 Cómo el CLI lee y escribe los módulos de un proyecto. El formato de `team.md` es el actual y no cambia: lo edita el
 usuario y lo amplía la creación de módulos.
 
+## Quién lee y quién escribe
+
+- **Escribe** solo el CLI (`create-module`), con copia de seguridad y conservando los fines de línea; el usuario también
+  puede editarlo a mano.
+- **Lee** el CLI (módulos y técnicos en `status`, `tree`, `create-module`, `add-technician`) y, en solo lectura, un cliente
+  como el visor, que puede abrir `.sdd/team.md`, `.sdd/project.md` y `.sdd/architecture.md` directamente del disco (ver
+  la excepción en el contrato `cli-json`). Un cliente nunca debe escribir en `.sdd`.
+
 ## Sección de módulos
 
 El CLI solo interpreta la sección que empieza en la línea exacta `## Módulos` y termina en la siguiente línea que

@@ -4,7 +4,6 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Supplier;
 
 import es.vargontoc.agentic.develop.cli.Services;
@@ -58,22 +57,22 @@ final class CreateArtifactCommand implements Command {
             OptionSpec.value(KIND, true, "Tipo: agent o skill"),
             OptionSpec.value(NAME, true, "Nombre del artefacto en el catálogo"),
             ProjectOption.spec(false)));
-        options.addAll(ContentInput.specs());
+        options.addAll(input.options());
         options.add(OptionSpec.flag(OVERWRITE, "Sobrescribe un artefacto existente (se conserva una copia)"));
         return options;
     }
 
     @Override
     public Object execute(ParsedArgs args) {
-        ArtifactScope scope = choice(args, SCOPE, ArtifactScope.class);
-        ArtifactKind kind = choice(args, KIND, ArtifactKind.class);
+        ArtifactScope scope = EnumOption.of(args, SCOPE, ArtifactScope.class);
+        ArtifactKind kind = EnumOption.of(args, KIND, ArtifactKind.class);
         if(kind != ArtifactKind.AGENT && kind != ArtifactKind.SKILL)
             throw new UsageException(UsageError.INVALID_VALUE, "--" + KIND + " " + args.required(KIND));
         String name = args.required(NAME);
         String content = input.read(args, false).orElse(null);
 
         Services s = services.get();
-        ProviderType type = provider(args.required(PROVIDER));
+        ProviderType type = EnumOption.provider(args.required(PROVIDER));
         Path project = ProjectOption.resolve(s, args);
 
         CreateArtifact.Created created;
@@ -84,28 +83,7 @@ final class CreateArtifactCommand implements Command {
         } catch(DomainException e) {
             throw new PathDomainException(e.code(), name, e);
         }
-        return new CreatedView(type.id(), id(scope), id(kind), name, Views.text(created.path()), created.replaced(),
+        return new CreatedView(type.id(), EnumOption.id(scope), EnumOption.id(kind), name, Views.text(created.path()), created.replaced(),
             created.custom(), Views.text(created.backup()));
-    }
-
-    private static ProviderType provider(String raw) {
-        try {
-            return ProviderType.fromId(raw);
-        } catch(DomainException e) {
-            throw new PathDomainException(e.code(), raw, e);
-        }
-    }
-
-    private static <E extends Enum<E>> E choice(ParsedArgs args, String option, Class<E> type) {
-        String raw = args.required(option);
-        for(E value : type.getEnumConstants()) {
-            if(id(value).equals(raw))
-                return value;
-        }
-        throw new UsageException(UsageError.INVALID_VALUE, "--" + option + " " + raw);
-    }
-
-    private static String id(Enum<?> value) {
-        return value.name().toLowerCase(Locale.ROOT);
     }
 }

@@ -1,10 +1,18 @@
 package es.vargontoc.agentic.develop.cli.application;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactCatalog;
@@ -90,14 +98,9 @@ public class CreateArtifact {
                 backup = writeSkill(entry, target, exists, content, text);
                 shared = "";
             } else {
-                shared = agentBody(entry, content);
-                String rendered = HeaderMarkers.render(
-                    ClasspathResources.readText(entry.resource()).orElseThrow(() -> missing(entry.resource())), os, type);
-                // Los placeholders solo se resuelven en proyecto y en el contenido de la plantilla (el router no tiene módulo)
-                boolean inProject = scope == ArtifactScope.PROJECT;
-                String header = inProject ? BodyPlaceholders.resolve(rendered, type, entry.module()) : rendered;
-                String body = content != null || !inProject ? shared : BodyPlaceholders.resolve(shared, type, entry.module());
-                backup = text.write(target, entry.format().assemble(header, body)).backup();
+                Composed composed = composeAgent(entry, content);
+                shared = composed.shared();
+                backup = text.write(target, composed.content()).backup();
             }
 
             register(entry, root, shared);
@@ -108,6 +111,98 @@ public class CreateArtifact {
             throw e;
         } catch(DomainException e) {
             throw new PathDomainException(e.code(), target, e);
+        }
+    }
+
+    /** Un agente compuesto: cabecera y cuerpo ya resueltos, el cuerpo compartido sin resolver y el texto completo. */
+    private record Composed(String header, String body, String shared, String content) {}
+
+    /** Un fichero de la plantilla de una skill; {@code content} es null si no es texto UTF-8. */
+    public record TemplateFile(String path, String content) {}
+
+    /**
+     * La plantilla compuesta tal como se escribiría. Un agente lleva cabecera, cuerpo y texto completo; una skill, sus
+     * ficheros.
+     */
+    public record Template(String header, String body, String content, List<TemplateFile> files) {}
+
+    /** Una entrada del catálogo en un proveedor y ámbito; {@code template} solo se rellena al pedir una por su nombre. */
+    public record CatalogItem(CatalogEntry entry, Path path, boolean exists, Template template) {}
+
+    /** Entradas creables (agentes o skills) del proveedor y ámbito, sin plantilla y sin escribir nada. */
+    public List<CatalogItem> catalog(ProviderType type, ArtifactScope scope, ArtifactKind kind, Path project) {
+        Path root = rootOf(type, scope, project, type.id());
+        List<String> modules = scope == ArtifactScope.PROJECT ? workspace.readTeam(project).moduleNames() : List.of();
+        return catalog.entries(type, scope, modules).stream()
+            .filter(e -> e.kind() == kind)
+            .map(e -> new CatalogItem(e, root.resolve(e.relativePath()), Files.exists(root.resolve(e.relativePath())), null))
+            .toList();
+    }
+
+    /** La entrada con su plantilla compuesta, exactamente la que escribiría {@link #execute} sin contenido. */
+    public CatalogItem template(ProviderType type, ArtifactScope scope, ArtifactKind kind, String name, Path project) {
+        Path root = rootOf(type, scope, project, name);
+        CatalogEntry entry = entryOf(type, scope, kind, name, project);
+        Path target = root.resolve(entry.relativePath());
+        try {
+            Template template;
+            if(entry.isDirectory()) {
+                template = new Template(null, null, null, skillFiles(entry));
+            } else {
+                Composed composed = composeAgent(entry, null);
+                template = new Template(composed.header(), composed.body(), composed.content(), List.of());
+            }
+            return new CatalogItem(entry, target, Files.exists(target), template);
+        } catch(IOException e) {
+            throw new PathDomainException(AppErrorCode.RESOURCE_READ_FAILED, entry.resource(), e);
+        } catch(PathDomainException e) {
+            throw e;
+        } catch(DomainException e) {
+            throw new PathDomainException(e.code(), target, e);
+        }
+    }
+
+    // Cabecera del proveedor para el sistema destino + cuerpo (propio, del grupo o de la plantilla)
+    private Composed composeAgent(CatalogEntry entry, String content) throws IOException {
+        ProviderType type = entry.provider();
+        String shared = agentBody(entry, content);
+        String rendered = HeaderMarkers.render(
+            ClasspathResources.readText(entry.resource()).orElseThrow(() -> missing(entry.resource())), os, type);
+        // Los placeholders solo se resuelven en proyecto y en el contenido de la plantilla (el router no tiene módulo)
+        boolean inProject = entry.scope() == ArtifactScope.PROJECT;
+        String header = inProject ? BodyPlaceholders.resolve(rendered, type, entry.module()) : rendered;
+        String body = content != null || !inProject ? shared : BodyPlaceholders.resolve(shared, type, entry.module());
+        return new Composed(header, body, shared, entry.format().assemble(header, body));
+    }
+
+    // Los ficheros que se copiarían al crear la skill, leídos de una copia temporal de la plantilla
+    private static List<TemplateFile> skillFiles(CatalogEntry entry) throws IOException {
+        Path temp = Files.createTempDirectory("agentic-skill-");
+        try {
+            ClasspathResources.copyTreeIfAbsent(entry.resource(), temp).orElseThrow(() -> missing(entry.resource()));
+            if(entry.provider() == ProviderType.CODEX && entry.scope() == ArtifactScope.GLOBAL)
+                copyHelper(temp);
+
+            List<TemplateFile> files = new ArrayList<>();
+            try(Stream<Path> walk = Files.walk(temp)) {
+                for(Path file : walk.filter(Files::isRegularFile).sorted().toList())
+                    files.add(new TemplateFile(temp.relativize(file).toString().replace(File.separatorChar, '/'), text(file)));
+            }
+            return files;
+        } finally {
+            try(Stream<Path> walk = Files.walk(temp)) {
+                for(Path path : walk.sorted(Comparator.reverseOrder()).toList())
+                    Files.deleteIfExists(path);
+            }
+        }
+    }
+
+    private static String text(Path file) throws IOException {
+        try {
+            return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(Files.readAllBytes(file))).toString();
+        } catch(CharacterCodingException e) {
+            return null;
         }
     }
 

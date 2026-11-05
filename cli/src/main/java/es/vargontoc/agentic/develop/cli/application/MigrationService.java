@@ -88,7 +88,7 @@ public class MigrationService {
     public Adoption adopt(ArtifactLocation location, String groupId, boolean confirm) {
         GroupRecord group = group(groupId);
         Path path = location.path();
-        requireLegacy(location);
+        requireAdoptable(location);
 
         String body = BodyPlaceholders.resolve(group.sharedBody(), location.provider(), location.entry().module());
 
@@ -104,8 +104,8 @@ public class MigrationService {
 
     /** Como {@link #adopt} para una skill: adopta los ficheros indicados, sin tocar el resto de la skill. */
     public Adoption adoptSkill(ArtifactLocation location, String groupId, Map<String, String> files, boolean confirm) {
-        GroupRecord group = group(groupId);
-        requireLegacy(location);
+        GroupRecord group = groupForSkill(location, groupId);
+        requireAdoptable(location);
 
         if(!confirm) {
             StringBuilder preview = new StringBuilder();
@@ -153,13 +153,27 @@ public class MigrationService {
         return metadata.group(groupId).orElseThrow(() -> new PathDomainException(AppErrorCode.GROUP_NOT_FOUND, groupId));
     }
 
-    private void requireLegacy(ArtifactLocation location) {
-        if(metadata.artifact(location.path()).isPresent())
+    // Una skill no tiene cuerpo compartido: su grupo puede crearse al adoptarla si nadie lo había registrado aún
+    private GroupRecord groupForSkill(ArtifactLocation location, String groupId) {
+        Optional<GroupRecord> existing = metadata.group(groupId);
+        if(existing.isPresent())
+            return existing.get();
+        if(!groupId.equals(GroupIds.of(location.entry())))
+            throw new PathDomainException(AppErrorCode.GROUP_NOT_FOUND, groupId);
+        return new GroupRecord(groupId, location.scope(), "");
+    }
+
+    // Se puede adoptar lo que no tiene registro (legacy) y lo desvinculado (para volver al grupo); no lo ya vinculado
+    private void requireAdoptable(ArtifactLocation location) {
+        Optional<ArtifactRecord> record = metadata.artifact(location.path());
+        if(record.isPresent() && record.get().state() == LinkState.LINKED)
             throw new PathDomainException(AppErrorCode.ARTIFACT_NOT_LEGACY, location.path());
     }
 
     // Tras adoptar, el artefacto queda registrado con el hash de lo que hay en disco
     private void register(ArtifactLocation location, String groupId, GroupRecord group) {
+        if(metadata.group(groupId).isEmpty())
+            metadata.putGroup(group);
         InstalledArtifact now = inventory.inspect(location.entry(), location.root());
         metadata.putArtifactHash(location.path(), groupId, now.hash(), LinkState.LINKED);
     }

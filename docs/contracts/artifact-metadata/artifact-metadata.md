@@ -62,8 +62,8 @@ Un grupo abarca todos los proveedores que tengan ese artefacto y, para especiali
 | Estado | Significado | Efecto |
 |---|---|---|
 | `LINKED` | Vinculado al grupo. | La propagación lo actualiza. |
-| `DETACHED` | Desvinculado por el usuario. | La propagación lo omite siempre. |
-| *(sin registro)* | **Legacy**: generado antes de existir los metadatos o con el almacén perdido. | Se describe como válido y **personalizado** (`legacy` en `describe`/`tree`); la propagación no lo sobrescribe y lo informa; solo se adopta con confirmación explícita. |
+| `DETACHED` | Desvinculado por el usuario. | La propagación lo omite siempre. Puede volver al grupo con `adopt --confirm`, que sustituye su cuerpo por el compartido (con copia del anterior) y lo deja `LINKED`. |
+| *(sin registro)* | **Legacy**: generado antes de existir los metadatos o con el almacén perdido. | Se describe como válido y **personalizado** (`legacy` en `describe`/`tree`); la propagación no lo sobrescribe y lo informa; solo se adopta con `adopt --confirm` (sin `--confirm` solo se muestra el diff). Al adoptar queda `LINKED` con el hash de lo escrito. |
 
 Un artefacto con registro cuyo hash en disco difiere del registrado está **modificado externamente**: guardar o
 propagar devuelve conflicto y no sobrescribe sin confirmación (se conserva copia).

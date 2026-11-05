@@ -70,8 +70,10 @@ java -jar cli/target/agentic-develop.jar --help
 | `configure-provider` | Instala agentes y skills globales en un proveedor. | `--provider` |
 | `create-module` | Registra un módulo y genera sus agentes y skills. | `--project`, `--module`, `--technicians`, `--providers`, `--dry-run` |
 | `add-technician` | Añade técnicos a un módulo existente. | `--project`, `--module`, `--technicians`, `--providers`, `--dry-run` |
+| `catalog` | Lista lo que se puede crear y devuelve su plantilla compuesta. Solo lee. | `--provider`, `--scope`, `--kind`, `--name` |
 | `create-artifact` | Crea un agente o skill desde su plantilla. | `--provider`, `--scope`, `--kind`, `--name`, `--content-file`/`--stdin`, `--overwrite` |
-| `save` | Guarda el contenido de un artefacto o lo propaga a su grupo. | `--path`, `--content-file`/`--stdin`, `--mode`, `--overwrite` |
+| `save` | Guarda el contenido (o la cabecera) de un artefacto o lo propaga a su grupo. | `--path`, `--content-file`/`--stdin`, `--header-file`/`--header-stdin`, `--mode`, `--overwrite`, `--dry-run` |
+| `adopt` | Vuelve a vincular a su grupo un artefacto legacy o desvinculado. | `--path`, `--group`, `--confirm`, `--dry-run` |
 
 Ejemplos:
 
@@ -85,14 +87,21 @@ java -jar cli/target/agentic-develop.jar init --project C:\proyectos\mi-app
 java -jar cli/target/agentic-develop.jar create-module --project C:\proyectos\mi-app --module facturacion --technicians analista,desarrollador --providers claude --dry-run
 java -jar cli/target/agentic-develop.jar create-module --project C:\proyectos\mi-app --module facturacion --technicians analista,desarrollador --providers claude
 
-# Cambiar el cuerpo compartido de un especialista y propagarlo a todos los módulos
+# Cambiar el cuerpo compartido de un especialista y propagarlo a todos los módulos (primero viendo el diff)
+java -jar cli/target/agentic-develop.jar save --path C:\proyectos\mi-app\.claude\agents\analista-facturacion.md --project C:\proyectos\mi-app --mode group --content-file cuerpo.md --dry-run
 java -jar cli/target/agentic-develop.jar save --path C:\proyectos\mi-app\.claude\agents\analista-facturacion.md --project C:\proyectos\mi-app --mode group --content-file cuerpo.md
+
+# Ver la plantilla de un agente antes de crearlo, y devolver un agente personalizado a su grupo
+java -jar cli/target/agentic-develop.jar catalog --provider claude --scope global --kind agent --name sdd-design
+java -jar cli/target/agentic-develop.jar adopt --path C:\proyectos\mi-app\.claude\agents\analista-otro.md --project C:\proyectos\mi-app --confirm
 ```
 
 Normas que conviene conocer:
 - **Nada se sobrescribe por sorpresa.** Instalar, crear módulos o artefactos y repetir un comando deja intacto lo que ya existe.
   Sobrescribir exige `--overwrite` y deja una copia del contenido anterior.
 - **Conflictos.** Si editas un agente por fuera de la aplicación, `save` lo detecta (hash distinto) y no lo pisa sin confirmación.
+- **Simulación.** `save --dry-run` y `create-module --dry-run` devuelven lo previsto (diff, conflictos, ficheros) sin escribir.
+  `adopt` sin `--confirm` también solo muestra el diff.
 - **Propagación.** `save --mode group` actualiza solo los artefactos que ya existen del mismo grupo y ámbito; nunca crea nuevos.
   Los agentes generados antes de que existieran los metadatos cuentan como personalizados y no se tocan.
 - **Cabeceras por sistema.** Las cabeceras de los agentes se generan para el sistema operativo en el que se ejecuta el CLI

@@ -28,6 +28,8 @@ public final class Commands {
             .register(new CreateModuleCommand(services))
             .register(new AddTechnicianCommand(services))
             .register(new CreateArtifactCommand(services, input))
+            .register(new CatalogCommand(services))
+            .register(new AdoptCommand(services, input))
             .register(new SaveCommand(services, input));
     }
 }
