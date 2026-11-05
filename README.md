@@ -1,19 +1,21 @@
 # develop-agentic-environment
-Pequeña aplicación para la instalación de un entorno agentico de desarrollo (Human-In-The-Loop)
+Pequeña aplicación para la instalación de un entorno agéntico de desarrollo (Human-In-The-Loop).
+
+Instala y mantiene los agentes y skills de **Spec-Driven Development** (requisitos, diseño y tareas) en los
+proveedores que tengas (Claude, Codex, Gemini, OpenCode), prepara proyectos con la estructura `.sdd` y genera los
+agentes de cada módulo y técnico de un proyecto.
 
 ## Estado
-En desarrollo. La CLI (`cli/`) comprueba el entorno y detecta qué proveedores
-(Claude, OpenCode, Codex, Gemini) están disponibles. El menú interactivo en
-terminal está en construcción.
+La CLI (`cli/`) está completa según su especificación (`specs/cli/`): menú interactivo, comandos no interactivos con
+salida JSON y contratos documentados. La salida JSON está pensada para que la consuma un visor externo.
 
 ## Requisitos
 - JDK 21
 - Maven 3.9+
 
 ## Dependencias externas
-La CLI usa `framework-core` de `vargontoc-framework`. Los artefactos necesarios
-están en `cli/external-libs/vargontoc-framework/` y hay que instalarlos una vez
-en el repositorio Maven local (`~/.m2`), desde `cli/`:
+La CLI usa `framework-core` y `framework-json` de `vargontoc-framework`. Los artefactos están en
+`cli/external-libs/vargontoc-framework/` y hay que instalarlos una vez en el repositorio Maven local (`~/.m2`), desde `cli/`:
 
 ```powershell
 # POM padre
@@ -21,15 +23,106 @@ mvn install:install-file "-Dfile=external-libs/vargontoc-framework/pom.xml" "-Dp
 
 # framework-core
 mvn install:install-file "-Dfile=external-libs/vargontoc-framework/framework-core/0.1.0-SNAPSHOT/framework-core-0.1.0-SNAPSHOT.jar" "-DpomFile=external-libs/vargontoc-framework/framework-core/0.1.0-SNAPSHOT/framework-core-0.1.0-SNAPSHOT.pom"
+
+# framework-json
+mvn install:install-file "-Dfile=external-libs/vargontoc-framework/framework-json/0.1.0-SNAPSHOT/framework-json-0.1.0-SNAPSHOT.jar" "-DpomFile=external-libs/vargontoc-framework/framework-json/0.1.0-SNAPSHOT/framework-json-0.1.0-SNAPSHOT.pom"
 ```
 
-## Compilar
+## Compilar, probar y empaquetar
 Desde `cli/`:
 
 ```powershell
-mvn clean compile
+mvn clean test       # compila y ejecuta las pruebas
+mvn clean package    # además genera el jar ejecutable: cli/target/agentic-develop.jar
 ```
+
+El jar incluye todas las dependencias: no hace falta nada más que un JDK 21 para ejecutarlo.
+
+## Uso
+### Menú interactivo
+Sin argumentos se abre el menú:
+
+```powershell
+java -jar cli/target/agentic-develop.jar
+```
+
+1. **Configuración entorno**: instala los agentes y skills globales en los proveedores que elijas.
+2. **Iniciar proyecto**: crea la estructura `.sdd` en la ruta indicada.
+3. **Crear módulo**: registra un módulo en `.sdd/team.md` y genera los agentes de sus técnicos.
+4. **Salir**.
+
+### Comandos
+Con argumentos se ejecuta un comando sin menús ni preguntas. La salida estándar es **un único documento JSON** y los
+logs van a la salida de error. El código de salida es `0` si todo fue bien, `1` por un error esperado (validación, no
+encontrado, conflicto), `2` por un uso incorrecto y `3` por un error interno.
+
+```powershell
+java -jar cli/target/agentic-develop.jar <comando> [opciones]
+java -jar cli/target/agentic-develop.jar --help
+```
+
+| Comando | Para qué sirve | Opciones principales |
+|---|---|---|
+| `status` | Estado de los proveedores y del proyecto. Solo lee. | `--project` |
+| `tree` | Árbol de artefactos globales y de proyecto. Solo lee. | `--project` |
+| `describe` | Cabecera, cuerpo, hash y estado de un agente o skill. Solo lee. | `--path`, `--project` |
+| `init` | Crea `.sdd` en un proyecto. | `--project` |
+| `configure-provider` | Instala agentes y skills globales en un proveedor. | `--provider` |
+| `create-module` | Registra un módulo y genera sus agentes y skills. | `--project`, `--module`, `--technicians`, `--providers`, `--dry-run` |
+| `add-technician` | Añade técnicos a un módulo existente. | `--project`, `--module`, `--technicians`, `--providers`, `--dry-run` |
+| `create-artifact` | Crea un agente o skill desde su plantilla. | `--provider`, `--scope`, `--kind`, `--name`, `--content-file`/`--stdin`, `--overwrite` |
+| `save` | Guarda el contenido de un artefacto o lo propaga a su grupo. | `--path`, `--content-file`/`--stdin`, `--mode`, `--overwrite` |
+
+Ejemplos:
+
+```powershell
+# Instalar los agentes y skills de Claude y revisar el estado
+java -jar cli/target/agentic-develop.jar configure-provider --provider claude
+java -jar cli/target/agentic-develop.jar status
+
+# Preparar un proyecto y crear un módulo (primero en simulación, sin escribir nada)
+java -jar cli/target/agentic-develop.jar init --project C:\proyectos\mi-app
+java -jar cli/target/agentic-develop.jar create-module --project C:\proyectos\mi-app --module facturacion --technicians analista,desarrollador --providers claude --dry-run
+java -jar cli/target/agentic-develop.jar create-module --project C:\proyectos\mi-app --module facturacion --technicians analista,desarrollador --providers claude
+
+# Cambiar el cuerpo compartido de un especialista y propagarlo a todos los módulos
+java -jar cli/target/agentic-develop.jar save --path C:\proyectos\mi-app\.claude\agents\analista-facturacion.md --project C:\proyectos\mi-app --mode group --content-file cuerpo.md
+```
+
+Normas que conviene conocer:
+- **Nada se sobrescribe por sorpresa.** Instalar, crear módulos o artefactos y repetir un comando deja intacto lo que ya existe.
+  Sobrescribir exige `--overwrite` y deja una copia del contenido anterior.
+- **Conflictos.** Si editas un agente por fuera de la aplicación, `save` lo detecta (hash distinto) y no lo pisa sin confirmación.
+- **Propagación.** `save --mode group` actualiza solo los artefactos que ya existen del mismo grupo y ámbito; nunca crea nuevos.
+  Los agentes generados antes de que existieran los metadatos cuentan como personalizados y no se tocan.
+- **Cabeceras por sistema.** Las cabeceras de los agentes se generan para el sistema operativo en el que se ejecuta el CLI
+  (PowerShell en Windows, bash en Linux). Los scripts de los hooks (`hooks/<script>.bat` o `.sh`) los aportas tú en la
+  carpeta global del proveedor.
+
+### Dónde guarda cosas
+- **Proveedores (global):** `.claude`, `.codex`, `.gemini/config` y `.config/opencode` bajo tu carpeta de usuario.
+- **Proveedores (proyecto):** `.claude`, `.agents` (Gemini) y `.opencode` dentro del proyecto. Codex aún no tiene ámbito de proyecto.
+- **Estado de la aplicación** (metadatos y copias de seguridad): `%LOCALAPPDATA%\agentic-develop` en Windows y
+  `$XDG_STATE_HOME/agentic-develop` (o `~/.local/state/agentic-develop`) en Linux. No se mezcla con los ficheros del proyecto.
+- **Menú en Windows:** si ves caracteres extraños (acentos), ejecuta antes `chcp 65001` o usa `java -Dfile.encoding=UTF-8 -jar ...`.
+
+## Documentación
+- Especificación de la CLI: `specs/cli/` (requisitos, diseño y tareas).
+- Contratos: `docs/contracts/`
+  - `cli-json/`: envelope JSON, comandos, opciones y códigos de error y de salida.
+  - `artifact-metadata/`: almacén de agrupación, cuerpos compartidos y hashes.
+  - `provider-layout/`: rutas, formatos y cabeceras por proveedor y sistema operativo.
+  - `sdd-team/`: lectura y escritura de módulos y técnicos en `.sdd/team.md`.
+- Rendimiento: `docs/performance/cli-nfr-002.md` (todos los comandos tardan muy por debajo de 1 s con 200 artefactos).
+
+Las pruebas comprueban que estos contratos dicen lo mismo que el código.
 
 ## Estructura
 - `cli/`: aplicación de línea de comandos (Java 21, Maven).
+  - `domain/`, `application/`, `infrastructure/`: reglas, servicios y acceso a disco.
+  - `command/`: adaptador no interactivo (JSON). `ui/`: adaptador del menú interactivo.
+  - `src/main/resources/`: agentes, skills, cabeceras y plantillas que se instalan.
 - `cli/external-libs/`: artefactos de `vargontoc-framework` usados por la CLI.
+- `docs/`: contratos e informes.
+- `specs/`: especificaciones SDD.
+- `viewer/`: reservado para el visor de la salida JSON (aún vacío).
