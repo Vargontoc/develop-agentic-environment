@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import es.vargontoc.agentic.viewer.cli.model.CliError;
 import es.vargontoc.agentic.viewer.cli.model.DescribeData;
+import es.vargontoc.agentic.viewer.cli.model.InitData;
 import es.vargontoc.agentic.viewer.cli.model.StatusData;
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
 
@@ -37,6 +38,11 @@ public final class CliClient {
         List<String> args = new ArrayList<>(List.of("status"));
         addProject(args, project);
         return execute(args, StatusData.class);
+    }
+
+    public InitData init(Path project) {
+        Objects.requireNonNull(project, "project");
+        return execute(List.of("init", "--project", project.toString()), InitData.class);
     }
 
     public TreeData tree(Path project) {

@@ -38,7 +38,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Ejecutar `--version` y `status` desde la aplicación.
   3. Probar una ruta de proyecto con espacios y comprobar el error si se retira el jar.
 
-### [ ] TASK-003 Cliente del contrato y presentación de errores
+### [x] TASK-003 Cliente del contrato y presentación de errores
 
 - **Cubre:** REQ-003, REQ-004, REQ-005, REQ-018, NFR-006, DEC-002, DEC-010
 - **Componente:** `cli-client | por definir (analista técnico)`; `error-presenter | por definir (analista técnico)`
@@ -52,7 +52,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   1. Ejecutar un comando con un proyecto inexistente y comprobar el aviso.
   2. Comprobar que la aplicación sigue usable y permite reintentar.
 
-### [ ] TASK-004 Selección de proyecto y estado inicial
+### [x] TASK-004 Selección de proyecto y estado inicial
 
 - **Cubre:** REQ-001, REQ-002, REQ-003, DEC-002, DEC-017
 - **Componente:** `project-session | por definir (analista técnico)`; `viewer-ui | por definir (analista técnico)`
@@ -294,9 +294,9 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
 ## Avisos
 
 - El stack se cambió de Tauri/React/Rust a JavaFX 21 + pty4j para evitar Rust y MSVC. El diseño y las tareas se han reescrito con los mismos IDs.
-- TASK-001 está completada y verificada con `mvn test` y `mvn javafx:run`.
-- TASK-002 está completada.
-- TASK-003 está implementada y verificada con 28 pruebas, incluidas `status`, `tree` y `describe` del CLI real; la casilla queda sin marcar hasta la confirmación del usuario.
+- TASK-001, TASK-002, TASK-003 y TASK-004 están completadas.
+- TASK-005 está implementada y verificada con 39 pruebas, incluido el árbol real del CLI en un proyecto temporal; la casilla queda sin marcar hasta la confirmación del usuario.
+- Se retiró la tarjeta de demostración de TASK-001; la ventana empieza por la navegación y la sesión de proyecto.
 - El viewer exige `viewer/cli/agentic-develop.jar`. El jar no se versiona (`.gitignore`) y se copia tras construir el CLI; si falta, la aplicación muestra un error.
 - No existe `.sdd/architecture.md`; los componentes nuevos se marcan como `por definir (analista técnico)`.
 - No existe `.sdd/task-types.md`; no se han generado tipos de tarea adicionales.

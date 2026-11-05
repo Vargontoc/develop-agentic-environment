@@ -58,10 +58,6 @@
     -fx-background-color: #2f6fdb;
 }
 
-.result {
-    -fx-padding: 10px 0 0 0;
-}
-
 .console {
     -fx-font-family: "Consolas", "Cascadia Mono", monospace;
     -fx-font-size: 12px;
@@ -78,6 +74,106 @@
     -fx-text-fill: #6ee7b7;
 }
 
+.warning {
+    -fx-text-fill: #fbbf24;
+}
+
 .error {
     -fx-text-fill: #fca5a5;
+}
+
+.sidebar {
+    -fx-background-color: #202020;
+    -fx-border-color: transparent #333333 transparent transparent;
+    -fx-border-width: 0 1px 0 0;
+}
+
+.tree-view {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+}
+
+.tree-view .tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #d8d8d8;
+    -fx-padding: 3px 4px;
+}
+
+.tree-view .tree-cell:selected {
+    -fx-background-color: #2f3b4f;
+    -fx-text-fill: #ffffff;
+}
+
+.tree-root {
+    -fx-font-weight: bold;
+    -fx-text-fill: #f2f2f2;
+}
+
+.tree-provider {
+    -fx-text-fill: #93c5fd;
+    -fx-font-weight: bold;
+}
+
+.tree-module {
+    -fx-text-fill: #c4b5fd;
+    -fx-font-weight: bold;
+}
+
+.tree-technician {
+    -fx-text-fill: #d8d8d8;
+}
+
+.tree-agent {
+    -fx-text-fill: #6ee7b7;
+}
+
+.tree-skill {
+    -fx-text-fill: #fde68a;
+}
+
+.tree-profile {
+    -fx-text-fill: #fca5a5;
+}
+
+.tree-sdd {
+    -fx-text-fill: #f2f2f2;
+    -fx-font-weight: bold;
+}
+
+.tree-pending {
+    -fx-text-fill: #fbbf24;
+    -fx-font-style: italic;
+}
+
+.tree-legacy {
+    -fx-text-fill: #fca5a5;
+}
+
+.tree-detached {
+    -fx-text-fill: #fca5a5;
+    -fx-font-style: italic;
+}
+
+.selection {
+    -fx-text-fill: #9a9a9a;
+    -fx-font-size: 11px;
+    -fx-padding: 8px 0 0 0;
+}
+
+.main-scroll {
+    -fx-background-color: transparent;
+}
+
+.main-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.split-pane {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.split-pane > .split-pane-divider {
+    -fx-background-color: #333333;
+    -fx-padding: 0 0.5px;
 }

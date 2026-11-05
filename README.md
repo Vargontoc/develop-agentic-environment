@@ -113,6 +113,8 @@ Normas que conviene conocer:
 
 ### Viewer (en construcción)
 El viewer espera el jar ejecutable en `viewer/cli/agentic-develop.jar`. Si falta, muestra un error de aplicación.
+La ventana permite seleccionar un proyecto, validarlo con el CLI e iniciarlo si falta `.sdd`.
+El panel lateral muestra el árbol Global y Project, y se refresca al seleccionar o iniciar un proyecto.
 Desde la raíz, tras construir el CLI:
 
 ```powershell
