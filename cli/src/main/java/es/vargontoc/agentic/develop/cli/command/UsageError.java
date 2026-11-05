@@ -10,7 +10,8 @@ public enum UsageError {
     MISSING_OPTION("usage.missing_option", "Falta una opción obligatoria"),
     MISSING_VALUE("usage.missing_value", "Falta el valor de la opción"),
     DUPLICATE_OPTION("usage.duplicate_option", "Opción repetida"),
-    UNEXPECTED_ARGUMENT("usage.unexpected_argument", "Argumento inesperado");
+    UNEXPECTED_ARGUMENT("usage.unexpected_argument", "Argumento inesperado"),
+    INVALID_VALUE("usage.invalid_value", "Valor no válido para la opción");
 
     private final String value;
     private final String message;

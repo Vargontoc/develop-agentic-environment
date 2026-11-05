@@ -1,5 +1,6 @@
 package es.vargontoc.agentic.develop.cli;
 
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
@@ -44,19 +45,24 @@ public final class App {
 
 
     static void defaultTerminal() {
+        runMenu(Services.system(), System.in);
+    }
 
-            Services services = Services.system();
-            if(!services.providers().canRunApp())
-                throw new DomainException(AppErrorCode.INCOMPATIBLE_ENVIRONMENT);
+    /**
+     * Bucle del menú interactivo sobre unos servicios y una entrada dados. Termina al elegir salir o al acabarse la
+     * entrada; en ambos casos vuelve con normalidad, que es el código de salida 0.
+     */
+    static void runMenu(Services services, InputStream in) {
+        if(!services.providers().canRunApp())
+            throw new DomainException(AppErrorCode.INCOMPATIBLE_ENVIRONMENT);
 
-            try (Scanner sc = new Scanner(System.in)) {
-                StateManager sm = new StateManager(new MainState(services.providers(), services.configureProvider(),
-                    services.initProject(), services.createModule()));
-    
-                do {
-                    sm.handleScanner(sc);
-                }while(sm.getCurrent() != null);
-            }
+        Scanner sc = new Scanner(in);
+        StateManager sm = new StateManager(new MainState(services.providers(), services.configureProvider(),
+            services.initProject(), services.createModule()));
+
+        do {
+            sm.handleScanner(sc);
+        } while(sm.getCurrent() != null);
     }
 
 }

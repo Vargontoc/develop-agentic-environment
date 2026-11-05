@@ -72,6 +72,11 @@ public class ArtifactDescriptor {
         return find(locate(input), project);
     }
 
+    /** Grupo al que pertenece el artefacto según los metadatos; vacío si es legacy (sin registro). */
+    public Optional<String> groupOf(ArtifactLocation location) {
+        return metadata.artifact(location.path()).map(ArtifactRecord::groupId);
+    }
+
     // Una ruta que solo existe como recurso del jar no es un artefacto editable
     private Path locate(String input) {
         String raw = input == null ? "" : input.trim();

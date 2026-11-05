@@ -99,14 +99,23 @@ public class CreateModule {
      * Lanza un error sin haber escrito nada si el nombre o el proyecto no son válidos.
      */
     public OperationResult execute(Path project, String rawModule, List<Technician> technicians, List<Provider> providers) {
+        return execute(project, rawModule, technicians, providers, false);
+    }
+
+    /**
+     * @param dryRun si es verdadero no escribe nada (ni ficheros ni metadatos) y devuelve en {@code created} lo que se
+     *               crearía y en {@code skipped} lo que ya existe; las skills se listan una a una
+     */
+    public OperationResult execute(Path project, String rawModule, List<Technician> technicians, List<Provider> providers,
+                                   boolean dryRun) {
         String module = normalizeName(rawModule);
         requireProject(project);
 
         OperationResult result = new OperationResult();
         TextStore text = new TextStore(paths, List.of(project), backupRoot);
 
-        registerInTeam(project, module, text, result);
-        generate(project, module, technicians, providers, true, text, result);
+        registerInTeam(project, module, text, result, dryRun);
+        generate(project, module, technicians, providers, true, dryRun, text, result);
         return result;
     }
 
@@ -117,6 +126,12 @@ public class CreateModule {
      */
     public OperationResult addTechnicians(Path project, String rawModule, List<Technician> technicians,
                                           List<Provider> providers) {
+        return addTechnicians(project, rawModule, technicians, providers, false);
+    }
+
+    /** @param dryRun igual que en {@link #execute(Path, String, List, List, boolean)} */
+    public OperationResult addTechnicians(Path project, String rawModule, List<Technician> technicians,
+                                          List<Provider> providers, boolean dryRun) {
         String module = normalizeName(rawModule);
         requireProject(project);
 
@@ -126,7 +141,7 @@ public class CreateModule {
             throw new PathDomainException(AppErrorCode.MODULE_NOT_FOUND, module);
 
         OperationResult result = new OperationResult();
-        generate(project, module, technicians, providers, false, text, result);
+        generate(project, module, technicians, providers, false, dryRun, text, result);
         return result;
     }
 
@@ -140,7 +155,7 @@ public class CreateModule {
     }
 
     private void generate(Path project, String module, List<Technician> technicians, List<Provider> providers,
-                          boolean withSkills, TextStore text, OperationResult result) {
+                          boolean withSkills, boolean dryRun, TextStore text, OperationResult result) {
         List<Created> created = new ArrayList<>();
 
         for(Provider provider : providers) {
@@ -159,14 +174,14 @@ public class CreateModule {
             }
 
             if(withSkills)
-                copySkills(providerDir, type, result, created);
+                copySkills(providerDir, type, dryRun, result, created);
 
             for(Technician technician : technicians) {
                 String slug = technician.slug();
                 // El router es único por técnico y proveedor; el especialista depende del módulo
                 generateAgent(new AgentRequest(providerDir, type, module, slug + "-router", slug + "-router-template",
-                    slug + "-router"), text, result, created);
-                generateAgent(new AgentRequest(providerDir, type, module, slug, slug + "-template", slug + "-" + module),
+                    slug + "-router", dryRun), text, result, created);
+                generateAgent(new AgentRequest(providerDir, type, module, slug, slug + "-template", slug + "-" + module, dryRun),
                     text, result, created);
             }
         }
@@ -178,10 +193,10 @@ public class CreateModule {
     private record Created(ProviderType type, Path providerDir, String relativePath, String sharedBody) {}
 
     private record AgentRequest(Path providerDir, ProviderType type, String module, String headerName,
-                                String templateName, String targetName) {}
+                                String templateName, String targetName, boolean dryRun) {}
 
     // Añade "- <modulo> | - | -" al final de la sección "## Módulos" de .sdd/team.md, sin duplicar
-    private void registerInTeam(Path project, String module, TextStore text, OperationResult result) {
+    private void registerInTeam(Path project, String module, TextStore text, OperationResult result, boolean dryRun) {
         Path team = project.resolve(TEAM_FILE);
         String label = TEAM_FILE + ": módulo '" + module + "'";
 
@@ -231,7 +246,8 @@ public class CreateModule {
                     lines.add(at + 1, "");
             }
 
-            text.write(team, String.join("\n", lines));
+            if(!dryRun)
+                text.write(team, String.join("\n", lines));
             result.created().add(label + " registrado");
         } catch(DomainException e) {
             fail(result, TEAM_FILE + ": no se pudo actualizar el registro del módulo", e);
@@ -239,7 +255,7 @@ public class CreateModule {
     }
 
     // Copia solo lo que falta; las skills cuyo directorio no existía antes se registran como nuevas
-    private void copySkills(Path providerDir, ProviderType type, OperationResult result, List<Created> created) {
+    private void copySkills(Path providerDir, ProviderType type, boolean dryRun, OperationResult result, List<Created> created) {
         try {
             Optional<List<String>> skills = ClasspathResources.listDirectories(SKILLS_RESOURCE);
             if(skills.isEmpty()) {
@@ -250,6 +266,13 @@ public class CreateModule {
             List<String> brandNew = skills.get().stream()
                 .filter(name -> !Files.exists(providerDir.resolve("skills").resolve(name)))
                 .toList();
+
+            if(dryRun) {
+                brandNew.forEach(name -> result.created().add(type + ": skills/" + name));
+                skills.get().stream().filter(name -> !brandNew.contains(name))
+                    .forEach(name -> result.skipped().add(type + ": skills/" + name + " (ya existe)"));
+                return;
+            }
 
             Optional<ClasspathResources.CopyStats> stats =
                 ClasspathResources.copyTreeIfAbsent(SKILLS_RESOURCE, providerDir.resolve("skills"));
@@ -303,6 +326,10 @@ public class CreateModule {
             String content = ArtifactFormat.MARKDOWN.assemble(BodyPlaceholders.resolve(renderedHeader, type, module),
                 BodyPlaceholders.resolve(shared, type, module));
 
+            if(request.dryRun()) {
+                result.created().add(label);
+                return;
+            }
             text.write(target, content);
             result.created().add(label);
             created.add(new Created(type, request.providerDir(), relative, shared));

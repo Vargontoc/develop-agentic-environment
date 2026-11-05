@@ -96,11 +96,12 @@ public final class PathResolver {
 
     /**
      * Comprueba que {@code path} queda dentro de {@code scope} una vez resueltos {@code ..} y enlaces simbólicos.
-     * La ruta puede no existir todavía: se resuelve su ancestro existente más cercano.
+     * Ni la ruta ni el ámbito tienen por qué existir todavía: se resuelve su ancestro existente más cercano.
      */
     public Path requireWithin(Path scope, Path path) {
         try {
-            Path realScope = scope.toRealPath();
+            // El ámbito también puede no existir aún (p. ej. el home de la aplicación en el primer uso)
+            Path realScope = realOrNearest(scope.toAbsolutePath().normalize());
             Path realPath = realOrNearest(path.toAbsolutePath().normalize());
             if(!realPath.startsWith(realScope))
                 throw new DomainException(AppErrorCode.PATH_OUT_OF_SCOPE);

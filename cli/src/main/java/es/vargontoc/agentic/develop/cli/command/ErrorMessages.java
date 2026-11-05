@@ -19,6 +19,7 @@ final class ErrorMessages {
             case MODULE_NAME_RESERVED -> "El nombre del módulo está reservado";
             case ARTIFACT_EXISTS -> "Ya existe un artefacto con ese nombre; confirma para sobrescribirlo";
             case ARTIFACT_SCOPE_UNSUPPORTED -> "El proveedor no admite artefactos en ese ámbito";
+            case CONTENT_UNREADABLE -> "No se pudo leer el contenido a guardar";
             case MODULE_NOT_FOUND -> "El módulo no está registrado en .sdd/team.md";
             case MODULE_NO_PROJECT -> "No hay un proyecto iniciado";
             case SDD_RESOURCE_NOT_FOUND -> "No se encontró la plantilla .sdd en la aplicación";
