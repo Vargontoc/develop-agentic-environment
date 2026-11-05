@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -16,7 +18,13 @@ import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactParts;
 import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactStatus;
+import es.vargontoc.agentic.develop.cli.domain.metadata.LinkState;
+import es.vargontoc.agentic.develop.cli.infrastructure.files.TextStore;
+import es.vargontoc.agentic.develop.cli.infrastructure.metadata.MetadataStore;
+import es.vargontoc.agentic.develop.cli.infrastructure.paths.PathResolver;
 import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResources;
+import es.vargontoc.agentic.develop.cli.infrastructure.resources.ResourceArtifactCatalog;
 import es.vargontoc.agentic.develop.cli.support.Console;
 
 class ConfigureProviderTest {
@@ -104,5 +112,55 @@ class ConfigureProviderTest {
 
         assertTrue(result.created().isEmpty());
         assertTrue(result.skipped().isEmpty());
+    }
+
+    private ConfigureProvider tracking(MetadataStore[] store) {
+        PathResolver paths = new PathResolver(Map.of("HOME", tmp.toString()), PathResolver.Os.LINUX);
+        Path backups = tmp.resolve("backups");
+        var catalog = new ResourceArtifactCatalog();
+        store[0] = new MetadataStore(tmp.resolve("app-home/metadata.json"), new TextStore(paths, List.of(tmp), backups));
+        return new ConfigureProvider(TargetOs.LINUX, catalog, new ArtifactInventory(paths, catalog, store[0], backups), store[0]);
+    }
+
+    @Test
+    void installedArtifactsAreRegisteredWithGroupHashAndLinkedState() throws IOException {
+        MetadataStore[] store = new MetadataStore[1];
+        ConfigureProvider tracked = tracking(store);
+        Provider codex = provider(ProviderType.CODEX);
+
+        OperationResult result = tracked.execute(codex, true);
+
+        assertTrue(result.warnings().isEmpty(), result.warnings().toString());
+        Path root = codex.getPath().toAbsolutePath().normalize();
+        var agent = store[0].artifact(root.resolve("agents/sdd_agent.toml")).orElseThrow();
+        assertEquals("global/agent/sdd-agent", agent.groupId());
+        assertEquals(LinkState.LINKED, agent.state());
+        assertTrue(store[0].artifact(root.resolve("skills/sdd-design")).isPresent());
+        assertTrue(store[0].artifact(root.resolve("sdd.config.toml")).isPresent());
+        assertEquals(ClasspathResources.readText("/global/agents/shared/sdd-agent-body.md").orElseThrow(),
+            store[0].group("global/agent/sdd-agent").orElseThrow().sharedBody());
+        var inventory = new ArtifactInventory(new PathResolver(Map.of("HOME", tmp.toString()), PathResolver.Os.LINUX),
+            new ResourceArtifactCatalog(), store[0], tmp.resolve("backups"));
+        assertTrue(inventory.scanGlobal(ProviderType.CODEX).artifacts().isEmpty()
+            || inventory.scanGlobal(ProviderType.CODEX).artifacts().stream().noneMatch(a -> a.modifiedExternally()));
+    }
+
+    @Test
+    void existingArtifactsAreNeitherOverwrittenNorRegisteredAndRepeatingChangesNothing() throws IOException {
+        MetadataStore[] store = new MetadataStore[1];
+        ConfigureProvider tracked = tracking(store);
+        Provider claude = provider(ProviderType.CLAUDE);
+        Path custom = Files.createDirectories(claude.getPath().resolve("agents")).resolve("sdd-agent.md");
+        Files.writeString(custom, "personalizado");
+
+        tracked.execute(claude, true);
+        Path root = claude.getPath().toAbsolutePath().normalize();
+        assertEquals("personalizado", Files.readString(custom));
+        assertTrue(store[0].artifact(root.resolve("agents/sdd-agent.md")).isEmpty());
+        assertTrue(store[0].artifact(root.resolve("agents/sdd-design.md")).isPresent());
+
+        OperationResult again = tracked.execute(claude, true);
+        assertTrue(again.created().isEmpty());
+        assertTrue(again.warnings().isEmpty());
     }
 }

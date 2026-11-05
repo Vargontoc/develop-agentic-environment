@@ -12,15 +12,25 @@ import org.slf4j.LoggerFactory;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactCatalog;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactKind;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
+import es.vargontoc.agentic.develop.cli.domain.artifact.CatalogEntry;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
 import es.vargontoc.agentic.develop.cli.domain.format.HeaderMarkers;
 import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
+import es.vargontoc.agentic.develop.cli.domain.metadata.GroupIds;
+import es.vargontoc.agentic.develop.cli.domain.metadata.GroupRecord;
+import es.vargontoc.agentic.develop.cli.domain.metadata.LinkState;
+import es.vargontoc.agentic.develop.cli.infrastructure.metadata.MetadataStore;
 import es.vargontoc.agentic.develop.cli.infrastructure.resources.ClasspathResources;
 
 /**
  * Instala en un proveedor los agentes, skills y perfiles globales de la aplicación sin sobrescribir lo existente.
  * Las rutas del resultado son relativas a la carpeta del proveedor (por ejemplo {@code skills/sdd-design}).
+ * Si se construye con catálogo, inventario y metadatos, cada artefacto instalado queda registrado con su grupo
+ * (ver {@link GroupIds}) y su hash; lo que ya existía se omite y no se registra (sigue siendo legacy).
  */
 public class ConfigureProvider {
 
@@ -34,14 +44,25 @@ public class ConfigureProvider {
     private static final String CODEX_PROFILE = "sdd.config.toml";
 
     private final TargetOs os;
+    private final ArtifactCatalog catalog;
+    private final ArtifactInventory inventory;
+    private final MetadataStore metadata;
 
     public ConfigureProvider() {
         this(TargetOs.current());
     }
 
-    /** @param os sistema para el que se generan las cabeceras (DEC-012) */
+    /** Sin registro en metadatos: solo instala. */
     public ConfigureProvider(TargetOs os) {
+        this(os, null, null, null);
+    }
+
+    /** @param os sistema para el que se generan las cabeceras (DEC-012) */
+    public ConfigureProvider(TargetOs os, ArtifactCatalog catalog, ArtifactInventory inventory, MetadataStore metadata) {
         this.os = os;
+        this.catalog = catalog;
+        this.inventory = inventory;
+        this.metadata = metadata;
     }
 
     public OperationResult execute(Provider provider, boolean global) {
@@ -210,6 +231,40 @@ public class ConfigureProvider {
             // Profiles (Codex)
             if(type == ProviderType.CODEX)
                 copyCodexProfile(provider.getPath(), result);
+
+            register(provider, result);
         }
+    }
+
+    // Registra lo recién instalado; un fallo de registro no deshace la instalación y queda como aviso
+    private void register(Provider provider, OperationResult result) {
+        if(metadata == null)
+            return;
+
+        ProviderType type = provider.getType();
+        Path root = provider.getPath().toAbsolutePath().normalize();
+        for(String relative : result.created()) {
+            Optional<CatalogEntry> entry = catalog.entries(type, ArtifactScope.GLOBAL).stream()
+                .filter(e -> e.relativePath().equals(relative))
+                .findFirst();
+            if(entry.isEmpty())
+                continue;
+
+            try {
+                String groupId = GroupIds.of(entry.get());
+                if(metadata.group(groupId).isEmpty())
+                    metadata.putGroup(new GroupRecord(groupId, ArtifactScope.GLOBAL, sharedBody(entry.get())));
+                metadata.putArtifactHash(root.resolve(relative), groupId, inventory.inspect(entry.get(), root).hash(),
+                    LinkState.LINKED);
+            } catch(IOException | DomainException e) {
+                fail(result, relative + ": instalado pero no se pudo registrar", e);
+            }
+        }
+    }
+
+    private static String sharedBody(CatalogEntry entry) throws IOException {
+        if(entry.kind() != ArtifactKind.AGENT)
+            return "";
+        return ClasspathResources.readText(entry.bodyResource()).orElse("");
     }
 }

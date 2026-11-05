@@ -17,6 +17,9 @@ final class ErrorMessages {
             case MODULE_NAME_INVALID_HYPHENS -> "El guion no puede ir al inicio, al final ni repetido";
             case MODULE_NAME_TOO_SHORT -> "El nombre del módulo debe tener al menos 3 caracteres";
             case MODULE_NAME_RESERVED -> "El nombre del módulo está reservado";
+            case ARTIFACT_EXISTS -> "Ya existe un artefacto con ese nombre; confirma para sobrescribirlo";
+            case ARTIFACT_SCOPE_UNSUPPORTED -> "El proveedor no admite artefactos en ese ámbito";
+            case MODULE_NOT_FOUND -> "El módulo no está registrado en .sdd/team.md";
             case MODULE_NO_PROJECT -> "No hay un proyecto iniciado";
             case SDD_RESOURCE_NOT_FOUND -> "No se encontró la plantilla .sdd en la aplicación";
             case PROJECT_COPY_FAILED -> "No se pudieron copiar los ficheros al proyecto";

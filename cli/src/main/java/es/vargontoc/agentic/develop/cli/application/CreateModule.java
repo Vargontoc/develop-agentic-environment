@@ -100,18 +100,48 @@ public class CreateModule {
      */
     public OperationResult execute(Path project, String rawModule, List<Technician> technicians, List<Provider> providers) {
         String module = normalizeName(rawModule);
+        requireProject(project);
+
+        OperationResult result = new OperationResult();
+        TextStore text = new TextStore(paths, List.of(project), backupRoot);
+
+        registerInTeam(project, module, text, result);
+        generate(project, module, technicians, providers, true, text, result);
+        return result;
+    }
+
+    /**
+     * Añade técnicos a un módulo ya registrado en {@code .sdd/team.md}: genera solo los artefactos de esos técnicos
+     * (sin skills ni cambios en {@code team.md}) y omite lo que ya existe, de modo que los demás técnicos no cambian.
+     * Lanza {@code MODULE_NOT_FOUND} sin escribir nada si el módulo no consta en el equipo.
+     */
+    public OperationResult addTechnicians(Path project, String rawModule, List<Technician> technicians,
+                                          List<Provider> providers) {
+        String module = normalizeName(rawModule);
+        requireProject(project);
+
+        TextStore text = new TextStore(paths, List.of(project), backupRoot);
+        Path team = project.resolve(TEAM_FILE);
+        if(!Files.exists(team) || !TeamParser.parse(text.read(team).content()).moduleNames().contains(module))
+            throw new PathDomainException(AppErrorCode.MODULE_NOT_FOUND, module);
+
+        OperationResult result = new OperationResult();
+        generate(project, module, technicians, providers, false, text, result);
+        return result;
+    }
+
+    private static void requireProject(Path project) {
         if(project == null)
             throw new DomainException(AppErrorCode.MODULE_NO_PROJECT);
         if(!Files.exists(project))
             throw new PathDomainException(AppErrorCode.PROJECT_PATH_NOT_FOUND, project);
         if(!Files.isDirectory(project))
             throw new PathDomainException(AppErrorCode.PROJECT_PATH_NOT_DIRECTORY, project);
+    }
 
-        OperationResult result = new OperationResult();
+    private void generate(Path project, String module, List<Technician> technicians, List<Provider> providers,
+                          boolean withSkills, TextStore text, OperationResult result) {
         List<Created> created = new ArrayList<>();
-        TextStore text = new TextStore(paths, List.of(project), backupRoot);
-
-        registerInTeam(project, module, text, result);
 
         for(Provider provider : providers) {
             ProviderType type = provider.getType();
@@ -128,7 +158,8 @@ public class CreateModule {
                 continue;
             }
 
-            copySkills(providerDir, type, result, created);
+            if(withSkills)
+                copySkills(providerDir, type, result, created);
 
             for(Technician technician : technicians) {
                 String slug = technician.slug();
@@ -141,7 +172,6 @@ public class CreateModule {
         }
 
         register(created, module, result);
-        return result;
     }
 
     // Artefacto nuevo pendiente de registrar: su carpeta de proveedor y su ruta relativa (fichero o skill)

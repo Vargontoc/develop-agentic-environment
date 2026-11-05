@@ -125,6 +125,53 @@ class CreateModuleTest {
     }
 
     @Test
+    void addTechnicianCreatesOnlyItsArtifactsAndLeavesTheOthersAndTeamUntouched() throws IOException {
+        createModule.execute(project, "alfa", List.of(Technician.ANALYST), claude);
+        Path analyst = project.resolve(".claude/agents/analista-alfa.md");
+        Files.writeString(analyst, "personalizado");
+        String team = Files.readString(project.resolve(".sdd/team.md"));
+        Path skill = project.resolve(".claude/skills");
+        long skillFiles;
+        try(var s = Files.walk(skill)) { skillFiles = s.count(); }
+
+        OperationResult result = createModule.addTechnicians(project, "Alfa", List.of(Technician.DEVELOPER), claude);
+
+        assertTrue(Files.isRegularFile(project.resolve(".claude/agents/desarrollador-alfa.md")));
+        assertTrue(Files.isRegularFile(project.resolve(".claude/agents/desarrollador-router.md")));
+        assertTrue(result.created().stream().noneMatch(c -> c.contains("team.md") || c.contains("skills")));
+        assertEquals("personalizado", Files.readString(analyst));
+        assertEquals(team, Files.readString(project.resolve(".sdd/team.md")));
+        try(var s = Files.walk(skill)) { assertEquals(skillFiles, s.count()); }
+        assertTrue(metadata.group("project/specialist/desarrollador").isPresent()
+            || metadata.group("project/router/desarrollador").isPresent());
+    }
+
+    @Test
+    void addTechnicianThatAlreadyExistsIsSkippedWithoutOverwriting() throws IOException {
+        createModule.execute(project, "alfa", List.of(Technician.ANALYST), claude);
+        Path analyst = project.resolve(".claude/agents/analista-alfa.md");
+        Files.writeString(analyst, "personalizado");
+
+        OperationResult result = createModule.addTechnicians(project, "alfa", List.of(Technician.ANALYST), claude);
+
+        assertTrue(result.created().isEmpty());
+        assertTrue(result.skipped().stream().anyMatch(s -> s.contains("analista-alfa.md")));
+        assertEquals("personalizado", Files.readString(analyst));
+    }
+
+    @Test
+    void addTechnicianToAModuleNotInTeamFailsWithoutWritingAnything() throws IOException {
+        createModule.execute(project, "alfa", List.of(Technician.ANALYST), claude);
+
+        DomainException e = assertThrows(DomainException.class,
+            () -> createModule.addTechnicians(project, "beta", List.of(Technician.DEVELOPER), claude));
+
+        assertEquals(AppErrorCode.MODULE_NOT_FOUND, e.code());
+        assertFalse(Files.exists(project.resolve(".claude/agents/desarrollador-beta.md")));
+        assertFalse(Files.exists(project.resolve(".claude/agents/desarrollador-router.md")));
+    }
+
+    @Test
     void providersWithoutProjectSupportAreSkippedWithAWarning() {
         OperationResult result = createModule.execute(project, "alfa", List.of(Technician.ANALYST),
             List.of(new Provider(ProviderType.CODEX, Path.of("ignorado"))));

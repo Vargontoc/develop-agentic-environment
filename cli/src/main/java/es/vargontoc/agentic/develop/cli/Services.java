@@ -7,6 +7,7 @@ import es.vargontoc.agentic.develop.cli.application.ArtifactDescriptor;
 import es.vargontoc.agentic.develop.cli.application.ArtifactInventory;
 import es.vargontoc.agentic.develop.cli.application.ArtifactSaver;
 import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
+import es.vargontoc.agentic.develop.cli.application.CreateArtifact;
 import es.vargontoc.agentic.develop.cli.application.CreateModule;
 import es.vargontoc.agentic.develop.cli.application.GroupPropagator;
 import es.vargontoc.agentic.develop.cli.application.InitProject;
@@ -40,7 +41,8 @@ public record Services(
         GroupPropagator propagator,
         MigrationService migration,
         ConfigureProvider configureProvider,
-        CreateModule createModule) {
+        CreateModule createModule,
+        CreateArtifact createArtifact) {
 
     public static Services system() {
         return of(PathResolver.system());
@@ -69,7 +71,8 @@ public record Services(
             saver,
             new GroupPropagator(metadata, descriptor, saver, migration),
             migration,
-            new ConfigureProvider(targetOs),
-            new CreateModule(targetOs, paths, artifacts, inventory, metadata, backups));
+            new ConfigureProvider(targetOs, artifacts, inventory, metadata),
+            new CreateModule(targetOs, paths, artifacts, inventory, metadata, backups),
+            new CreateArtifact(targetOs, paths, artifacts, inventory, metadata, workspace, backups));
     }
 }
