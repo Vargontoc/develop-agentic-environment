@@ -1,6 +1,6 @@
 # Requisitos: viewer
 
-Estado: borrador
+Estado: aceptado
 
 ## Contexto
 

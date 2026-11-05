@@ -9,6 +9,9 @@ agentes de cada módulo y técnico de un proyecto.
 La CLI (`cli/`) está completa según su especificación (`specs/cli/`): menú interactivo, comandos no interactivos con
 salida JSON y contratos documentados. La salida JSON está pensada para que la consuma un visor externo.
 
+El viewer (`viewer/`) está en construcción con JavaFX 21. De momento incluye el esqueleto de TASK-001 (ventana y prueba
+de la interfaz); todavía no consume el CLI.
+
 ## Requisitos
 - JDK 21
 - Maven 3.9+
@@ -108,6 +111,22 @@ Normas que conviene conocer:
   (PowerShell en Windows, bash en Linux). Los scripts de los hooks (`hooks/<script>.bat` o `.sh`) los aportas tú en la
   carpeta global del proveedor.
 
+### Viewer (en construcción)
+El viewer espera el jar ejecutable en `viewer/cli/agentic-develop.jar`. Si falta, muestra un error de aplicación.
+Desde la raíz, tras construir el CLI:
+
+```powershell
+New-Item -ItemType Directory -Force viewer/cli
+Copy-Item cli/target/agentic-develop.jar viewer/cli/
+```
+
+Después, desde `viewer/`:
+
+```powershell
+mvn test        # pruebas de la lógica
+mvn javafx:run  # abre la ventana
+```
+
 ### Dónde guarda cosas
 - **Proveedores (global):** `.claude`, `.codex`, `.gemini/config` y `.config/opencode` bajo tu carpeta de usuario.
 - **Proveedores (proyecto):** `.claude`, `.agents` (Gemini) y `.opencode` dentro del proyecto. Codex aún no tiene ámbito de proyecto.
@@ -134,4 +153,4 @@ Las pruebas comprueban que estos contratos dicen lo mismo que el código.
 - `cli/external-libs/`: artefactos de `vargontoc-framework` usados por la CLI.
 - `docs/`: contratos e informes.
 - `specs/`: especificaciones SDD.
-- `viewer/`: reservado para el visor de la salida JSON (aún vacío).
+- `viewer/`: aplicación de escritorio JavaFX 21 (en construcción; TASK-001: esqueleto y ventana).
