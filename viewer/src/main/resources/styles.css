@@ -154,6 +154,12 @@
     -fx-font-style: italic;
 }
 
+.tree-stale {
+    -fx-text-fill: #fbbf24;
+    -fx-font-style: italic;
+    -fx-opacity: 0.85;
+}
+
 .selection {
     -fx-text-fill: #9a9a9a;
     -fx-font-size: 11px;

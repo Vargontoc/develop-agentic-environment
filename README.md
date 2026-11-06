@@ -12,8 +12,10 @@ salida JSON y contratos documentados. La salida JSON está pensada para que la c
 El viewer (`viewer/`) está en construcción con JavaFX 21. Incluye la selección de proyecto, el árbol global y de
 proyecto, la previsualización y edición de artefactos (agentes, skills) y de los ficheros `.sdd` en solo lectura;
 la creación de módulos y técnicos; la creación de agentes y skills desde plantilla; la edición de skills con
-múltiples ficheros; la consola PTY integrada con pty4j para ejecutar el CLI interactivo; y la propagación de cambios
-a grupos de artefactos. Consume el CLI mediante el contrato `cli-json` v1.
+múltiples ficheros; la consola PTY integrada con pty4j para ejecutar el CLI interactivo; el watcher de cambios
+externos con marcado de nodos obsoletos y recarga con guarda de editores sucios; la propagación de cambios
+a grupos de artefactos; y los scripts de empaquetado con jlink/jpackage para generar una app-image que funciona
+sin Java del sistema. Consume el CLI mediante el contrato `cli-json` v1.
 
 **Nota:** Corregido bug en la navegación del árbol donde seleccionar un artefacto sin editarlo marcaba incorrectamente el estado como "sin guardar".
 
@@ -37,6 +39,7 @@ mvn install:install-file "-Dfile=external-libs/vargontoc-framework/framework-jso
 ```
 
 ## Compilar, probar y empaquetar
+### CLI
 Desde `cli/`:
 
 ```powershell
@@ -45,6 +48,185 @@ mvn clean package    # además genera el jar ejecutable: cli/target/agentic-deve
 ```
 
 El jar incluye todas las dependencias: no hace falta nada más que un JDK 21 para ejecutarlo.
+
+### Viewer
+Desde `viewer/`:
+
+```powershell
+mvn test             # pruebas de la lógica
+mvn javafx:run       # abre la ventana
+mvn clean package    # genera el JAR del viewer
+```
+
+### Empaquetado (app-image)
+
+Para generar una imagen de la aplicación que funcione **sin Java instalado** y **sin conexión a internet**:
+
+#### Requisitos previos
+
+**Windows:**
+- JDK 21 o superior (con `jlink` y `jpackage` en el PATH)
+- Maven 3.9+
+- PowerShell 5.1 o superior
+
+**Linux:**
+- JDK 21 o superior (con `jlink` y `jpackage` en el PATH)
+- Maven 3.9+
+- Bash
+- Dependencias de desktop (para el launcher nativo):
+  - **Ubuntu/Debian:** `sudo apt-get install -y libxtst-dev libxrender-dev libxxf86vm-dev`
+  - **Fedora/RHEL:** `sudo dnf install -y libXtst-devel libXrender-devel libXxf86vm-devel`
+  - **Arch:** `sudo pacman -S libxtst libxrender libxxf86vm`
+
+#### Paso 1: Compilar la CLI
+
+Desde la raíz del proyecto:
+
+**Windows:**
+```powershell
+cd cli
+mvn clean package -DskipTests
+```
+
+**Linux:**
+```bash
+cd cli
+mvn clean package -DskipTests
+```
+
+Esto genera `cli/target/agentic-develop.jar`.
+
+#### Paso 2: Copiar el JAR de la CLI
+
+**Windows:**
+```powershell
+cd ..
+New-Item -ItemType Directory -Force viewer/cli | Out-Null
+Copy-Item cli/target/agentic-develop.jar viewer/cli/
+```
+
+**Linux:**
+```bash
+cd ..
+mkdir -p viewer/cli
+cp cli/target/agentic-develop.jar viewer/cli/
+```
+
+#### Paso 3: Empaquetar el Viewer
+
+**Windows:**
+```powershell
+cd viewer
+..\scripts\package-windows.ps1
+```
+
+**Linux:**
+```bash
+cd viewer
+../scripts/package-linux.sh
+```
+
+**Opciones:**
+- `--skip-tests`: Omite las pruebas de Maven (más rápido)
+- `--verbose`: Muestra detalles adicionales del proceso
+
+#### Paso 4: Verificar el empaquetado
+
+**Windows:**
+```powershell
+cd viewer
+..\scripts\verify-package.ps1
+```
+
+**Linux:**
+```bash
+cd viewer
+../scripts/verify-package-linux.sh
+```
+
+Esto comprueba:
+- Que el runtime Java personalizado está incluido
+- Que el JAR del viewer está empaquetado
+- Que el JAR de la CLI está en la ubicación correcta
+- Que la aplicación puede iniciar sin Java del sistema
+
+#### Paso 5: Ejecutar la aplicación empaquetada
+
+**Windows:**
+```powershell
+cd viewer
+.\target\dist\windows\AgenticViewer\AgenticViewer.exe
+```
+
+**Linux:**
+```bash
+cd viewer
+./target/dist/linux/AgenticViewer/bin/AgenticViewer
+```
+
+La aplicación empaquetada:
+- ✅ Funciona sin Java instalado en el sistema
+- ✅ Funciona sin conexión a internet
+- ✅ Incluye todas las dependencias (JavaFX, Jackson, Pty4J, etc.)
+- ✅ Incluye el JAR de la CLI en la ubicación esperada
+- ✅ Tamaño total: ~150-200 MB (runtime Java + viewer + CLI)
+
+#### Estructura generada
+
+**Windows:**
+```
+viewer/target/dist/windows/AgenticViewer/
+├── AgenticViewer.exe          # Ejecutable nativo
+├── runtime/                   # Runtime Java personalizado
+│   ├── bin/
+│   │   ├── java.exe
+│   │   └── jlink.exe
+│   └── lib/
+├── app/
+│   ├── viewer.jar            # JAR del viewer
+│   └── cli/
+│       └── agentic-develop.jar  # JAR de la CLI
+└── ...
+```
+
+**Linux:**
+```
+viewer/target/dist/linux/AgenticViewer/
+├── bin/
+│   └── AgenticViewer          # Script launcher nativo
+├── runtime/                   # Runtime Java personalizado
+│   ├── bin/
+│   │   ├── java
+│   │   └── jlink
+│   └── lib/
+├── lib/
+│   ├── app/
+│   │   ├── viewer.jar        # JAR del viewer
+│   │   └── cli/
+│   │       └── agentic-develop.jar  # JAR de la CLI
+│   └── ...
+└── ...
+```
+
+#### Resolución de problemas
+
+**Error: "jlink no encontrado"**
+- Asegúrate de tener JDK 21+ instalado
+- Verifica que `jlink` esté en el PATH: `where jlink` (Windows) o `which jlink` (Linux)
+
+**Error: "jpackage no encontrado"**
+- Igual que arriba, `jpackage` viene con JDK 14+
+
+**Error: "CLI jar not found"**
+- Ejecuta el Paso 1 y Paso 2 antes de empaquetar
+- Verifica que `viewer/cli/agentic-develop.jar` exista
+
+**Error en Linux: "libXtst.so not found"**
+- Instala las dependencias de desktop (ver Requisitos previos)
+
+**La aplicación no inicia**
+- Ejecuta el script de verificación para diagnosticar el problema
+- Revisa los logs en `viewer/target/package/logs/` (si existen)
 
 ## Uso
 ### Menú interactivo
@@ -164,4 +346,4 @@ Las pruebas comprueban que estos contratos dicen lo mismo que el código.
 - `cli/external-libs/`: artefactos de `vargontoc-framework` usados por la CLI.
 - `docs/`: contratos e informes.
 - `specs/`: especificaciones SDD.
-- `viewer/`: aplicación de escritorio JavaFX 21 (en construcción; hasta TASK-009: selección de proyecto, árbol, previsualización, edición, propagación y adopción).
+- `viewer/`: aplicación de escritorio JavaFX 21 (en construcción; incluye selección de proyecto, árbol, previsualización, edición, propagación, adopción, creación desde plantilla, edición de skills como directorio, consola PTY, watcher de cambios y empaquetado).

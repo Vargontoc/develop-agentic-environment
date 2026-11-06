@@ -221,7 +221,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   - Integración en `App.java` con sección de consola en el panel principal
   - Pruebas: `FakePtySession`, `AnsiStripperTest`, `FakePtySessionTest`
 
-### [ ] TASK-014 Watcher y refresco tras cambios
+### [x] TASK-014 Watcher y refresco tras cambios
 
 - **Cubre:** REQ-017, NFR-002, DEC-008, DEC-009
 - **Componente:** `change-watcher | por definir (analista técnico)`; `viewer-ui | por definir (analista técnico)`; `cli-client | por definir (analista técnico)`
@@ -235,8 +235,15 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   1. Editar un agente fuera de la aplicación.
   2. Comprobar que el nodo se marca obsoleto.
   3. Recargar y comprobar el contenido nuevo.
+- **Implementación:**
+  - Watcher: `ProjectWatcher` con `WatchService`, registra recursivamente, agrupa eventos con debounce de 500ms
+  - Caché: `CacheStore` con `getOrLoad()` e invalidación por clave, prefijo o total
+  - Obsolescencia: `StaleTracker` registra rutas cambiadas y permite consultar si un nodo está obsoleto
+  - UI: botón "Recargar" con guarda de editores sucios, etiqueta `staleWarning` con aviso, estilo `tree-stale` en nodos obsoletos
+  - Integración: watcher se inicia al cargar proyecto, se detiene al cerrar; `invalidateAfterWrite()` tras cada escritura
+  - Pruebas: `CacheStoreTest` (6 tests), `StaleTrackerTest` (7 tests), `ProjectWatcherTest` (6 tests)
 
-### [ ] TASK-015 Empaquetado con jpackage y runtime Java
+### [x] TASK-015 Empaquetado con jpackage y runtime Java
 
 - **Cubre:** NFR-001, NFR-003, DEC-016
 - **Componente:** `packaging | por definir (analista técnico)`; `cli-process | por definir (analista técnico)`
@@ -250,6 +257,15 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   1. Generar la app-image en Windows y comprobar apertura, comandos y consola.
   2. Generar la app-image en Linux con las dependencias de escritorio y repetir.
   3. Desconectar la red y comprobar que todo sigue funcionando.
+- **Implementación:**
+  - Scripts de empaquetado: `scripts/package-windows.ps1` y `scripts/package-linux.sh`
+  - Crean fat JAR con todas las dependencias (Jackson, CommonMark, Pty4J, JavaFX)
+  - Generan runtime Java personalizado con `jlink` (módulos base + JavaFX)
+  - Empaquetan con `jpackage` tipo `app-image` para Windows y Linux
+  - Incluyen el jar del CLI en `cli/agentic-develop.jar`
+  - Script de verificación: `scripts/verify-package.ps1` comprueba estructura y funcionamiento
+  - Pruebas: `PackagingTest` verifica MANIFEST y dependencias del fat JAR
+  - Funciona sin Java instalado en el sistema y sin conexión a internet
 
 ### [ ] TASK-016 Rendimiento y caché
 

@@ -45,6 +45,10 @@ import es.vargontoc.agentic.viewer.preview.SddFiles;
 import es.vargontoc.agentic.viewer.terminal.PtyConsolePanel;
 import es.vargontoc.agentic.viewer.tree.TreeLabels;
 import es.vargontoc.agentic.viewer.tree.TreeModel;
+import es.vargontoc.agentic.viewer.watcher.CacheStore;
+import es.vargontoc.agentic.viewer.watcher.ProjectWatcher;
+import es.vargontoc.agentic.viewer.watcher.ProjectWatcher.ChangeEvent;
+import es.vargontoc.agentic.viewer.watcher.StaleTracker;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -75,7 +79,8 @@ public final class App extends Application {
 
     private static final String[] TREE_CLASSES = {
         "tree-root", "tree-provider", "tree-agent", "tree-skill", "tree-profile",
-        "tree-sdd", "tree-module", "tree-technician", "tree-pending", "tree-legacy", "tree-detached"
+        "tree-sdd", "tree-module", "tree-technician", "tree-pending", "tree-legacy",
+        "tree-detached", "tree-stale"
     };
 
     private Stage stage;
@@ -83,6 +88,11 @@ public final class App extends Application {
     private CliClient cliClient;
     private ProjectSession projectSession;
     private String cliError;
+
+    private ProjectWatcher projectWatcher;
+    private CacheStore cacheStore;
+    private StaleTracker staleTracker;
+    private Label staleWarning;
 
     private Label projectPath;
     private Label projectState;
@@ -108,6 +118,9 @@ public final class App extends Application {
             cliCommand = CliLocator.resolve(Path.of("").toAbsolutePath());
             cliClient = new CliClient(new CliProcess(cliCommand), new ObjectMapper());
             projectSession = new ProjectSession(cliClient);
+            cacheStore = new CacheStore();
+            staleTracker = new StaleTracker();
+            projectWatcher = new ProjectWatcher(this::onFileSystemChange);
         } catch (RuntimeException exception) {
             cliError = exception.getMessage();
         }
@@ -115,7 +128,7 @@ public final class App extends Application {
         Label title = new Label("Agentic Viewer");
         title.getStyleClass().add("title");
 
-        Label subtitle = new Label("JavaFX · TASK-013: consola PTY con pty4j");
+        Label subtitle = new Label("JavaFX · TASK-014: watcher y refresco tras cambios");
         subtitle.getStyleClass().add("subtitle");
 
         VBox header = new VBox(4, title, subtitle);
@@ -151,6 +164,9 @@ public final class App extends Application {
         stage.show();
 
         stage.setOnCloseRequest(event -> {
+            if (projectWatcher != null) {
+                projectWatcher.close();
+            }
             if (ptyConsolePanel != null) {
                 ptyConsolePanel.shutdown();
             }
@@ -172,9 +188,9 @@ public final class App extends Application {
         Label heading = new Label("Navegación");
         heading.getStyleClass().add("heading");
 
-        Button refresh = new Button("Refrescar");
+        Button refresh = new Button("Recargar");
         refresh.setDisable(cliClient == null);
-        refresh.setOnAction(event -> refreshTree());
+        refresh.setOnAction(event -> reloadWithGuard());
 
         HBox headingRow = new HBox(8, heading, refresh);
         headingRow.setAlignment(Pos.CENTER_LEFT);
@@ -207,7 +223,12 @@ public final class App extends Application {
                 if ("detached".equals(node.status())) {
                     getStyleClass().add("tree-detached");
                 }
-                setTooltip(node.path() == null ? null : new Tooltip(node.path()));
+                if (staleTracker != null && node.path() != null && staleTracker.isStale(node.path())) {
+                    getStyleClass().add("tree-stale");
+                    setTooltip(new Tooltip(node.path() + " (desactualizado)"));
+                } else {
+                    setTooltip(node.path() == null ? null : new Tooltip(node.path()));
+                }
             }
         });
         treeView.getSelectionModel().selectedItemProperty().addListener((observable, previous, selected) -> {
@@ -235,11 +256,17 @@ public final class App extends Application {
         treeWarnings.setManaged(cliError != null);
         treeWarnings.setVisible(cliError != null);
 
+        staleWarning = new Label();
+        staleWarning.getStyleClass().add("warning");
+        staleWarning.setWrapText(true);
+        staleWarning.setManaged(false);
+        staleWarning.setVisible(false);
+
         selectionInfo = new Label();
         selectionInfo.getStyleClass().add("selection");
         selectionInfo.setWrapText(true);
 
-        VBox sidebar = new VBox(10, headingRow, treeView, treeWarnings, selectionInfo);
+        VBox sidebar = new VBox(10, headingRow, treeView, treeWarnings, staleWarning, selectionInfo);
         VBox.setVgrow(treeView, Priority.ALWAYS);
         sidebar.getStyleClass().add("sidebar");
         sidebar.setPadding(new Insets(12));
@@ -419,6 +446,89 @@ public final class App extends Application {
         treeWarnings.setVisible(true);
         treeWarnings.getStyleClass().removeAll("muted", "warning", "error");
         treeWarnings.getStyleClass().add("error");
+    }
+
+    /** Callback del watcher cuando se detectan cambios en el sistema de ficheros. */
+    private void onFileSystemChange(ChangeEvent event) {
+        Platform.runLater(() -> {
+            if (staleTracker != null) {
+                staleTracker.markStale(event.changedPaths());
+                updateStaleWarning();
+                // Refrescar las celdas para que se marque el estilo "tree-stale"
+                treeView.refresh();
+            }
+            // Invalidar la caché para que la próxima recarga traiga datos frescos
+            if (cacheStore != null) {
+                cacheStore.invalidateAll();
+            }
+        });
+    }
+
+    /** Actualiza la etiqueta de aviso de cambios externos. */
+    private void updateStaleWarning() {
+        if (staleTracker == null || staleWarning == null) {
+            return;
+        }
+        if (staleTracker.isAnyStale()) {
+            int count = staleTracker.size();
+            staleWarning.setText("Cambios externos detectados (" + count + " fichero"
+                + (count == 1 ? "" : "s") + "). Pulsa «Recargar» para actualizar.");
+            staleWarning.setManaged(true);
+            staleWarning.setVisible(true);
+        } else {
+            staleWarning.setText("");
+            staleWarning.setManaged(false);
+            staleWarning.setVisible(false);
+        }
+    }
+
+    /** Invalida la caché tras una operación de escritura. */
+    private void invalidateAfterWrite() {
+        if (cacheStore != null) {
+            cacheStore.invalidateAll();
+        }
+        if (staleTracker != null) {
+            staleTracker.clear();
+            updateStaleWarning();
+        }
+    }
+
+    /**
+     * Recarga el árbol y el estado, pidiendo confirmación si hay editores
+     * con cambios sin guardar. Invalida la caché antes de recargar.
+     */
+    private void reloadWithGuard() {
+        // Guardar/descartar editores sucios antes de recargar
+        EditorModel editor = previewPanel.editor();
+        if (editor != null && editor.isDirty()) {
+            if (!confirmSaveForAgent(editor)) {
+                return;
+            }
+        }
+        SkillEditorModel skillEditor = previewPanel.skillEditor();
+        if (skillEditor != null && skillEditor.isDirty()) {
+            if (!confirmSaveForSkill(skillEditor)) {
+                return;
+            }
+        }
+
+        // Invalidar caché y recargar
+        if (cacheStore != null) {
+            cacheStore.invalidateAll();
+        }
+        if (staleTracker != null) {
+            staleTracker.clear();
+            updateStaleWarning();
+        }
+        refreshTree();
+        // Volver a cargar el artefacto seleccionado si tiene ruta
+        TreeItem<TreeData.Node> selected = treeView.getSelectionModel().getSelectedItem();
+        if (selected != null && selected.getValue() != null) {
+            TreeData.Node node = selected.getValue();
+            if (node.path() != null && !node.type().equals("root")) {
+                loadArtifact(node);
+            }
+        }
     }
 
     private TreeItem<TreeData.Node> toItem(TreeData.Node node) {
@@ -619,6 +729,7 @@ public final class App extends Application {
         try {
             cliClient.saveHeader(editor.path(), editor.header(), editor.project());
             editor.markHeaderSaved();
+            invalidateAfterWrite();
             return null;
         } catch (CliClientException exception) {
             ErrorNotice notice = ErrorPresenter.present(exception);
@@ -632,6 +743,7 @@ public final class App extends Application {
         try {
             cliClient.saveBody(editor.path(), editor.body(), editor.project());
             editor.markBodySaved();
+            invalidateAfterWrite();
             return null;
         } catch (CliClientException exception) {
             ErrorNotice notice = ErrorPresenter.present(exception);
@@ -659,6 +771,7 @@ public final class App extends Application {
             SaveData result = cliClient.saveGroup(editor.path(), editor.sharedBody(), false, editor.project());
             editor.markSharedBodySaved();
             previewPanel.showSaveStatus("Propagado a " + result.members().size() + " miembros.", false);
+            invalidateAfterWrite();
             refreshTree();
             return true;
         } catch (CliClientException exception) {
@@ -690,6 +803,7 @@ public final class App extends Application {
             }
             cliClient.adopt(editor.path(), editor.project(), true);
             previewPanel.showSaveStatus("Vinculado al grupo.", false);
+            invalidateAfterWrite();
             refreshTree();
             reloadSelectedArtifact();
         } catch (CliClientException exception) {
@@ -716,6 +830,7 @@ public final class App extends Application {
             cliClient.saveBody(skillEditor.skillPath(), content, skillEditor.project(), file);
             skillEditor.markSaved(file);
             previewPanel.showSaveStatus("Fichero " + file + " guardado.", false);
+            invalidateAfterWrite();
         } catch (CliClientException exception) {
             ErrorNotice notice = ErrorPresenter.present(exception);
             previewPanel.showSaveStatus("Error: " + notice.message() + " " + notice.action(), true);
@@ -752,6 +867,7 @@ public final class App extends Application {
                 skillEditor.project(), file);
             skillEditor.markSaved(file);
             previewPanel.showSaveStatus("Propagado a " + result.members().size() + " copias.", false);
+            invalidateAfterWrite();
             refreshTree();
             reloadSelectedArtifact();
         } catch (CliClientException exception) {
@@ -864,7 +980,20 @@ public final class App extends Application {
         createModuleButton.setDisable(!configured);
         addTechnicianButton.setDisable(!configured || !hasModules(status));
         createArtifactButton.setDisable(providerIds().isEmpty());
+        startWatcherForProject();
         refreshTree();
+    }
+
+    /** Arranca el watcher para el proyecto actual. */
+    private void startWatcherForProject() {
+        if (projectWatcher == null || projectSession == null || projectSession.path() == null) {
+            return;
+        }
+        List<Path> directories = List.of(projectSession.path());
+        staleTracker.clear();
+        cacheStore.invalidateAll();
+        updateStaleWarning();
+        projectWatcher.start(directories);
     }
 
     private boolean hasModules(StatusData status) {
