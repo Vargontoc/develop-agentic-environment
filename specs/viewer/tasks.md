@@ -198,7 +198,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   - UI: `PreviewPanel` con selector de fichero y botones de guardar/propagar por fichero
   - Flujo completo en `App.loadSkill()`, `saveSkillFile()` y `propagateSkillFile()`
 
-### [ ] TASK-013 Consola PTY con pty4j
+### [x] TASK-013 Consola PTY con pty4j
 
 - **Cubre:** REQ-016, NFR-004, DEC-007
 - **Componente:** `terminal-console | por definir (analista técnico)`; `pty-host | por definir (analista técnico)`; `javafx-shell | por definir (analista técnico)`
@@ -212,6 +212,14 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   1. Abrir la consola y usar una opción del menú del CLI.
   2. Redimensionar la ventana y comprobar el reajuste.
   3. Enviar la interrupción y comprobar que el proceso responde.
+- **Implementación:**
+  - Interfaz: `PtySession` para abstracción y testabilidad
+  - Implementación: `Pty4jSession` con pty4j (PtyProcess, PtyProcessBuilder, WinSize)
+  - Utilidad: `AnsiStripper` para limpiar secuencias ANSI antes de mostrar en TextArea
+  - UI: `PtyConsolePanel` con TextArea de salida, TextField de entrada, botones de enviar/interrupt/reiniciar/cerrar/limpiar
+  - Hilos virtuales para lectura de salida y espera de finalización sin bloquear la UI (NFR-004)
+  - Integración en `App.java` con sección de consola en el panel principal
+  - Pruebas: `FakePtySession`, `AnsiStripperTest`, `FakePtySessionTest`
 
 ### [ ] TASK-014 Watcher y refresco tras cambios
 

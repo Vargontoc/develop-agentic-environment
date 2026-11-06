@@ -42,6 +42,7 @@ import es.vargontoc.agentic.viewer.editor.SkillEditorModel;
 import es.vargontoc.agentic.viewer.preview.ArtifactPreview;
 import es.vargontoc.agentic.viewer.preview.PreviewPanel;
 import es.vargontoc.agentic.viewer.preview.SddFiles;
+import es.vargontoc.agentic.viewer.terminal.PtyConsolePanel;
 import es.vargontoc.agentic.viewer.tree.TreeLabels;
 import es.vargontoc.agentic.viewer.tree.TreeModel;
 import javafx.application.Application;
@@ -97,6 +98,7 @@ public final class App extends Application {
     private Label treeWarnings;
     private Label selectionInfo;
     private PreviewPanel previewPanel;
+    private PtyConsolePanel ptyConsolePanel;
     private boolean suppressSelection;
 
     @Override
@@ -113,7 +115,7 @@ public final class App extends Application {
         Label title = new Label("Agentic Viewer");
         title.getStyleClass().add("title");
 
-        Label subtitle = new Label("JavaFX · TASK-007: edición de cabecera y cuerpo");
+        Label subtitle = new Label("JavaFX · TASK-013: consola PTY con pty4j");
         subtitle.getStyleClass().add("subtitle");
 
         VBox header = new VBox(4, title, subtitle);
@@ -126,7 +128,9 @@ public final class App extends Application {
         previewPanel.setOnSaveSkillFile(this::saveSkillFile);
         previewPanel.setOnPropagateSkillFile(this::propagateSkillFile);
 
-        VBox main = new VBox(12, projectCard(), previewPanel, cliCard());
+        ptyConsolePanel = new PtyConsolePanel(cliCommand, this::currentProject);
+
+        VBox main = new VBox(12, projectCard(), previewPanel, ptyConsoleSection());
         VBox.setVgrow(previewPanel, Priority.ALWAYS);
 
         SplitPane split = new SplitPane(sidebar(), main);
@@ -145,6 +149,12 @@ public final class App extends Application {
         stage.setMinHeight(640);
         stage.setScene(scene);
         stage.show();
+
+        stage.setOnCloseRequest(event -> {
+            if (ptyConsolePanel != null) {
+                ptyConsolePanel.shutdown();
+            }
+        });
 
         if (cliError != null) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -337,6 +347,34 @@ public final class App extends Application {
         card.getStyleClass().add("card");
         card.setPadding(new Insets(20));
         return card;
+    }
+
+    /** Sección de la consola PTY con botón para iniciar. */
+    private VBox ptyConsoleSection() {
+        Label heading = new Label("Consola PTY");
+        heading.getStyleClass().add("heading");
+
+        Label description = new Label("Ejecuta el CLI interactivo en una terminal integrada.");
+        description.getStyleClass().add("muted");
+        description.setWrapText(true);
+
+        Button startButton = new Button("Iniciar consola");
+        startButton.setDisable(cliCommand == null);
+        startButton.setOnAction(event -> {
+            if (!ptyConsolePanel.isActive()) {
+                ptyConsolePanel.startSession();
+            }
+        });
+
+        HBox headerRow = new HBox(8, heading, startButton);
+        HBox.setHgrow(heading, Priority.ALWAYS);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox section = new VBox(8, headerRow, description, ptyConsolePanel);
+        section.getStyleClass().add("card");
+        section.setPadding(new Insets(16));
+        section.setMinHeight(200);
+        return section;
     }
 
     private void refreshTree() {

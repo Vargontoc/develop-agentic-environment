@@ -231,3 +231,27 @@
 .editor .content {
     -fx-background-color: #151515;
 }
+
+.pty-console {
+    -fx-background-color: #1a1a2e;
+    -fx-border-color: #3a3a5a;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+
+.pty-console .heading {
+    -fx-text-fill: #c4b5fd;
+    -fx-font-size: 14px;
+}
+
+.pty-console .console {
+    -fx-font-family: "Consolas", "Cascadia Mono", monospace;
+    -fx-font-size: 12px;
+    -fx-control-inner-background: #0d0d1a;
+    -fx-text-fill: #a5f3c0;
+    -fx-highlight-fill: #3b82f6;
+}
+
+.pty-console .console .content {
+    -fx-background-color: #0d0d1a;
+}

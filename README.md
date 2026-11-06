@@ -12,7 +12,8 @@ salida JSON y contratos documentados. La salida JSON está pensada para que la c
 El viewer (`viewer/`) está en construcción con JavaFX 21. Incluye la selección de proyecto, el árbol global y de
 proyecto, la previsualización y edición de artefactos (agentes, skills) y de los ficheros `.sdd` en solo lectura;
 la creación de módulos y técnicos; la creación de agentes y skills desde plantilla; la edición de skills con
-múltiples ficheros; y la propagación de cambios a grupos de artefactos. Consume el CLI mediante el contrato `cli-json` v1.
+múltiples ficheros; la consola PTY integrada con pty4j para ejecutar el CLI interactivo; y la propagación de cambios
+a grupos de artefactos. Consume el CLI mediante el contrato `cli-json` v1.
 
 **Nota:** Corregido bug en la navegación del árbol donde seleccionar un artefacto sin editarlo marcaba incorrectamente el estado como "sin guardar".
 
