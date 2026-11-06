@@ -18,7 +18,7 @@ Un único módulo Maven, una sola aplicación JavaFX y estado con propiedades y 
 - `describe` devuelve `header`, `body`, `sharedBody`, `hash`, `status` y `modifiedExternally`.
 - El CLI no lee `.sdd`; el contrato permite leerlo directamente en solo lectura.
 - No existe `.sdd/architecture.md` ni `.sdd/project.md` en la raíz.
-- `viewer/` contiene el esqueleto, la sesión de proyecto y la navegación inicial (TASK-005); el resto está por construir.
+- `viewer/` contiene el esqueleto, la sesión de proyecto, la navegación, la previsualización, la edición, la propagación, la adopción y la creación de módulos y técnicos (hasta TASK-010); el resto está por construir.
 - El viewer espera el jar ejecutable en `cli/agentic-develop.jar` dentro de su propio directorio. Si falta, muestra un error de aplicación y no ejecuta comandos.
 - Se dispone de JDK 21 y Maven; JavaFX y pty4j se resuelven como dependencias Maven.
 - La latencia por comando incluye el arranque de la JVM (≈0,3-0,5 s); se evita el sondeo continuo.

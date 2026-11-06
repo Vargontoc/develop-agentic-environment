@@ -9,8 +9,12 @@ agentes de cada módulo y técnico de un proyecto.
 La CLI (`cli/`) está completa según su especificación (`specs/cli/`): menú interactivo, comandos no interactivos con
 salida JSON y contratos documentados. La salida JSON está pensada para que la consuma un visor externo.
 
-El viewer (`viewer/`) está en construcción con JavaFX 21. De momento incluye el esqueleto de TASK-001 (ventana y prueba
-de la interfaz); todavía no consume el CLI.
+El viewer (`viewer/`) está en construcción con JavaFX 21. Incluye la selección de proyecto, el árbol global y de
+proyecto, la previsualización y edición de artefactos (agentes, skills) y de los ficheros `.sdd` en solo lectura;
+la creación de módulos y técnicos; la creación de agentes y skills desde plantilla; la edición de skills con
+múltiples ficheros; y la propagación de cambios a grupos de artefactos. Consume el CLI mediante el contrato `cli-json` v1.
+
+**Nota:** Corregido bug en la navegación del árbol donde seleccionar un artefacto sin editarlo marcaba incorrectamente el estado como "sin guardar".
 
 ## Requisitos
 - JDK 21
@@ -115,6 +119,10 @@ Normas que conviene conocer:
 El viewer espera el jar ejecutable en `viewer/cli/agentic-develop.jar`. Si falta, muestra un error de aplicación.
 La ventana permite seleccionar un proyecto, validarlo con el CLI e iniciarlo si falta `.sdd`.
 El panel lateral muestra el árbol Global y Project, y se refresca al seleccionar o iniciar un proyecto.
+Al elegir un agente o una skill se previsualiza (cabecera aparte, cuerpo en texto o renderizado); `.sdd` se muestra en solo lectura.
+Los agentes y perfiles se pueden editar: cabecera y cuerpo por separado, con guardado mediante `save` y aviso antes de perder cambios.
+El cuerpo compartido de un especialista se puede propagar al grupo, revisando antes los miembros y diffs que devuelve el CLI.
+Un artefacto legacy o desvinculado ofrece «Volver al grupo» (adoptar), con diff previo y confirmación.
 Desde la raíz, tras construir el CLI:
 
 ```powershell
@@ -155,4 +163,4 @@ Las pruebas comprueban que estos contratos dicen lo mismo que el código.
 - `cli/external-libs/`: artefactos de `vargontoc-framework` usados por la CLI.
 - `docs/`: contratos e informes.
 - `specs/`: especificaciones SDD.
-- `viewer/`: aplicación de escritorio JavaFX 21 (en construcción; TASK-001: esqueleto y ventana).
+- `viewer/`: aplicación de escritorio JavaFX 21 (en construcción; hasta TASK-009: selección de proyecto, árbol, previsualización, edición, propagación y adopción).

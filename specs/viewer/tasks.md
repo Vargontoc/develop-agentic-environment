@@ -67,7 +67,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Iniciar el proyecto y comprobar que aparece `.sdd`.
   3. Seleccionar un fichero y comprobar el error.
 
-### [ ] TASK-005 Árbol lateral global y de proyecto
+### [x] TASK-005 Árbol lateral global y de proyecto
 
 - **Cubre:** REQ-004, REQ-005, DEC-002
 - **Componente:** `viewer-ui | por definir (analista técnico)`
@@ -82,7 +82,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Expandir un módulo y comprobar técnicos existentes y pendientes.
   3. Abrir un proyecto sin módulos y comprobar el estado vacío.
 
-### [ ] TASK-006 Previsualización de artefactos y `.sdd`
+### [x] TASK-006 Previsualización de artefactos y `.sdd`
 
 - **Cubre:** REQ-006, DEC-005, DEC-006, DEC-015
 - **Componente:** `artifact-editor | por definir (analista técnico)`; `markdown-preview | por definir (analista técnico)`; `viewer-ui | por definir (analista técnico)`
@@ -97,7 +97,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Seleccionar un agente Codex y comprobar el resaltado TOML.
   3. Seleccionar `team.md` y comprobar que se indica solo lectura.
 
-### [ ] TASK-007 Edición de cabecera y cuerpo
+### [x] TASK-007 Edición de cabecera y cuerpo
 
 - **Cubre:** REQ-007, REQ-008, NFR-005, DEC-011, DEC-012
 - **Componente:** `artifact-editor | por definir (analista técnico)`; `cli-client | por definir (analista técnico)`
@@ -112,7 +112,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Editar la cabecera de un proveedor y comprobar que otro proveedor no cambia.
   3. Intentar cambiar de artefacto sin guardar y comprobar la confirmación.
 
-### [ ] TASK-008 Diff y propagación de grupo
+### [x] TASK-008 Diff y propagación de grupo
 
 - **Cubre:** REQ-009, REQ-011, DEC-002, DEC-008, DEC-012
 - **Componente:** `diff-review | por definir (analista técnico)`; `cli-client | por definir (analista técnico)`
@@ -127,7 +127,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Revisar el diff y los módulos afectados.
   3. Confirmar y comprobar que los módulos se actualizan.
 
-### [ ] TASK-009 Guardado local, desvinculación y adopción
+### [x] TASK-009 Guardado local, desvinculación y adopción
 
 - **Cubre:** REQ-010, DEC-011, DEC-014
 - **Componente:** `artifact-editor | por definir (analista técnico)`; `diff-review | por definir (analista técnico)`; `cli-client | por definir (analista técnico)`
@@ -139,10 +139,11 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   - Caso de error o límite: artefacto ya vinculado devuelve conflicto; grupo inexistente devuelve error comprensible.
 - **Prueba manual:**
   1. Guardar solo una instancia y comprobar que las demás no cambian.
-  2. Abrir un artefacto legacy y pulsar “volver al grupo”.
+  2. Abrir un artefacto legacy y pulsar "volver al grupo".
   3. Revisar el diff, confirmar y comprobar el estado vinculado.
+- **Bug fix:** Corregido problema donde seleccionar un artefacto sin editarlo marcaba el estado como "dirty". Se añadió bandera `updatingFromModel` en `PreviewPanel` para evitar que los listeners de texto se disparen durante la carga inicial.
 
-### [ ] TASK-010 Creación de módulos y técnicos
+### [x] TASK-010 Creación de módulos y técnicos
 
 - **Cubre:** REQ-012, REQ-013, DEC-013
 - **Componente:** `creation-wizard | por definir (analista técnico)`; `cli-client | por definir (analista técnico)`; `viewer-ui | por definir (analista técnico)`
@@ -157,7 +158,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Crearlo de verdad y comprobar `.sdd/team.md` y los agentes.
   3. Añadir un técnico y comprobar que los existentes no cambian.
 
-### [ ] TASK-011 Creación de agentes y skills desde plantilla
+### [x] TASK-011 Creación de agentes y skills desde plantilla
 
 - **Cubre:** REQ-014, DEC-013
 - **Componente:** `creation-wizard | por definir (analista técnico)`; `cli-client | por definir (analista técnico)`
@@ -171,8 +172,13 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   1. Crear un agente sin modificar la plantilla.
   2. Crear otro modificando el cuerpo.
   3. Repetir el mismo nombre y comprobar el conflicto.
+- **Implementación:**
+  - Modelos: `CatalogData`, `CreateArtifactData`
+  - Cliente CLI: `catalog()`, `createArtifact()`
+  - Diálogos: `CreateArtifactDialog` (selección), `EditTemplateDialog` (edición)
+  - Flujo completo en `App.createArtifact()` con manejo de conflictos y sobrescritura
 
-### [ ] TASK-012 Edición de skills como directorio
+### [x] TASK-012 Edición de skills como directorio
 
 - **Cubre:** REQ-015, DEC-002, DEC-005
 - **Componente:** `artifact-editor | por definir (analista técnico)`; `cli-client | por definir (analista técnico)`
@@ -186,6 +192,11 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   1. Abrir una skill y comprobar la lista de ficheros.
   2. Editar `SKILL.md` y guardar.
   3. Propagar y comprobar las copias del mismo ámbito.
+- **Implementación:**
+  - Modelo: `SkillEditorModel` para manejar múltiples ficheros con buffers independientes
+  - Cliente CLI: `saveBody()` y `saveGroup()` con parámetro `file` para skills
+  - UI: `PreviewPanel` con selector de fichero y botones de guardar/propagar por fichero
+  - Flujo completo en `App.loadSkill()`, `saveSkillFile()` y `propagateSkillFile()`
 
 ### [ ] TASK-013 Consola PTY con pty4j
 
@@ -294,9 +305,14 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
 ## Avisos
 
 - El stack se cambió de Tauri/React/Rust a JavaFX 21 + pty4j para evitar Rust y MSVC. El diseño y las tareas se han reescrito con los mismos IDs.
-- TASK-001, TASK-002, TASK-003 y TASK-004 están completadas.
-- TASK-005 está implementada y verificada con 39 pruebas, incluido el árbol real del CLI en un proyecto temporal; la casilla queda sin marcar hasta la confirmación del usuario.
+- TASK-001 a TASK-009 están completadas.
+- TASK-010 está implementada y verificada con 86 pruebas, incluidos los métodos reales del CLI `create-module` y `add-technician`; la casilla queda sin marcar hasta la confirmación del usuario.
 - Se retiró la tarjeta de demostración de TASK-001; la ventana empieza por la navegación y la sesión de proyecto.
+- La previsualización usa commonmark-java (Markdown) y resaltado propio de TOML/YAML en WebView; la cabecera se muestra en un panel aparte y `.sdd` se lee directamente en solo lectura.
+- La edición guarda el cuerpo con `save --stdin` y la cabecera con `save --header-stdin`; un cambio sin guardar pide confirmación antes de cambiar de selección.
+- La propagación simula con `save --mode group --dry-run`, muestra miembros, diffs y conflictos y, al confirmar, escribe con el mismo comando sin simulación.
+- Un artefacto legacy o desvinculado muestra «Volver al grupo»: `adopt` sin confirmar devuelve el diff y, al confirmar, vincula el artefacto y refresca el árbol.
+- La creación de módulos y técnicos usa diálogos con checkboxes para técnicos (analista, desarrollador, documentador) y proveedores; simula con `--dry-run` y muestra preview antes de confirmar.
 - El viewer exige `viewer/cli/agentic-develop.jar`. El jar no se versiona (`.gitignore`) y se copia tras construir el CLI; si falta, la aplicación muestra un error.
 - No existe `.sdd/architecture.md`; los componentes nuevos se marcan como `por definir (analista técnico)`.
 - No existe `.sdd/task-types.md`; no se han generado tipos de tarea adicionales.

@@ -14,7 +14,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import es.vargontoc.agentic.viewer.cli.CliProcess.CliResult;
+import es.vargontoc.agentic.viewer.cli.model.AdoptData;
+import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
 import es.vargontoc.agentic.viewer.cli.model.DescribeData;
+import es.vargontoc.agentic.viewer.cli.model.SaveData;
 import es.vargontoc.agentic.viewer.cli.model.StatusData;
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
 
@@ -138,6 +141,137 @@ class CliClientTest {
     }
 
     @Test
+    void guardaElCuerpoConStdin() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        AtomicReference<String> sent = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            sent.set(stdin);
+            return new CliResult(0, saveJson(), "", false, 1);
+        }, mapper);
+        Path artifact = Path.of("tmp", "agente.md");
+
+        SaveData data = client.saveBody(artifact, "nuevo cuerpo", null);
+
+        assertEquals(List.of("save", "--path", artifact.toString(), "--stdin"), seen.get());
+        assertEquals("nuevo cuerpo", sent.get());
+        assertTrue(data.written());
+        assertEquals("instance", data.mode());
+    }
+
+    @Test
+    void guardaLaCabeceraConHeaderStdin() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        AtomicReference<String> sent = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            sent.set(stdin);
+            return new CliResult(0, saveJson(), "", false, 1);
+        }, mapper);
+        Path artifact = Path.of("tmp", "agente.md");
+        Path project = Path.of("tmp", "proyecto");
+
+        SaveData data = client.saveHeader(artifact, "---\nname: x\n---\n", project);
+
+        assertEquals(List.of("save", "--path", artifact.toString(),
+            "--header-stdin", "--mode", "instance", "--project", project.toString()), seen.get());
+        assertEquals("---\nname: x\n---\n", sent.get());
+        assertTrue(data.written());
+    }
+
+    @Test
+    void propagaElGrupoConDryRun() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        AtomicReference<String> sent = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            sent.set(stdin);
+            return new CliResult(0, groupSaveJson(), "", false, 1);
+        }, mapper);
+        Path artifact = Path.of("tmp", "agente.md");
+
+        SaveData data = client.saveGroup(artifact, "cuerpo {module}", true, null);
+
+        assertEquals(List.of("save", "--path", artifact.toString(),
+            "--mode", "group", "--stdin", "--dry-run"), seen.get());
+        assertEquals("cuerpo {module}", sent.get());
+        assertTrue(data.dryRun());
+        assertEquals(2, data.members().size());
+        assertEquals("updated", data.members().getFirst().outcome());
+    }
+
+    @Test
+    void adoptaSinConfirmarSoloCalcula() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, adoptJson(), "", false, 1);
+        }, mapper);
+        Path artifact = Path.of("tmp", "agente.md");
+
+        AdoptData data = client.adopt(artifact, null, false);
+
+        assertEquals(List.of("adopt", "--path", artifact.toString()), seen.get());
+        assertTrue(data.dryRun());
+        assertFalse(data.applied());
+        assertEquals("global/agent/docs-readme", data.groupId());
+    }
+
+    @Test
+    void adoptaConConfirmacion() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, adoptJson(), "", false, 1);
+        }, mapper);
+        Path artifact = Path.of("tmp", "agente.md");
+        Path project = Path.of("tmp", "proyecto");
+
+        client.adopt(artifact, project, true);
+
+        assertEquals(List.of("adopt", "--path", artifact.toString(), "--confirm", "--project", project.toString()),
+            seen.get());
+    }
+
+    @Test
+    void creaUnModuloConDryRun() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, createModuleJson(), "", false, 1);
+        }, mapper);
+        Path project = Path.of("tmp", "proyecto");
+
+        CreateModuleData data = client.createModule(project, "auth",
+            List.of("analista", "desarrollador"), List.of("claude"), true);
+
+        assertEquals(List.of("create-module", "--project", project.toString(),
+            "--module", "auth", "--technicians", "analista,desarrollador",
+            "--providers", "claude", "--dry-run"), seen.get());
+        assertTrue(data.dryRun());
+        assertEquals("auth", data.module());
+        assertEquals(3, data.created().size());
+    }
+
+    @Test
+    void anadeTecnicoAUnModuloExistente() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, addTechnicianJson(), "", false, 1);
+        }, mapper);
+        Path project = Path.of("tmp", "proyecto");
+
+        CreateModuleData data = client.addTechnician(project, "auth",
+            List.of("documentador"), List.of("claude"), false);
+
+        assertEquals(List.of("add-technician", "--project", project.toString(),
+            "--module", "auth", "--technicians", "documentador",
+            "--providers", "claude"), seen.get());
+        assertFalse(data.dryRun());
+    }
+
+    @Test
     void parseaStatusDelCliRealSiElJarEstaDisponible() {
         StatusData data = realClient().status(null);
 
@@ -224,6 +358,55 @@ class CliClientTest {
             {"schemaVersion":1,"command":"status","ok":false,"data":null,
              "errors":[{"code":"not_found.project.path","path":"C:/no-existe",
                         "message":"No existe el proyecto."}]}
+            """;
+    }
+
+    private static String saveJson() {
+        return """
+            {"schemaVersion":1,"command":"save","ok":true,"data":{
+              "mode":"instance","dryRun":false,"path":"/home/.claude/agents/sdd-agent.md",
+              "groupId":null,"written":true,"tracked":true,"groupUpdated":false,
+              "diff":"- viejo\\n+ nuevo","backups":[],"members":[]},"errors":[]}
+            """;
+    }
+
+    private static String groupSaveJson() {
+        return """
+            {"schemaVersion":1,"command":"save","ok":true,"data":{
+              "mode":"group","dryRun":true,"path":"/p/.claude/agents/analista-auth.md",
+              "groupId":"g1","written":true,"tracked":true,"groupUpdated":true,
+              "diff":"","backups":[],"members":[
+                {"path":"/p/.claude/agents/analista-auth.md","provider":"claude","module":"auth",
+                 "outcome":"updated","diff":"-a\\n+b","backups":[]},
+                {"path":"/p/.claude/agents/analista-facturacion.md","provider":"claude","module":"facturacion",
+                 "outcome":"updated","diff":"-a\\n+c","backups":[]}
+              ]},"errors":[]}
+            """;
+    }
+
+    private static String adoptJson() {
+        return """
+            {"schemaVersion":1,"command":"adopt","ok":true,"data":{
+              "path":"/home/.claude/agents/docs-readme.md","groupId":"global/agent/docs-readme",
+              "dryRun":true,"applied":false,"diff":"-a\\n+b","backup":null},"errors":[]}
+            """;
+    }
+
+    private static String createModuleJson() {
+        return """
+            {"schemaVersion":1,"command":"create-module","ok":true,"data":{
+              "module":"auth","dryRun":true,
+              "created":[".sdd/team.md",".claude/agents/analista-auth.md",".claude/agents/desarrollador-auth.md"],
+              "skipped":[],"warnings":[]},"errors":[]}
+            """;
+    }
+
+    private static String addTechnicianJson() {
+        return """
+            {"schemaVersion":1,"command":"add-technician","ok":true,"data":{
+              "module":"auth","dryRun":false,
+              "created":[".claude/agents/documentador-auth.md"],
+              "skipped":[],"warnings":[]},"errors":[]}
             """;
     }
 }

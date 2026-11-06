@@ -1,6 +1,7 @@
 package es.vargontoc.agentic.viewer.cli;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -11,9 +12,14 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import es.vargontoc.agentic.viewer.cli.model.AdoptData;
+import es.vargontoc.agentic.viewer.cli.model.CatalogData;
 import es.vargontoc.agentic.viewer.cli.model.CliError;
+import es.vargontoc.agentic.viewer.cli.model.CreateArtifactData;
+import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
 import es.vargontoc.agentic.viewer.cli.model.DescribeData;
 import es.vargontoc.agentic.viewer.cli.model.InitData;
+import es.vargontoc.agentic.viewer.cli.model.SaveData;
 import es.vargontoc.agentic.viewer.cli.model.StatusData;
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
 
@@ -58,6 +64,149 @@ public final class CliClient {
         return execute(args, DescribeData.class);
     }
 
+    /** Guarda el cuerpo de una instancia con {@code save --stdin}. */
+    public SaveData saveBody(Path artifact, String content, Path project) {
+        return saveBody(artifact, content, project, null);
+    }
+
+    /** Guarda el cuerpo de una instancia con {@code save --stdin}. */
+    public SaveData saveBody(Path artifact, String content, Path project, String file) {
+        Objects.requireNonNull(artifact, "artifact");
+        Objects.requireNonNull(content, "content");
+        List<String> args = new ArrayList<>(List.of("save", "--path", artifact.toString(), "--stdin"));
+        if (file != null && !file.isBlank()) {
+            args.add("--file");
+            args.add(file);
+        }
+        addProject(args, project);
+        return execute(args, content, SaveData.class);
+    }
+
+    /** Guarda la cabecera de un agente con {@code save --header-stdin} en modo instancia. */
+    public SaveData saveHeader(Path artifact, String header, Path project) {
+        Objects.requireNonNull(artifact, "artifact");
+        Objects.requireNonNull(header, "header");
+        List<String> args = new ArrayList<>(List.of("save", "--path", artifact.toString(),
+            "--header-stdin", "--mode", "instance"));
+        addProject(args, project);
+        return execute(args, header, SaveData.class);
+    }
+
+    /** Propaga el cuerpo compartido a su grupo; con {@code dryRun} solo calcula los diffs. */
+    public SaveData saveGroup(Path artifact, String sharedBody, boolean dryRun, Path project) {
+        return saveGroup(artifact, sharedBody, dryRun, project, null);
+    }
+
+    /** Propaga el cuerpo compartido a su grupo; con {@code dryRun} solo calcula los diffs. */
+    public SaveData saveGroup(Path artifact, String sharedBody, boolean dryRun, Path project, String file) {
+        Objects.requireNonNull(artifact, "artifact");
+        Objects.requireNonNull(sharedBody, "sharedBody");
+        List<String> args = new ArrayList<>(List.of("save", "--path", artifact.toString(),
+            "--mode", "group", "--stdin"));
+        if (file != null && !file.isBlank()) {
+            args.add("--file");
+            args.add(file);
+        }
+        if (dryRun) {
+            args.add("--dry-run");
+        }
+        addProject(args, project);
+        return execute(args, sharedBody, SaveData.class);
+    }
+
+    /** Vincula un artefacto legacy o desvinculado a su grupo; con {@code confirm} escribe y registra. */
+    public AdoptData adopt(Path artifact, Path project, boolean confirm) {
+        Objects.requireNonNull(artifact, "artifact");
+        List<String> args = new ArrayList<>(List.of("adopt", "--path", artifact.toString()));
+        if (confirm) {
+            args.add("--confirm");
+        }
+        addProject(args, project);
+        return execute(args, AdoptData.class);
+    }
+
+    /** Crea un módulo con técnicos y proveedores; con {@code dryRun} solo simula. */
+    public CreateModuleData createModule(Path project, String moduleName, List<String> technicians,
+                                         List<String> providers, boolean dryRun) {
+        Objects.requireNonNull(project, "project");
+        Objects.requireNonNull(moduleName, "moduleName");
+        List<String> args = new ArrayList<>(List.of(
+            "create-module",
+            "--project", project.toString(),
+            "--module", moduleName,
+            "--technicians", String.join(",", technicians),
+            "--providers", String.join(",", providers)));
+        if (dryRun) {
+            args.add("--dry-run");
+        }
+        return execute(args, CreateModuleData.class);
+    }
+
+    /** Añade técnicos a un módulo existente; con {@code dryRun} solo simula. */
+    public CreateModuleData addTechnician(Path project, String moduleName, List<String> technicians,
+                                          List<String> providers, boolean dryRun) {
+        Objects.requireNonNull(project, "project");
+        Objects.requireNonNull(moduleName, "moduleName");
+        List<String> args = new ArrayList<>(List.of(
+            "add-technician",
+            "--project", project.toString(),
+            "--module", moduleName,
+            "--technicians", String.join(",", technicians),
+            "--providers", String.join(",", providers)));
+        if (dryRun) {
+            args.add("--dry-run");
+        }
+        return execute(args, CreateModuleData.class);
+    }
+
+    /**
+     * Consulta el catálogo de artefactos disponibles para crear.
+     * Si {@code name} no es null, devuelve solo esa entrada con su plantilla.
+     */
+    public CatalogData catalog(String provider, String scope, String kind, String name, Path project) {
+        Objects.requireNonNull(provider, "provider");
+        Objects.requireNonNull(scope, "scope");
+        Objects.requireNonNull(kind, "kind");
+        List<String> args = new ArrayList<>(List.of(
+            "catalog",
+            "--provider", provider,
+            "--scope", scope,
+            "--kind", kind));
+        if (name != null && !name.isBlank()) {
+            args.add("--name");
+            args.add(name);
+        }
+        addProject(args, project);
+        return execute(args, CatalogData.class);
+    }
+
+    /**
+     * Crea un agente o skill desde el catálogo.
+     * Si {@code content} no es null, se usa como contenido personalizado.
+     * Si {@code overwrite} es true, sobrescribe artefactos existentes.
+     */
+    public CreateArtifactData createArtifact(String provider, String scope, String kind, String name,
+                                             Path project, String content, boolean overwrite) {
+        Objects.requireNonNull(provider, "provider");
+        Objects.requireNonNull(scope, "scope");
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(name, "name");
+        List<String> args = new ArrayList<>(List.of(
+            "create-artifact",
+            "--provider", provider,
+            "--scope", scope,
+            "--kind", kind,
+            "--name", name));
+        if (content != null) {
+            args.add("--stdin");
+        }
+        if (overwrite) {
+            args.add("--overwrite");
+        }
+        addProject(args, project);
+        return execute(args, content, CreateArtifactData.class);
+    }
+
     private void addProject(List<String> args, Path project) {
         if (project != null) {
             args.add("--project");
@@ -66,7 +215,11 @@ public final class CliClient {
     }
 
     private <T> T execute(List<String> args, Class<T> type) {
-        CliProcess.CliResult result = runner.run(args);
+        return execute(args, null, type);
+    }
+
+    private <T> T execute(List<String> args, String stdin, Class<T> type) {
+        CliProcess.CliResult result = runner.run(args, stdin, Duration.ofSeconds(15));
 
         if (result.timedOut()) {
             throw new CliClientException("client.timeout", null,
