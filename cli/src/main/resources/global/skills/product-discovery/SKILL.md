@@ -26,7 +26,10 @@ description: Guía para debatir un producto con el usuario y mantener docs/produ
 
 - Actualízalo solo cuando el usuario confirme un bloque (la visión, un grupo de funcionalidades, una decisión), no en cada turno. Cada cambio, una edición pequeña.
 - Funcionalidades `FUN-001`, decisiones `PDEC-001`. Estados: `idea`, `acordada`, `descartada`, `en_evaluacion`.
-- Lo descartado se conserva con su motivo.
+  * `idea` => propuesta inicial, todavia no evaluada
+  * `en_evaluacion` => debatida, pendiente de decisión
+  * `acordada` => aceptada por el usuario
+  * `descartada` => rechazada, con motivo documentado
 
 **`.sdd/project.md`**: solo lo destilado, corto. Lo leen todos los agentes en cada ejecución, así que cada línea cuesta.
 
@@ -34,7 +37,7 @@ description: Guía para debatir un producto con el usuario y mantener docs/produ
 2. Muestra el texto completo de las cuatro secciones (`## Nombre del proyecto`, `## Descripción`, `## Alcance`, `## Stack tecnológico`), de 3 a 10 líneas cada una.
 3. Alcance: las funcionalidades imprescindibles acordadas, en lenguaje de usuario. Stack: las decisiones tomadas; lo no decidido, "Por definir: ..." con las candidatas.
 4. Escríbelo solo tras aprobación explícita. Si ya existe, léelo y propón solo los cambios, sin pisar lo que el usuario haya editado.
-5. Cuando se apruebe una decisión que afecte a visión, alcance o stack tecnoloógico evaluar si afecta a `.sdd/project.md`. Si afecta proponer un cambio concreto y solicita cautorización. No todas las funcionalidades nuevas requieren modificarlo, `project.md` debe seguir siendo compacto, no convertirse en un catálogo de features. 
+5. Cuando se apruebe una decisión que afecte a visión, alcance o stack tecnoloógico evaluar si afecta a `.sdd/project.md`. Si afecta proponer un cambio concreto y solicita autorización. No todas las funcionalidades nuevas requieren modificarlo, `project.md` debe seguir siendo compacto, no convertirse en un catálogo de features.
 
 ## Búsqueda web
 
