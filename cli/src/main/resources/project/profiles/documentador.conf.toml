@@ -1,0 +1,14 @@
+default_permissions = "documentador"
+
+[permissions.documentador]
+description = "Sesión del documentador: lectura del proyecto y escritura en docs/, .sdd/ y specs/; sin red."
+extends = ":read-only"
+
+[permissions.documentador.filesystem]
+glob_scan_max_depth = 3
+
+[permissions.documentador.filesystem.":workspace_roots"]
+"docs" = "write"
+".sdd" = "write"
+"specs" = "write"
+"**/*.env" = "deny"

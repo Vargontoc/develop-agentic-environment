@@ -1,0 +1,19 @@
+default_permissions = "desarrollador-{module}"
+
+[permissions.dev-framework-core]
+description = "Desarrollador del módulo {module}: escritura en su carpeta y en specs/; sin red."
+extends = ":workspace"
+
+[permissions.dev-framework-core.filesystem]
+glob_scan_max_depth = 3
+"~/.m2" = "read"
+"~/.config/git" = "read"
+"~/.gitconfig" = "read"
+
+[permissions.dev-framework-core.filesystem.":workspace_roots"]
+"." = "read"
+"specs" = "write"
+"**/*.env" = "deny"
+
+[permissions.dev-framework-core.network]
+enabled = false
