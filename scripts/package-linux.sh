@@ -142,6 +142,15 @@ if [ -n "$DEPS_CP" ]; then
     done
 fi
 
+# Eliminar las clases de JavaFX del fat JAR (estarán en el runtime vía jlink)
+log_verbose "Eliminando clases de JavaFX del fat JAR (estarán en el runtime)"
+if [ -d "javafx" ]; then
+    rm -rf javafx
+fi
+
+# También eliminar archivos de módulos de JavaFX
+find . -name "module-info.class" -delete 2>/dev/null || true
+
 # Crear MANIFEST.MF
 mkdir -p META-INF
 cat > META-INF/MANIFEST.MF <<EOF
@@ -185,10 +194,77 @@ rm -rf "$RUNTIME_DIR"
 JAVA_HOME_DIR=$(dirname $(dirname $(readlink -f $(which java))))
 JMODS_PATH="$JAVA_HOME_DIR/jmods"
 
-JLINK_CMD="jlink --module-path \"$JMODS_PATH\" --add-modules $ALL_MODULES --output \"$RUNTIME_DIR\" --no-header-files --no-man-pages --strip-debug --compress=2"
+# Descargar JavaFX jmods si no existe
+JAVAFX_JMODS_DIR="$PACKAGE_DIR/javafx-jmods"
+JAVAFX_VERSION="21.0.2"
 
-log_verbose "Ejecutando: $JLINK_CMD"
-eval $JLINK_CMD
+if [ ! -d "$JAVAFX_JMODS_DIR" ]; then
+    log_verbose "Descargando JavaFX jmods $JAVAFX_VERSION"
+    
+    mkdir -p "$PACKAGE_DIR"
+    
+    # Detectar plataforma
+    ARCH=$(uname -m)
+    case $ARCH in
+        x86_64)
+            JAVAFX_ARCH="x64"
+            ;;
+        aarch64)
+            JAVAFX_ARCH="aarch64"
+            ;;
+        *)
+            echo "Error: Arquitectura no soportada: $ARCH"
+            exit 1
+            ;;
+    esac
+    
+    # Descargar los jmods (no el SDK completo)
+    # Gluon publica los jmods como .zip (no existe .tar.gz)
+    JAVAFX_URL="https://download2.gluonhq.com/openjfx/${JAVAFX_VERSION}/openjfx-${JAVAFX_VERSION}_linux-${JAVAFX_ARCH}_bin-jmods.zip"
+    JAVAFX_ZIP="$PACKAGE_DIR/javafx-jmods.zip"
+
+    if ! curl -fL -o "$JAVAFX_ZIP" "$JAVAFX_URL"; then
+        echo "Error: No se pudo descargar JavaFX jmods desde $JAVAFX_URL"
+        exit 1
+    fi
+
+    log_verbose "Extrayendo JavaFX jmods"
+    if command -v unzip &> /dev/null; then
+        unzip -q -o "$JAVAFX_ZIP" -d "$PACKAGE_DIR"
+    else
+        (cd "$PACKAGE_DIR" && jar xf "$JAVAFX_ZIP")
+    fi
+    rm -f "$JAVAFX_ZIP"
+    
+    # Renombrar el directorio extraído
+    EXTRACTED_DIR=$(find "$PACKAGE_DIR" -maxdepth 1 -type d -name "javafx-jmods-*" | head -1)
+    if [ -n "$EXTRACTED_DIR" ]; then
+        mv "$EXTRACTED_DIR" "$JAVAFX_JMODS_DIR"
+    fi
+fi
+
+# El zip de Gluon contiene los .jmod directamente en la carpeta extraída
+JAVAFX_JMODS="$JAVAFX_JMODS_DIR"
+if [ -d "$JAVAFX_JMODS_DIR/jmods" ]; then
+    JAVAFX_JMODS="$JAVAFX_JMODS_DIR/jmods"
+fi
+
+if ! ls "$JAVAFX_JMODS"/*.jmod &> /dev/null; then
+    echo "Error: Los jmods de JavaFX no se encontraron en $JAVAFX_JMODS"
+    exit 1
+fi
+
+log_verbose "JavaFX jmods encontrados en: $JAVAFX_JMODS"
+
+# Listar los jmods disponibles
+log_verbose "Jmods de JavaFX disponibles: $(ls "$JAVAFX_JMODS"/*.jmod | xargs -n1 basename | sed 's/.jmod$//' | tr '\n' ', ')"
+
+# Combinar module-paths
+MODULE_PATHS="$JMODS_PATH:$JAVAFX_JMODS"
+
+log_verbose "Ejecutando jlink con módulos: $ALL_MODULES"
+jlink --module-path "$MODULE_PATHS" --add-modules "$ALL_MODULES" --output "$RUNTIME_DIR" \
+  --no-header-files --no-man-pages --strip-debug --compress=2
 
 if [ ! -d "$RUNTIME_DIR" ]; then
     echo "Error: No se pudo crear el runtime personalizado"
@@ -217,23 +293,21 @@ log_step "6. Empaquetando con jpackage"
 
 rm -rf "$DIST_DIR"
 
-JPACKAGE_CMD="jpackage \
+log_verbose "Ejecutando jpackage"
+jpackage \
   --type app-image \
-  --name $APP_NAME \
-  --input \"$APP_DIR\" \
+  --name "$APP_NAME" \
+  --input "$APP_DIR" \
   --main-jar viewer.jar \
   --main-class es.vargontoc.agentic.viewer.App \
-  --runtime \"$RUNTIME_DIR\" \
-  --dest \"$DIST_DIR\" \
-  --app-version $APP_VERSION \
-  --vendor \"Agentic Development\" \
-  --description \"Agentic Development Environment Viewer\" \
-  --java-options \"-Dfile.encoding=UTF-8\" \
-  --java-options \"-Dstdout.encoding=UTF-8\" \
-  --java-options \"-Dstderr.encoding=UTF-8\""
-
-log_verbose "Ejecutando jpackage"
-eval $JPACKAGE_CMD
+  --runtime-image "$RUNTIME_DIR" \
+  --dest "$DIST_DIR" \
+  --app-version "$APP_VERSION" \
+  --vendor "Agentic Development" \
+  --description "Agentic Development Environment Viewer" \
+  --java-options "-Dfile.encoding=UTF-8" \
+  --java-options "-Dstdout.encoding=UTF-8" \
+  --java-options "-Dstderr.encoding=UTF-8"
 
 APP_IMAGE="$DIST_DIR/$APP_NAME"
 if [ ! -d "$APP_IMAGE" ]; then

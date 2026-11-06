@@ -1,5 +1,4 @@
-#!/usr/bin/env pwsh
-<#
+﻿<#
 .SYNOPSIS
     Genera la imagen empaquetada del Agentic Viewer para Windows.
 
@@ -31,7 +30,7 @@ function Write-Step {
     Write-Host "`n===> $Message" -ForegroundColor Cyan
 }
 
-function Write-Verbose {
+function Write-VerboseMsg {
     param([string]$Message)
     if ($script:Verbose) {
         Write-Host "  $Message" -ForegroundColor DarkGray
@@ -46,7 +45,7 @@ $PackageDir = Join-Path $BuildDir "package"
 $RuntimeDir = Join-Path $PackageDir "runtime"
 $AppDir = Join-Path $PackageDir "app"
 $DistDir = Join-Path $BuildDir "dist"
-$CliJar = Join-Path $ViewerDir "cli" "agentic-develop.jar"
+$CliJar = Join-Path (Join-Path $ViewerDir "cli") "agentic-develop.jar"
 $ViewerJar = Join-Path $BuildDir "viewer-0.1.0-SNAPSHOT.jar"
 $FatJar = Join-Path $BuildDir "viewer-fat.jar"
 $AppName = "AgenticViewer"
@@ -54,8 +53,15 @@ $AppVersion = "0.1.0"
 
 # Verificar herramientas
 Write-Step "Verificando herramientas"
-$javaVersion = java -version 2>&1 | Select-String "version" | Select-Object -First 1
-Write-Verbose "Java: $javaVersion"
+try {
+    $oldErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $javaVersion = java -version 2>&1 | Select-Object -First 1
+    $ErrorActionPreference = $oldErrorAction
+} catch {
+    $javaVersion = "Java no detectado"
+}
+Write-VerboseMsg "Java: $javaVersion"
 
 $jlinkPath = Get-Command jlink -ErrorAction SilentlyContinue
 if (-not $jlinkPath) {
@@ -77,7 +83,7 @@ if (-not $mvnPath) {
 
 # Verificar CLI jar
 if (-not (Test-Path $CliJar)) {
-    Write-Error "El jar del CLI no existe en $CliJar. Compílalo primero con: cd cli && mvn package"
+    Write-Error "El jar del CLI no existe en $CliJar. Compílalo primero con: cd cli; mvn package"
     exit 1
 }
 
@@ -109,12 +115,12 @@ if (Test-Path $TempExtract) {
 }
 New-Item -ItemType Directory -Path $TempExtract | Out-Null
 
-Write-Verbose "Extrayendo $ViewerJar"
+Write-VerboseMsg "Extrayendo $ViewerJar"
 Set-Location $TempExtract
 jar xf $ViewerJar
 
 # Extraer dependencias desde el classpath de Maven
-Write-Verbose "Obteniendo classpath de dependencias"
+Write-VerboseMsg "Obteniendo classpath de dependencias"
 $Dependencies = mvn dependency:build-classpath -DincludeScope=runtime -q -Dmdep.outputFile=CON 2>&1 | 
     Where-Object { $_ -notmatch "^\[" -and $_ -match "\.jar" }
 
@@ -122,9 +128,27 @@ if ($Dependencies) {
     $JarFiles = $Dependencies.Split(';') | Where-Object { $_ -match "\.jar$" }
     foreach ($DepJar in $JarFiles) {
         if (Test-Path $DepJar) {
-            Write-Verbose "Extrayendo $DepJar"
+            Write-VerboseMsg "Extrayendo $DepJar"
             jar xf $DepJar
         }
+    }
+}
+
+# Eliminar las clases de JavaFX del fat JAR (estarán en el runtime vía jlink)
+Write-VerboseMsg "Eliminando clases de JavaFX del fat JAR (estarán en el runtime)"
+$JavafxDirs = Get-ChildItem -Path $TempExtract -Directory -Filter "javafx" -ErrorAction SilentlyContinue
+if ($JavafxDirs) {
+    foreach ($Dir in $JavafxDirs) {
+        Write-VerboseMsg "Eliminando $($Dir.FullName)"
+        Remove-Item $Dir.FullName -Recurse -Force
+    }
+}
+
+# También eliminar archivos de módulos de JavaFX
+$ModuleInfoFiles = Get-ChildItem -Path $TempExtract -Recurse -Filter "module-info.class" -ErrorAction SilentlyContinue
+if ($ModuleInfoFiles) {
+    foreach ($File in $ModuleInfoFiles) {
+        Remove-Item $File.FullName -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -134,16 +158,14 @@ if (-not (Test-Path $ManifestDir)) {
     New-Item -ItemType Directory -Path $ManifestDir | Out-Null
 }
 
-$ManifestContent = @"
-Manifest-Version: 1.0
-Main-Class: es.vargontoc.agentic.viewer.App
-"@
-Set-Content -Path (Join-Path $ManifestDir "MANIFEST.MF") -Value $ManifestContent -Encoding UTF8
+$ManifestPath = Join-Path $ManifestDir "MANIFEST.MF"
+$manifestLines = "Manifest-Version: 1.0`r`nMain-Class: es.vargontoc.agentic.viewer.App`r`n"
+[System.IO.File]::WriteAllText($ManifestPath, $manifestLines, (New-Object System.Text.UTF8Encoding $false))
 
 # Empaquetar fat JAR
-Write-Verbose "Creando $FatJar"
+Write-VerboseMsg "Creando $FatJar"
 Set-Location $BuildDir
-jar cfm $FatJar (Join-Path $TempExtract "META-INF" "MANIFEST.MF") -C $TempExtract .
+jar cfm $FatJar $ManifestPath -C $TempExtract .
 
 # Limpiar temp
 Remove-Item $TempExtract -Recurse -Force
@@ -183,7 +205,7 @@ $JavafxModules = @(
 )
 
 $AllModules = ($Modules + $JavafxModules) -join ","
-Write-Verbose "Módulos: $AllModules"
+Write-VerboseMsg "Módulos: $AllModules"
 
 # Paso 4: Crear runtime personalizado con jlink
 Write-Step "4. Creando runtime personalizado con jlink"
@@ -192,10 +214,77 @@ if (Test-Path $RuntimeDir) {
     Remove-Item $RuntimeDir -Recurse -Force
 }
 
-$jlinkCmd = "jlink --module-path `"$((Get-Command java).Source | Split-Path | Split-Path)\jmods`" --add-modules $AllModules --output `"$RuntimeDir`" --no-header-files --no-man-pages --strip-debug --compress=2"
+$JavaHome = (Get-Command java).Source | Split-Path | Split-Path
+$jmodsPath = Join-Path $JavaHome "jmods"
 
-Write-Verbose "Ejecutando: $jlinkCmd"
-Invoke-Expression $jlinkCmd
+# Descargar JavaFX jmods si no existe
+$JavafxJmodsDir = Join-Path $PackageDir "javafx-jmods"
+$JavafxVersion = "21.0.2"
+$JavafxZip = Join-Path $PackageDir "javafx-jmods.zip"
+
+if (-not (Test-Path $JavafxJmodsDir)) {
+    Write-VerboseMsg "Descargando JavaFX jmods $JavafxVersion"
+    
+    if (-not (Test-Path $PackageDir)) {
+        New-Item -ItemType Directory -Path $PackageDir | Out-Null
+    }
+    
+    # Descargar los jmods (no el SDK completo)
+    $JavafxUrl = "https://download2.gluonhq.com/openjfx/$JavafxVersion/openjfx-${JavafxVersion}_windows-x64_bin-jmods.zip"
+    
+    try {
+        $oldProgress = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri $JavafxUrl -OutFile $JavafxZip
+        $ProgressPreference = $oldProgress
+        
+        Write-VerboseMsg "Extrayendo JavaFX jmods"
+        Expand-Archive -Path $JavafxZip -DestinationPath $PackageDir -Force
+        Remove-Item $JavafxZip -Force
+        
+        # Renombrar el directorio extraído
+        $ExtractedDir = Get-ChildItem -Path $PackageDir -Directory -Filter "javafx-jmods-*" | Select-Object -First 1
+        if ($ExtractedDir) {
+            Rename-Item $ExtractedDir.FullName $JavafxJmodsDir
+        }
+    } catch {
+        Write-Error "No se pudo descargar JavaFX jmods: $_"
+        exit 1
+    }
+}
+
+# El zip de Gluon contiene los .jmod directamente en la carpeta extraída
+$JavafxJmods = $JavafxJmodsDir
+if (Test-Path (Join-Path $JavafxJmodsDir "jmods")) {
+    $JavafxJmods = Join-Path $JavafxJmodsDir "jmods"
+}
+
+if (-not (Test-Path $JavafxJmods)) {
+    Write-Error "Los jmods de JavaFX no se encontraron en $JavafxJmods"
+    exit 1
+}
+
+Write-VerboseMsg "JavaFX jmods encontrados en: $JavafxJmods"
+
+# Listar los jmods disponibles
+$AvailableJmods = Get-ChildItem -Path $JavafxJmods -Filter "*.jmod" | ForEach-Object { $_.BaseName }
+Write-VerboseMsg "Jmods de JavaFX disponibles: $($AvailableJmods -join ', ')"
+
+# Combinar module-paths
+$ModulePaths = "$jmodsPath;$JavafxJmods"
+
+$jlinkArgs = @(
+    "--module-path", $ModulePaths,
+    "--add-modules", $AllModules,
+    "--output", $RuntimeDir,
+    "--no-header-files",
+    "--no-man-pages",
+    "--strip-debug",
+    "--compress=2"
+)
+
+Write-VerboseMsg "Ejecutando jlink con módulos: $AllModules"
+& jlink @jlinkArgs
 
 if (-not (Test-Path $RuntimeDir)) {
     Write-Error "No se pudo crear el runtime personalizado"
@@ -229,25 +318,24 @@ if (Test-Path $DistDir) {
     Remove-Item $DistDir -Recurse -Force
 }
 
-$jpackageCmd = @"
-jpackage 
-  --type app-image 
-  --name $AppName 
-  --input "$AppDir" 
-  --main-jar viewer.jar 
-  --main-class es.vargontoc.agentic.viewer.App 
-  --runtime "$RuntimeDir" 
-  --dest "$DistDir" 
-  --app-version $AppVersion 
-  --vendor "Agentic Development" 
-  --description "Agentic Development Environment Viewer" 
-  --java-options "-Dfile.encoding=UTF-8"
-  --java-options "-Dstdout.encoding=UTF-8"
-  --java-options "-Dstderr.encoding=UTF-8"
-"@
+$jpackageArgs = @(
+    "--type", "app-image",
+    "--name", $AppName,
+    "--input", $AppDir,
+    "--main-jar", "viewer.jar",
+    "--main-class", "es.vargontoc.agentic.viewer.App",
+    "--runtime-image", $RuntimeDir,
+    "--dest", $DistDir,
+    "--app-version", $AppVersion,
+    "--vendor", "Agentic Development",
+    "--description", "Agentic Development Environment Viewer",
+    "--java-options", "-Dfile.encoding=UTF-8",
+    "--java-options", "-Dstdout.encoding=UTF-8",
+    "--java-options", "-Dstderr.encoding=UTF-8"
+)
 
-Write-Verbose "Ejecutando jpackage"
-Invoke-Expression $jpackageCmd
+Write-VerboseMsg "Ejecutando jpackage"
+& jpackage @jpackageArgs
 
 $AppImage = Join-Path $DistDir $AppName
 if (-not (Test-Path $AppImage)) {
@@ -260,12 +348,12 @@ Write-Host "✓ Aplicación empaquetada: $AppImage" -ForegroundColor Green
 # Paso 7: Verificar que el CLI jar está en el directorio correcto
 Write-Step "7. Verificando estructura final"
 
-$FinalCliJar = Join-Path $AppImage "app" "cli" "agentic-develop.jar"
+$FinalCliDir = Join-Path (Join-Path $AppImage "app") "cli"
+$FinalCliJar = Join-Path $FinalCliDir "agentic-develop.jar"
 if (-not (Test-Path $FinalCliJar)) {
     Write-Warning "El jar del CLI no está en $FinalCliJar"
     Write-Host "Creando directorio cli y copiando jar..." -ForegroundColor Yellow
     
-    $FinalCliDir = Join-Path $AppImage "app" "cli"
     New-Item -ItemType Directory -Path $FinalCliDir -Force | Out-Null
     Copy-Item $CliJar $FinalCliJar
     
@@ -283,8 +371,8 @@ Write-Host "Para ejecutar:" -ForegroundColor Yellow
 Write-Host "  & `"$AppImage\$AppName.exe`"" -ForegroundColor White
 Write-Host ""
 Write-Host "La aplicación incluye:" -ForegroundColor Yellow
-Write-Host "  - Runtime Java personalizado ($(Get-ChildItem $RuntimeDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB) MB)"
-Write-Host "  - Viewer JAR con todas las dependencias"
-Write-Host "  - CLI JAR en cli/agentic-develop.jar"
+Write-Host "  - Runtime Java empaquetado (no requiere Java del sistema)" -ForegroundColor White
+Write-Host "  - Viewer JAR con todas las dependencias" -ForegroundColor White
+Write-Host "  - CLI JAR en cli/agentic-develop.jar" -ForegroundColor White
 Write-Host ""
-Write-Host "Funciona sin Java instalado en el sistema y sin conexión a internet." -ForegroundColor Green
+Write-Host "Funciona sin conexión a internet." -ForegroundColor Green
