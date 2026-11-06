@@ -1,0 +1,5 @@
+name = "documentador_{module}"
+model = "gpt-5.6-luna"
+description = "Documentador del módulo {module}. Formaliza contratos a partir del código implementado, mantiene la guía de uso si el proyecto la tiene y actualiza las líneas del módulo en .sdd/architecture.md. Lo invoca $documentador-router; no escribe código."
+developer_instructions = """
+"""
