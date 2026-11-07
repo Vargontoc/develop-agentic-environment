@@ -130,7 +130,12 @@ jar xf "$VIEWER_JAR"
 
 # Extraer dependencias desde el classpath de Maven
 log_verbose "Obteniendo classpath de dependencias"
-DEPS_CP=$(mvn dependency:build-classpath -DincludeScope=runtime -q -Dmdep.outputFile=/dev/stdout 2>/dev/null)
+# Se usa -f porque aquí el directorio actual es el de extracción, que no tiene pom.xml.
+if ! DEPS_CP=$(mvn -f "$VIEWER_DIR/pom.xml" dependency:build-classpath -DincludeScope=runtime -q -Dmdep.outputFile=/dev/stdout); then
+    echo "Error: no se pudo obtener el classpath de dependencias con Maven."
+    echo "$DEPS_CP"
+    exit 1
+fi
 
 if [ -n "$DEPS_CP" ]; then
     IFS=':' read -ra JAR_FILES <<< "$DEPS_CP"
