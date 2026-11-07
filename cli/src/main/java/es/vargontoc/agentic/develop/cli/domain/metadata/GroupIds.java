@@ -16,6 +16,12 @@ import es.vargontoc.agentic.develop.cli.domain.artifact.CatalogEntry;
  */
 public final class GroupIds {
 
+    /**
+     * Grupo global único del hook {@code sdd-specs-only}: abarca el hook de todos los proveedores, sin cuerpo compartido.
+     * El hook no es una entrada del catálogo, así que su identificador es fijo.
+     */
+    public static final String HOOK = "global/hook/sdd-specs-only";
+
     private GroupIds() {}
 
     public static String of(CatalogEntry entry) {

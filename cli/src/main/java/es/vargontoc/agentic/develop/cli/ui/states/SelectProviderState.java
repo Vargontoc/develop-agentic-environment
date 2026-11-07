@@ -42,6 +42,8 @@ public class SelectProviderState extends MultiSelectState<Provider> {
     private static String kind(String path) {
         if(path.startsWith("skills/"))
             return "skill";
+        if(path.startsWith("hooks/"))
+            return "hook";
         return path.startsWith("agents/") ? "agent" : "profile";
     }
 

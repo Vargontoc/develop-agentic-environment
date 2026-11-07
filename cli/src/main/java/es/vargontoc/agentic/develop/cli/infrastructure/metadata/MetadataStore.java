@@ -9,7 +9,10 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
 import es.vargontoc.agentic.develop.cli.domain.metadata.ArtifactRecord;
+import es.vargontoc.agentic.develop.cli.domain.metadata.ContentHash;
+import es.vargontoc.agentic.develop.cli.domain.metadata.GroupIds;
 import es.vargontoc.agentic.develop.cli.domain.metadata.GroupRecord;
 import es.vargontoc.agentic.develop.cli.domain.metadata.LinkState;
 import es.vargontoc.agentic.develop.cli.domain.metadata.MetadataSnapshot;
@@ -78,6 +81,23 @@ public final class MetadataStore {
         MetadataSnapshot current = snapshot();
         current.artifacts().put(key(path), ArtifactRecord.ofHash(key(path), groupId, hash, state));
         persist(current);
+    }
+
+    /**
+     * Registra el hook ya escrito en disco: crea el grupo global del hook si no existe (sin cuerpo compartido) y guarda
+     * el hash de {@code written}, que debe ser lo que quedó en el fichero, vinculado ({@link LinkState#LINKED}).
+     */
+    public void putHook(Path hook, byte[] written) {
+        MetadataSnapshot current = snapshot();
+        current.groups().putIfAbsent(GroupIds.HOOK, new GroupRecord(GroupIds.HOOK, ArtifactScope.GLOBAL, ""));
+        current.artifacts().put(key(hook), ArtifactRecord.ofHash(key(hook), GroupIds.HOOK, ContentHash.ofUtf8(written),
+            LinkState.LINKED));
+        persist(current);
+    }
+
+    /** Registro del hook en esa ruta; vacío si no hay registro o si la ruta está registrada con otro grupo. */
+    public Optional<ArtifactRecord> hook(Path hook) {
+        return artifact(hook).filter(a -> GroupIds.HOOK.equals(a.groupId()));
     }
 
     public void markDetached(Path path) {

@@ -3,6 +3,7 @@ package es.vargontoc.agentic.develop.cli.infrastructure.paths;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
@@ -141,6 +142,53 @@ class PathResolverTest {
 
         assertCode(AppErrorCode.PATH_OUT_OF_SCOPE,
             () -> linux(Map.of()).requireWithin(scope, scope.resolve("..").resolve("fuera.md")));
+    }
+
+    // --- hook sdd-specs-only ---
+
+    @Test
+    void hookPathEndsWithTheBatVariantOnWindowsForEveryProvider() {
+        PathResolver paths = windows(Map.of());
+
+        for(ProviderType type : ProviderType.values()) {
+            Path hook = paths.hookPath(type);
+
+            assertEquals(paths.providerHome(type).resolve("hooks").resolve("sdd-specs-only.bat"), hook, type.name());
+            assertTrue(hook.startsWith(paths.providerHome(type)), type.name());
+        }
+    }
+
+    @Test
+    void hookPathEndsWithTheShVariantOnLinuxForEveryProvider() {
+        PathResolver paths = linux(Map.of());
+
+        for(ProviderType type : ProviderType.values()) {
+            Path hook = paths.hookPath(type);
+
+            assertEquals(paths.providerHome(type).resolve("hooks").resolve("sdd-specs-only.sh"), hook, type.name());
+            assertTrue(hook.startsWith(paths.providerHome(type)), type.name());
+        }
+    }
+
+    @Test
+    void hookPathDoesNotRequireTheHooksFolderToExist() {
+        assertFalse(Files.exists(linux(Map.of()).providerHome(ProviderType.CLAUDE)));
+
+        assertEquals("sdd-specs-only.sh", linux(Map.of()).hookPath(ProviderType.CLAUDE).getFileName().toString());
+    }
+
+    @Test
+    void hooksFolderThatIsASymlinkOutsideTheGlobalFolderIsRejected() throws IOException {
+        PathResolver paths = linux(Map.of());
+        Path providerHome = Files.createDirectories(paths.providerHome(ProviderType.CLAUDE));
+        Path outside = Files.createDirectories(tmp.resolve("outside"));
+        try {
+            Files.createSymbolicLink(providerHome.resolve("hooks"), outside);
+        } catch(IOException | UnsupportedOperationException | SecurityException e) {
+            assumeTrue(false, "No se pueden crear enlaces simbólicos en este entorno");
+        }
+
+        assertCode(AppErrorCode.PATH_OUT_OF_SCOPE, () -> paths.hookPath(ProviderType.CLAUDE));
     }
 
     @Test

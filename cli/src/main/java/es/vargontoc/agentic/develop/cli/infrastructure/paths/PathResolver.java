@@ -11,6 +11,8 @@ import java.util.Optional;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
+import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
+import es.vargontoc.agentic.develop.cli.infrastructure.resources.HookResource;
 
 /**
  * Único punto que decide dónde viven los proveedores y el estado de la aplicación en Windows y Linux,
@@ -60,6 +62,25 @@ public final class PathResolver {
             case GEMINI -> home.resolve(".gemini").resolve("config");
             case OPENCODE -> configHome(home).resolve("opencode");
         };
+    }
+
+    /**
+     * Ruta exacta del hook {@code sdd-specs-only} en la carpeta global del proveedor: {@code hooks/sdd-specs-only.bat}
+     * en Windows y {@code hooks/sdd-specs-only.sh} en Linux. Apunta solo al fichero del hook, nunca a la carpeta.
+     * El fichero y la carpeta pueden no existir todavía.
+     *
+     * @throws DomainException {@code PATH_OUT_OF_SCOPE} si, resueltos {@code ..} y enlaces simbólicos (por ejemplo,
+     *                         una carpeta {@code hooks/} que sea un enlace hacia fuera), la ruta sale de la carpeta global
+     */
+    public Path hookPath(ProviderType type) {
+        return hookPath(providerHome(type));
+    }
+
+    /** Como {@link #hookPath(ProviderType)} para una carpeta global de proveedor ya conocida. */
+    public Path hookPath(Path providerHome) {
+        TargetOs target = os == Os.WINDOWS ? TargetOs.WINDOWS : TargetOs.LINUX;
+        Path hook = providerHome.resolve("hooks").resolve(HookResource.fileName(target));
+        return requireWithin(providerHome, hook);
     }
 
     /** Carpeta donde la aplicación guarda su estado (metadatos, copias de seguridad). */

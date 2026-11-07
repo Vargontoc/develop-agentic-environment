@@ -145,6 +145,104 @@ class ConfigureProviderTest {
             || inventory.scanGlobal(ProviderType.CODEX).artifacts().stream().noneMatch(a -> a.modifiedExternally()));
     }
 
+    // --- hook sdd-specs-only ---
+
+    private ConfigureProvider withHooks(MetadataStore[] store) {
+        PathResolver paths = new PathResolver(Map.of("HOME", tmp.toString()), PathResolver.Os.LINUX);
+        Path backups = tmp.resolve("backups");
+        var catalog = new ResourceArtifactCatalog();
+        store[0] = new MetadataStore(tmp.resolve("app-home/metadata.json"), new TextStore(paths, List.of(tmp), backups));
+        return new ConfigureProvider(TargetOs.LINUX, catalog, new ArtifactInventory(paths, catalog, store[0], backups),
+            store[0], new HookInstaller(paths, store[0]));
+    }
+
+    @Test
+    void globalInstallLeavesTheHookInEverySelectedProvider() throws IOException {
+        MetadataStore[] store = new MetadataStore[1];
+        ConfigureProvider configureWithHooks = withHooks(store);
+        Provider claude = provider(ProviderType.CLAUDE);
+        Provider codex = provider(ProviderType.CODEX);
+
+        OperationResult first = configureWithHooks.execute(claude, true);
+        OperationResult second = configureWithHooks.execute(codex, true);
+
+        assertTrue(Files.isRegularFile(claude.getPath().resolve("hooks/sdd-specs-only.sh")));
+        assertTrue(Files.isRegularFile(codex.getPath().resolve("hooks/sdd-specs-only.sh")));
+        assertFalse(Files.exists(claude.getPath().resolve("hooks/sdd-specs-only.bat")));
+        assertTrue(first.created().contains("hooks/sdd-specs-only.sh"));
+        assertTrue(second.created().contains("hooks/sdd-specs-only.sh"));
+        // En un sistema de ficheros no POSIX el permiso de ejecución no se puede fijar y eso es lo único que avisa
+        boolean posix = claude.getPath().getFileSystem().supportedFileAttributeViews().contains("posix");
+        assertTrue(first.warnings().stream().allMatch(w -> !posix && w.contains("could not be made executable")),
+            first.warnings().toString());
+        assertEquals(2, store[0].artifactsOfGroup("global/hook/sdd-specs-only").size());
+    }
+
+    @Test
+    void hookGoesAfterAgentsAndSkillsAndDoesNotDisturbTheirRegistration() throws IOException {
+        MetadataStore[] store = new MetadataStore[1];
+        Provider claude = provider(ProviderType.CLAUDE);
+
+        OperationResult result = withHooks(store).execute(claude, true);
+
+        assertEquals("hooks/sdd-specs-only.sh", result.created().get(result.created().size() - 1));
+        Path root = claude.getPath().toAbsolutePath().normalize();
+        assertTrue(store[0].artifact(root.resolve("agents/sdd-agent.md")).isPresent());
+        assertTrue(store[0].artifact(root.resolve("skills/sdd-design")).isPresent());
+    }
+
+    @Test
+    void notGlobalNeverInstallsTheHook() throws IOException {
+        MetadataStore[] store = new MetadataStore[1];
+        Provider claude = provider(ProviderType.CLAUDE);
+
+        OperationResult result = withHooks(store).execute(claude, false);
+
+        assertFalse(Files.exists(claude.getPath().resolve("hooks")));
+        assertTrue(result.created().isEmpty());
+        assertTrue(store[0].artifactsOfGroup("global/hook/sdd-specs-only").isEmpty());
+    }
+
+    @Test
+    void theUsersOwnHookScriptsAreLeftUntouched() throws IOException {
+        MetadataStore[] store = new MetadataStore[1];
+        Provider claude = provider(ProviderType.CLAUDE);
+        Path mine = Files.createDirectories(claude.getPath().resolve("hooks")).resolve("mi-script.sh");
+        Files.writeString(mine, "propio\n");
+        var before = Files.getLastModifiedTime(mine);
+
+        withHooks(store).execute(claude, true);
+
+        assertEquals("propio\n", Files.readString(mine));
+        assertEquals(before, Files.getLastModifiedTime(mine));
+        assertTrue(Files.exists(claude.getPath().resolve("hooks/sdd-specs-only.sh")));
+    }
+
+    @Test
+    void withoutAHookInstallerTheGlobalInstallDoesNotTouchHooks() throws IOException {
+        Provider claude = provider(ProviderType.CLAUDE);
+
+        configure.execute(claude, true);
+
+        assertFalse(Files.exists(claude.getPath().resolve("hooks")));
+    }
+
+    @Test
+    void theCompositionRootWiresTheHookIntoTheGlobalInstallAndRepeatingItIsQuiet() throws IOException {
+        var paths = new PathResolver(Map.of("HOME", tmp.toString(), "LOCALAPPDATA", tmp.toString()), PathResolver.Os.LINUX);
+        var services = es.vargontoc.agentic.develop.cli.Services.of(paths);
+        Provider claude = new Provider(ProviderType.CLAUDE, paths.providerHome(ProviderType.CLAUDE));
+
+        OperationResult first = services.configureProvider().execute(claude, true);
+        OperationResult again = services.configureProvider().execute(claude, true);
+
+        assertTrue(Files.isRegularFile(paths.hookPath(ProviderType.CLAUDE)));
+        assertTrue(first.created().contains("hooks/sdd-specs-only.sh"));
+        assertTrue(again.created().isEmpty());
+        assertTrue(again.skipped().contains("hooks/sdd-specs-only.sh"));
+        assertTrue(again.warnings().isEmpty(), again.warnings().toString());
+    }
+
     @Test
     void existingArtifactsAreNeitherOverwrittenNorRegisteredAndRepeatingChangesNothing() throws IOException {
         MetadataStore[] store = new MetadataStore[1];

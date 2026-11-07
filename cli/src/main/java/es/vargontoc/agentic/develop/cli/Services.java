@@ -10,6 +10,7 @@ import es.vargontoc.agentic.develop.cli.application.ConfigureProvider;
 import es.vargontoc.agentic.develop.cli.application.CreateArtifact;
 import es.vargontoc.agentic.develop.cli.application.CreateModule;
 import es.vargontoc.agentic.develop.cli.application.GroupPropagator;
+import es.vargontoc.agentic.develop.cli.application.HookInstaller;
 import es.vargontoc.agentic.develop.cli.application.InitProject;
 import es.vargontoc.agentic.develop.cli.application.MigrationService;
 import es.vargontoc.agentic.develop.cli.application.ProjectTreeBuilder;
@@ -71,7 +72,7 @@ public record Services(
             saver,
             new GroupPropagator(metadata, descriptor, saver, migration),
             migration,
-            new ConfigureProvider(targetOs, artifacts, inventory, metadata),
+            new ConfigureProvider(targetOs, artifacts, inventory, metadata, new HookInstaller(paths, metadata)),
             new CreateModule(targetOs, paths, artifacts, inventory, metadata, backups),
             new CreateArtifact(targetOs, paths, artifacts, inventory, metadata, workspace, backups));
     }

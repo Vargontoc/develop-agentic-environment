@@ -36,6 +36,11 @@ class ConfigureProviderCommandTest {
     @BeforeEach
     void setUp() throws IOException {
         home = Files.createDirectories(tmp.resolve("home"));
+        restart();
+    }
+
+    // Cada invocación real de la CLI es un proceso nuevo: el almacén de metadatos no conserva nada en memoria entre ellas
+    private void restart() {
         Services services = Services.of(new PathResolver(Map.of("HOME", home.toString()), PathResolver.Os.LINUX));
         cli = new CommandLine(Commands.standard(() -> services));
     }
@@ -88,6 +93,79 @@ class ConfigureProviderCommandTest {
 
         assertTrue(((List<?>) data(out).get("created")).contains("sdd.config.toml"));
         assertTrue(Files.isRegularFile(home.resolve(".codex/sdd.config.toml")));
+    }
+
+    // --- avisos del hook en la salida cli-json (REQ-006, REQ-007, REQ-008) ---
+
+    private static List<String> hookWarnings(Map<?, ?> out) {
+        return ((List<?>) data(out).get("warnings")).stream().map(String::valueOf)
+            .filter(w -> w.startsWith("hooks/")).toList();
+    }
+
+    private static List<String> hookWarningsAbout(Map<?, ?> out, String text) {
+        return hookWarnings(out).stream().filter(w -> w.contains(text)).toList();
+    }
+
+    @Test
+    void aModifiedHookAppearsInTheWarningsWithFileAndReasonAndDoesNotChangeTheExitCode() throws IOException {
+        Map<?, ?> clean = run(0, "configure-provider", "--provider", "claude");
+        assertTrue(hookWarningsAbout(clean, "modificado").isEmpty());
+        Path hook = home.resolve(".claude/hooks/sdd-specs-only.sh");
+        Files.writeString(hook, Files.readString(hook) + "# cambio del usuario\n");
+
+        Map<?, ?> out = run(0, "configure-provider", "--provider", "claude");
+
+        assertEquals(true, out.get("ok"));
+        List<String> warnings = hookWarningsAbout(out, "modificado por el usuario");
+        assertEquals(1, warnings.size(), String.valueOf(data(out).get("warnings")));
+        assertTrue(warnings.get(0).startsWith("hooks/sdd-specs-only.sh"));
+        assertTrue(Files.readString(hook).endsWith("# cambio del usuario\n"));
+    }
+
+    @Test
+    void theRestOfTheProviderIsInstalledNormallyWhenTheHookWarns() throws IOException {
+        run(0, "configure-provider", "--provider", "claude");
+        Path hook = home.resolve(".claude/hooks/sdd-specs-only.sh");
+        Files.writeString(hook, "cambiado\n");
+        Files.delete(home.resolve(".claude/agents/sdd-agent.md"));
+
+        Map<?, ?> out = run(0, "configure-provider", "--provider", "claude");
+
+        assertFalse(hookWarningsAbout(out, "modificado").isEmpty());
+        assertTrue(((List<?>) data(out).get("created")).contains("agents/sdd-agent.md"));
+        assertTrue(Files.isRegularFile(home.resolve(".claude/agents/sdd-agent.md")));
+        assertEquals("cambiado\n", Files.readString(hook));
+    }
+
+    @Test
+    void aHookWithoutARecordAppearsInTheWarningsOnlyForThatProvider() throws IOException {
+        run(0, "configure-provider", "--provider", "claude");
+        // Sin almacén de metadatos el hook de claude queda sin registro; el de codex se instala después, ya con almacén nuevo
+        Files.delete(home.resolve(".local/state/agentic-develop/metadata.json"));
+        restart();
+
+        Map<?, ?> claude = run(0, "configure-provider", "--provider", "claude");
+        Map<?, ?> codex = run(0, "configure-provider", "--provider", "codex");
+
+        assertEquals(1, hookWarningsAbout(claude, "no se puede comprobar si fue modificado").size());
+        assertTrue(hookWarningsAbout(codex, "no se puede comprobar").isEmpty());
+        assertTrue(hookWarningsAbout(codex, "modificado").isEmpty());
+        assertTrue(((List<?>) data(codex).get("created")).contains("hooks/sdd-specs-only.sh"));
+        assertTrue(Files.isRegularFile(home.resolve(".codex/hooks/sdd-specs-only.sh")));
+    }
+
+    @Test
+    void theWarningsOfAHookDoNotMakeTheCommandFail() throws IOException {
+        run(0, "configure-provider", "--provider", "claude");
+        Files.writeString(home.resolve(".claude/hooks/sdd-specs-only.sh"), "cambiado\n");
+        Files.delete(home.resolve(".local/state/agentic-develop/metadata.json"));
+        restart();
+
+        Map<?, ?> out = run(0, "configure-provider", "--provider", "claude");
+
+        assertEquals(true, out.get("ok"));
+        assertTrue(((List<?>) out.get("errors")).isEmpty());
+        assertEquals(1, hookWarningsAbout(out, "no se puede comprobar si fue modificado").size());
     }
 
     @Test

@@ -47,6 +47,7 @@ public class ConfigureProvider {
     private final ArtifactCatalog catalog;
     private final ArtifactInventory inventory;
     private final MetadataStore metadata;
+    private final HookInstaller hooks;
 
     public ConfigureProvider() {
         this(TargetOs.current());
@@ -57,12 +58,23 @@ public class ConfigureProvider {
         this(os, null, null, null);
     }
 
-    /** @param os sistema para el que se generan las cabeceras (DEC-012) */
+    /** Sin hook: no instala {@code sdd-specs-only}. */
     public ConfigureProvider(TargetOs os, ArtifactCatalog catalog, ArtifactInventory inventory, MetadataStore metadata) {
+        this(os, catalog, inventory, metadata, null);
+    }
+
+    /**
+     * @param os    sistema para el que se generan las cabeceras (DEC-012)
+     * @param hooks política del hook {@code sdd-specs-only}; si es {@code null} la instalación global no lo instala.
+     *              La raíz de composición siempre lo aporta.
+     */
+    public ConfigureProvider(TargetOs os, ArtifactCatalog catalog, ArtifactInventory inventory, MetadataStore metadata,
+                             HookInstaller hooks) {
         this.os = os;
         this.catalog = catalog;
         this.inventory = inventory;
         this.metadata = metadata;
+        this.hooks = hooks;
     }
 
     public OperationResult execute(Provider provider, boolean global) {
@@ -233,6 +245,10 @@ public class ConfigureProvider {
                 copyCodexProfile(provider.getPath(), result);
 
             register(provider, result);
+
+            // Hook: después de los agentes y skills, solo en ámbito global (REQ-003) y una vez por proveedor
+            if(hooks != null)
+                hooks.install(provider, result);
         }
     }
 

@@ -1,10 +1,5 @@
 package es.vargontoc.agentic.develop.cli.application;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +7,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -135,7 +134,7 @@ class ProjectTreeBuilderTest {
         TreeNode alfa = child(builder.build(project).project(), NodeType.MODULE, "alfa");
         TreeNode analyst = child(alfa.children(), NodeType.TECHNICIAN, "analista");
 
-        assertEquals(List.of(ProviderType.CLAUDE), analyst.children().stream().map(TreeNode::provider).toList());
+        assertEquals(List.of(ProviderType.CLAUDE, ProviderType.OPENCODE), analyst.children().stream().map(TreeNode::provider).toList());
     }
 
     @Test

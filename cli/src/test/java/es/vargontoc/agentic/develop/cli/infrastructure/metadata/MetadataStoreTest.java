@@ -18,6 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
 import es.vargontoc.agentic.develop.cli.domain.metadata.ArtifactRecord;
 import es.vargontoc.agentic.develop.cli.domain.metadata.ContentHash;
+import es.vargontoc.agentic.develop.cli.domain.metadata.GroupIds;
 import es.vargontoc.agentic.develop.cli.domain.metadata.GroupRecord;
 import es.vargontoc.agentic.develop.cli.domain.metadata.LinkState;
 import es.vargontoc.agentic.develop.cli.infrastructure.files.TextStore;
@@ -155,5 +156,77 @@ class MetadataStoreTest {
 
         assertEquals(MetadataStore.key(project.resolve("a.md")), record.path());
         assertFalse(record.path().contains("\\"));
+    }
+
+    // --- hook sdd-specs-only ---
+
+    private static final byte[] HOOK_CONTENT = "@echo off\nrem hook\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+    @Test
+    void hookIsRegisteredInItsGlobalGroupAndQueriedByAbsolutePath() {
+        Path hook = tmp.resolve(".claude/hooks/sdd-specs-only.bat");
+
+        newStore().putHook(hook, HOOK_CONTENT);
+
+        MetadataStore reopened = newStore();
+        ArtifactRecord record = reopened.hook(hook).orElseThrow();
+        assertEquals(MetadataStore.key(hook), record.path());
+        assertEquals(GroupIds.HOOK, record.groupId());
+        assertEquals(LinkState.LINKED, record.state());
+        assertEquals(ContentHash.of("@echo off\nrem hook\n"), record.hash());
+        assertEquals(64, record.hash().length());
+
+        GroupRecord group = reopened.group(GroupIds.HOOK).orElseThrow();
+        assertEquals(ArtifactScope.GLOBAL, group.scope());
+        assertEquals("", group.sharedBody());
+    }
+
+    @Test
+    void hashIgnoresCrlfVersusLf() {
+        Path hook = tmp.resolve(".claude/hooks/sdd-specs-only.bat");
+        byte[] crlf = "@echo off\r\nrem hook\r\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        MetadataStore store = newStore();
+        store.putHook(hook, HOOK_CONTENT);
+        String lf = store.hook(hook).orElseThrow().hash();
+        store.putHook(hook, crlf);
+
+        assertEquals(lf, store.hook(hook).orElseThrow().hash());
+        assertEquals(lf, ContentHash.ofUtf8(crlf));
+    }
+
+    @Test
+    void oneGroupCoversTheHookOfEveryProviderAndExistingEntriesAreUntouched() {
+        MetadataStore store = newStore();
+        Path agent = tmp.resolve(".claude/agents/sdd-agent.md");
+        store.putGroup(new GroupRecord("global/agent/sdd-agent", ArtifactScope.GLOBAL, "cuerpo"));
+        store.putArtifact(agent, "global/agent/sdd-agent", "agente", LinkState.LINKED);
+        ArtifactRecord before = store.artifact(agent).orElseThrow();
+
+        Path claude = tmp.resolve(".claude/hooks/sdd-specs-only.sh");
+        Path codex = tmp.resolve(".codex/hooks/sdd-specs-only.sh");
+        store.putHook(claude, HOOK_CONTENT);
+        store.putHook(codex, HOOK_CONTENT);
+
+        assertEquals(2, store.artifactsOfGroup(GroupIds.HOOK).size());
+        assertEquals(before, store.artifact(agent).orElseThrow());
+        assertEquals("cuerpo", store.group("global/agent/sdd-agent").orElseThrow().sharedBody());
+    }
+
+    @Test
+    void hookQueryIgnoresAPathRegisteredWithAnotherGroup() {
+        MetadataStore store = newStore();
+        Path path = tmp.resolve(".claude/hooks/sdd-specs-only.bat");
+        store.putArtifact(path, "global/agent/otro", "x", LinkState.LINKED);
+
+        assertTrue(store.hook(path).isEmpty());
+        assertTrue(store.artifact(path).isPresent());
+    }
+
+    @Test
+    void anUnreadableStoreGivesNoHookRecord() throws IOException {
+        Files.writeString(file, "{ esto no es json");
+
+        assertTrue(newStore().hook(tmp.resolve(".claude/hooks/sdd-specs-only.bat")).isEmpty());
     }
 }

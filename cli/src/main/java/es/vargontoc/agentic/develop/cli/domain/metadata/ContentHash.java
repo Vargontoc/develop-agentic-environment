@@ -35,6 +35,11 @@ public final class ContentHash {
         }
     }
 
+    /** Hash de un fichero de texto leído del disco: UTF-8 con los fines de línea normalizados, como {@link #of(String)}. */
+    public static String ofUtf8(byte[] content) {
+        return of(new String(content, StandardCharsets.UTF_8));
+    }
+
     public static String of(String content) {
         String normalized = content.replace("\r\n", "\n").replace('\r', '\n');
         try {

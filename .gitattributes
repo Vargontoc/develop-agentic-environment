@@ -1,0 +1,5 @@
+# Los hooks se instalan tal cual en el equipo del usuario (el hash del fichero instalado es el del recurso),
+# asi que sus fines de linea deben ser los que exige su interprete, con independencia de core.autocrlf.
+# .sh: LF (con CRLF el shebang falla en Linux). .bat: CRLF (cmd.exe puede romper etiquetas y goto con LF).
+cli/src/main/resources/global/hooks/*.sh text eol=lf
+cli/src/main/resources/global/hooks/*.bat text eol=crlf

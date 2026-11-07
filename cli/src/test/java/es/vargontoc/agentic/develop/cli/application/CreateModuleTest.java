@@ -1,16 +1,15 @@
 package es.vargontoc.agentic.develop.cli.application;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -185,8 +184,8 @@ class CreateModuleTest {
         OperationResult result = createModule.execute(project, "alfa", List.of(Technician.ANALYST),
             List.of(new Provider(ProviderType.OPENCODE, Path.of("ignorado"))));
 
-        assertEquals(2, result.warnings().stream().filter(w -> w.contains("no existe el recurso")).count());
-        assertFalse(Files.exists(project.resolve(".opencode/agents/analista-alfa.md")));
+        assertEquals(0, result.warnings().stream().filter(w -> w.contains("no existe el recurso")).count());
+        assertTrue(Files.exists(project.resolve(".opencode/agents/analista-alfa.md")));
     }
 
     @Test
