@@ -129,6 +129,9 @@ cd viewer
 **Opciones:**
 - `--skip-tests`: Omite las pruebas de Maven (más rápido)
 - `--verbose`: Muestra detalles adicionales del proceso
+- `--installer` (Windows: `-Installer`): además de la app-image, genera un instalador para distribuir. En Linux un
+  `.deb` (requiere `dpkg-dev` y `fakeroot`; se instala con `sudo apt install ./<fichero>.deb`) y en Windows un `.msi`
+  (requiere WiX Toolset 3.x en el PATH). Queda en `viewer/target/dist/installer/`.
 
 #### Paso 4: Verificar el empaquetado
 

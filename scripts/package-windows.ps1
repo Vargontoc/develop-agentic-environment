@@ -19,7 +19,8 @@
 
 param(
     [switch]$SkipTests,
-    [switch]$Verbose
+    [switch]$Verbose,
+    [switch]$Installer
 )
 
 $ErrorActionPreference = "Stop"
@@ -360,10 +361,57 @@ if (-not (Test-Path $FinalCliJar)) {
     Write-Host "✓ CLI jar copiado a $FinalCliJar" -ForegroundColor Green
 }
 
+# Paso 8 (opcional): instalador .msi para distribución
+$MsiFile = $null
+if ($Installer) {
+    Write-Step "8. Generando instalador .msi"
+
+    # jpackage necesita WiX Toolset 3.x (candle.exe y light.exe) para generar .msi
+    if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue) -or -not (Get-Command light.exe -ErrorAction SilentlyContinue)) {
+        Write-Error "Para generar el .msi hace falta WiX Toolset 3.x (candle.exe y light.exe) en el PATH."
+        exit 1
+    }
+
+    $InstallerDir = Join-Path $DistDir "installer"
+    if (Test-Path $InstallerDir) {
+        Remove-Item $InstallerDir -Recurse -Force
+    }
+
+    # El UUID de actualización debe ser fijo para que una versión nueva sustituya a la anterior
+    $msiArgs = @(
+        "--type", "msi",
+        "--app-image", $AppImage,
+        "--name", $AppName,
+        "--app-version", $AppVersion,
+        "--vendor", "Agentic Development",
+        "--description", "Agentic Development Environment Viewer",
+        "--win-upgrade-uuid", "6b1f6a52-3c1e-4c0a-9f3e-8d2b7a5c41e9",
+        "--win-menu",
+        "--win-shortcut",
+        "--win-dir-chooser",
+        "--dest", $InstallerDir
+    )
+
+    Write-VerboseMsg "Ejecutando jpackage (msi)"
+    & jpackage @msiArgs
+
+    $MsiFile = Get-ChildItem -Path $InstallerDir -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $MsiFile) {
+        Write-Error "No se generó el instalador .msi en $InstallerDir"
+        exit 1
+    }
+
+    Write-Host "✓ Instalador creado: $($MsiFile.FullName)" -ForegroundColor Green
+}
+
 # Resumen
 Write-Step "Resumen"
 Write-Host "✓ Aplicación empaquetada exitosamente" -ForegroundColor Green
 Write-Host ""
+if ($MsiFile) {
+    Write-Host "Instalador: $($MsiFile.FullName)" -ForegroundColor Cyan
+    Write-Host ""
+}
 Write-Host "Ubicación: $AppImage" -ForegroundColor Cyan
 Write-Host "Ejecutable: $(Join-Path $AppImage "$AppName.exe")" -ForegroundColor Cyan
 Write-Host ""

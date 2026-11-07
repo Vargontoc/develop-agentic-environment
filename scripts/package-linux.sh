@@ -19,6 +19,7 @@ set -e
 
 SKIP_TESTS=false
 VERBOSE=false
+INSTALLER=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -29,6 +30,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --verbose)
             VERBOSE=true
+            shift
+            ;;
+        --installer)
+            INSTALLER=true
             shift
             ;;
         *)
@@ -336,10 +341,50 @@ if [ ! -f "$FINAL_CLI_JAR" ]; then
     log_success "CLI jar copiado a $FINAL_CLI_JAR"
 fi
 
+# Paso 8 (opcional): instalador .deb para distribución
+if [ "$INSTALLER" = true ]; then
+    log_step "8. Generando instalador .deb"
+
+    if ! command -v dpkg-deb &> /dev/null || ! command -v fakeroot &> /dev/null; then
+        echo "Error: para generar el .deb hacen falta dpkg-deb y fakeroot."
+        echo "Instálalos con: sudo apt install -y dpkg-dev fakeroot"
+        exit 1
+    fi
+
+    INSTALLER_DIR="$DIST_DIR/installer"
+    rm -rf "$INSTALLER_DIR"
+
+    # Parte de la app-image ya construida: el instalador la copia a /opt/agentic-viewer
+    jpackage \
+      --type deb \
+      --app-image "$APP_IMAGE" \
+      --name "$APP_NAME" \
+      --app-version "$APP_VERSION" \
+      --vendor "Agentic Development" \
+      --description "Agentic Development Environment Viewer" \
+      --linux-package-name "agentic-viewer" \
+      --linux-menu-group "Development" \
+      --linux-shortcut \
+      --dest "$INSTALLER_DIR"
+
+    DEB_FILE=$(find "$INSTALLER_DIR" -maxdepth 1 -name '*.deb' | head -1)
+    if [ -z "$DEB_FILE" ]; then
+        echo "Error: no se generó el paquete .deb en $INSTALLER_DIR"
+        exit 1
+    fi
+
+    log_success "Instalador creado: $DEB_FILE"
+fi
+
 # Resumen
 log_step "Resumen"
 log_success "Aplicación empaquetada exitosamente"
 echo ""
+if [ "$INSTALLER" = true ]; then
+    echo "Instalador: $DEB_FILE"
+    echo "Instalar con: sudo apt install ./$(basename "$DEB_FILE")"
+    echo ""
+fi
 echo "Ubicación: $APP_IMAGE"
 echo "Ejecutable: $APP_IMAGE/bin/$APP_NAME"
 echo ""
