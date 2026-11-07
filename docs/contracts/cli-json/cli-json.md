@@ -116,7 +116,11 @@ debe permitir cadenas de ese tamaño (en Jackson, `StreamReadConstraints.maxStri
 
 ### `configure-provider`
 
-Instala los agentes, skills y perfiles globales del proveedor. No sobrescribe. Idempotente.
+Instala los agentes, skills y perfiles globales del proveedor y el hook `sdd-specs-only`. No sobrescribe agentes,
+skills ni perfiles. El hook es la única excepción: si lo instaló la aplicación y el usuario no lo ha modificado, se
+sustituye por la versión incorporada (en `created`); si está modificado o no tiene registro, se omite con un aviso en
+`warnings` (en `skipped`). Los avisos del hook no son errores ni cambian el código de salida. Reglas completas en
+`provider-layout` («Hook `sdd-specs-only`»). Idempotente.
 
 | Opción | Obligatoria | Descripción |
 |---|---|---|
@@ -323,8 +327,12 @@ debe pasar por los comandos de este contrato, que son los que conservan copias y
 ## Propiedades
 
 - **Idempotencia:** `init`, `configure-provider`, `create-module`, `add-technician` y `create-artifact` (sin
-  `--overwrite`) no sobrescriben nada al repetirse; lo existente se informa como omitido o como conflicto.
+  `--overwrite`) no sobrescriben nada al repetirse; lo existente se informa como omitido o como conflicto. Única
+  excepción: el hook `sdd-specs-only` que instala `configure-provider`, que se sustituye si no lo ha modificado el
+  usuario y la versión incorporada es distinta (ver `configure-provider`); repetir sin cambiar de versión no lo toca.
 - **Atomicidad y copias:** toda escritura de texto es atómica y, si sustituye contenido, deja una copia en el
-  directorio de copias de la aplicación.
+  directorio de copias de la aplicación. Excepción: la sustitución del hook es atómica (se escribe a un temporal y se
+  mueve encima), pero no deja copia, porque solo se sustituye un hook sin cambios del usuario cuyo contenido es el de
+  una versión anterior de la aplicación.
 - **Entrada:** solo `save` (`--stdin`, `--header-stdin`), `create-artifact --stdin` y `adopt --stdin` leen la entrada
   estándar, y solo cuando se piden.

@@ -55,7 +55,7 @@ hook es siempre `global`, no tiene cuerpo compartido (`sharedBody` vacío) y aba
 | Campo | Descripción |
 |---|---|
 | `path` | Ruta absoluta normalizada con `/`, igual que la clave. Es un fichero (agente, perfil, hook) o un directorio (skill). |
-| `groupId` | Grupo al que pertenece; debe ser un identificador conocido. |
+| `groupId` | Grupo al que pertenece. La aplicación solo escribe los identificadores de la tabla anterior; al leer, el almacén exige que esté presente pero no comprueba que corresponda a un grupo del catálogo. |
 | `hash` | Hash de la última composición conocida (ver «Hashes»). |
 | `state` | Estado de vinculación. |
 

@@ -267,7 +267,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   - Pruebas: `PackagingTest` verifica MANIFEST y dependencias del fat JAR
   - Funciona sin Java instalado en el sistema y sin conexión a internet
 
-### [ ] TASK-016 Rendimiento y caché
+### [X] TASK-016 Rendimiento y caché
 
 - **Cubre:** NFR-002, DEC-004, DEC-009
 - **Componente:** `cli-client | por definir (analista técnico)`; `viewer-ui | por definir (analista técnico)`; `javafx-shell | por definir (analista técnico)`
@@ -282,7 +282,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Cronometrar la apertura y la selección de un fichero de 1 MB.
   3. Anotar los tiempos y comprobar que no hay sondeo.
 
-### [ ] TASK-017 Errores, reintento y funcionamiento sin red
+### [X] TASK-017 Errores, reintento y funcionamiento sin red
 
 - **Cubre:** REQ-018, NFR-003, DEC-010
 - **Componente:** `error-presenter | por definir (analista técnico)`; `viewer-ui | por definir (analista técnico)`; `cli-client | por definir (analista técnico)`
