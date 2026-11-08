@@ -114,8 +114,9 @@ class ContractsTest {
             assertTrue(doc.contains("(`" + type.id() + "`)"), "falta el proveedor " + type.id());
             assertTrue(doc.contains(type.globalDirName().replace('/', '\\')) || doc.contains(type.globalDirName()),
                 "falta la carpeta global de " + type.id());
-            if(type.supportsProject())
-                assertTrue(doc.contains("`" + type.projectDir() + "`"), "falta la carpeta de proyecto de " + type.id());
+            for(String dir : type.projectDirs())
+                assertTrue(doc.contains("`" + dir + "`") || doc.contains("`" + dir + "/"),
+                    "falta la carpeta de proyecto " + dir + " de " + type.id());
         }
         for(String marker : new String[] {"{shell}", "{home}", "{os}", "{hook:"})
             assertTrue(doc.contains(marker), "falta el marcador " + marker);

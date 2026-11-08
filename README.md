@@ -326,45 +326,47 @@ mvn javafx:run  # abre la ventana
 ### Capa técnica por proveedor (proyecto)
 
 Los routers (`analista-router`, `desarrollador-router`, `documentador-router`) y los especialistas por módulo
-(`<rol>-<modulo>`) se instalan en el proyecto con una estructura distinta según el proveedor. Codex y Gemini / Antigravity
-comparten nombre de carpeta histórico, así que no se mezclan:
+(`<rol>-<modulo>`) se instalan en el proyecto. Cada proveedor usa su propia estructura:
+
+| Proveedor | Skills | Agentes | Perfiles |
+|---|---|---|---|
+| Claude | `.claude/skills/<skill>/SKILL.md` | `.claude/agents/<rol>-<modulo>.md` | — |
+| OpenCode | `.opencode/skills/<skill>/SKILL.md` | `.opencode/agents/<rol>-<modulo>.md` | — |
+| Codex | `.agents/skills/<skill>/SKILL.md` (cada una con `agents/openai.yaml`) | `.codex/agents/<rol>_<modulo>.toml` | `.codex/profiles/<rol>-<modulo>.toml` |
+| Gemini / Antigravity | `.agents/skills/<skill>/SKILL.md` | `.agents/agents/<rol>-<modulo>/agent.md` | — |
 
 ```
 <proyecto>/
-├── .agents/                           # exclusivo de Codex
-│   ├── config.toml                    # configuración de Codex
-│   ├── profiles/
-│   │   ├── analista-router.md         # router, versión Codex
-│   │   ├── analista-<modulo>.md       # especialista, versión Codex
-│   │   └── ...                        # resto de perfiles (desarrollador, documentador)
-│   └── skills/
-│       └── team-conventions.md        # resto de skills de la capa técnica
-│
-└── .antigravity-env/                  # exclusivo de Gemini / Antigravity
+├── .agents/                           # Codex y Gemini / Antigravity
+│   ├── skills/
+│   │   ├── team-conventions/          # la misma skill para los dos proveedores
+│   │   │   ├── SKILL.md
+│   │   │   └── agents/openai.yaml     # solo lo añade Codex
+│   │   └── analista-router/           # solo Codex: su router es una skill
+│   │       ├── SKILL.md
+│   │       └── agents/openai.yaml
+│   └── agents/                        # solo Gemini / Antigravity
+│       ├── analista-router/agent.md
+│       └── analista-<modulo>/agent.md
+└── .codex/                            # solo Codex
     ├── agents/
-    │   ├── analista-router.md         # router, versión Antigravity (cabecera YAML)
-    │   ├── analista-<modulo>.md
-    │   └── ...
-    └── skills/
-        └── team-conventions/
-            └── SKILL.md               # resto de skills, cada una en su carpeta
+    │   └── analista_<modulo>.toml
+    └── profiles/
+        └── analista-<modulo>.toml     # un perfil de permisos por agente y módulo
 ```
 
-Los perfiles de permisos de Codex (`profiles/*.conf.toml` de los recursos del CLI) se incorporan a `.agents/config.toml`.
+Codex y Gemini comparten `.agents/skills/`: las skills son idénticas en formato y contenido, y Codex añade a cada una su
+`agents/openai.yaml`. Si instalas los dos proveedores, la segunda instalación reutiliza las skills que ya están. El router
+de Codex es una skill (se invoca con `$analista-router`); en el resto de proveedores es un agente. Los perfiles de Codex
+son ficheros independientes: el CLI no los incorpora a `config.toml`.
 
-Para trabajar con un agente de Antigravity, se arranca indicando el agente y las carpetas de trabajo del módulo:
-
-```bash
-agy --agent <agente> --add-dir=<carpetas de trabajo> antigravity-env
-```
-
-Por ejemplo, `agy --agent desarrollador-core --add-dir=framework/core antigravity-env`. El último argumento es el entorno
-del proyecto, tal como figura en la especificación; compruébalo con tu versión de `agy`, porque la forma exacta del
-comando no está verificada.
+En el ámbito global es lo mismo con `~` (Codex: `~/.agents/skills` y `~/.codex/agents|profiles`; Gemini: `~/.gemini/skills`
+y `~/.gemini/config/agents/<agente>/agent.md`). El contrato completo está en
+[docs/contracts/provider-layout](docs/contracts/provider-layout/provider-layout.md).
 
 ### Dónde guarda cosas
-- **Proveedores (global):** `.claude`, `.codex`, `.gemini/config` y `.config/opencode` bajo tu carpeta de usuario.
-- **Proveedores (proyecto):** `.claude`, `.opencode`, `.agents` (Codex) y `.antigravity-env` (Gemini / Antigravity) dentro del proyecto. Ver «Capa técnica por proveedor» más abajo: el ámbito de proyecto de Codex y el nuevo destino de Gemini están **definidos pero aún pendientes de implementar en el CLI** (hoy el CLI escribe Gemini en `.agents` y Codex no tiene ámbito de proyecto).
+- **Proveedores (global):** `.claude`, `.codex`, `.agents` (skills de Codex), `.gemini` y `.config/opencode` bajo tu carpeta de usuario.
+- **Proveedores (proyecto):** `.claude`, `.opencode`, `.agents` (Codex y Gemini) y `.codex` (Codex) dentro del proyecto. Ver «Capa técnica por proveedor» más arriba.
 - **Estado de la aplicación** (metadatos y copias de seguridad): `%LOCALAPPDATA%\agentic-develop` en Windows y
   `$XDG_STATE_HOME/agentic-develop` (o `~/.local/state/agentic-develop`) en Linux. No se mezcla con los ficheros del proyecto.
 - **Menú en Windows:** si ves caracteres extraños (acentos), ejecuta antes `chcp 65001` o usa `java -Dfile.encoding=UTF-8 -jar ...`.

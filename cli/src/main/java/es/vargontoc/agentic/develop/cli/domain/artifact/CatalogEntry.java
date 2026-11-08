@@ -26,6 +26,14 @@ public record CatalogEntry(
         Technician technician,
         String module) {
 
+    /**
+     * Ubicación física relativa a la base del proveedor y ámbito (ver {@link ProviderLayout}). {@code relativePath}
+     * es el identificador lógico, igual en todos los proveedores.
+     */
+    public String location() {
+        return ProviderLayout.location(this);
+    }
+
     /** Las skills se instalan, describen y propagan como directorio completo. */
     public boolean isDirectory() {
         return kind == ArtifactKind.SKILL;

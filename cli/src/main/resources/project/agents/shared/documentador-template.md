@@ -15,7 +15,7 @@ Eres `documentador-{module}`, el documentador del módulo {module}. Respondes en
 
 ## Ficheros ocultos
 
-Los ficheros bajo directorios con punto (`.sdd/`, `.claude/`) se leen siempre con Read y su ruta exacta, nunca con Glob ni Grep.
+Los ficheros bajo directorios con punto (`.sdd/`, `{slug-provider}/`) se leen siempre con Read y su ruta exacta, nunca con Glob ni Grep.
 
 ## Particularidades de este módulo
 

@@ -19,6 +19,7 @@ import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactCatalog;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactKind;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
 import es.vargontoc.agentic.develop.cli.domain.artifact.CatalogEntry;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ProviderLayout;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.domain.errors.PathDomainException;
@@ -81,7 +82,7 @@ public class CreateArtifact {
                            String content, boolean overwrite) {
         Path root = rootOf(type, scope, project, name);
         CatalogEntry entry = entryOf(type, scope, kind, name, project);
-        Path target = root.resolve(entry.relativePath());
+        Path target = root.resolve(entry.location());
 
         boolean exists = Files.exists(target);
         if(exists && !overwrite)
@@ -101,6 +102,9 @@ public class CreateArtifact {
                 Composed composed = composeAgent(entry, content);
                 shared = composed.shared();
                 backup = text.write(target, composed.content()).backup();
+                // El router de Codex en proyecto es una skill: lleva su agents/openai.yaml como las demás
+                if(entry.provider() == ProviderType.CODEX && ProviderLayout.isRouter(entry))
+                    copyHelper(target.getParent());
             }
 
             register(entry, root, shared);
@@ -135,7 +139,7 @@ public class CreateArtifact {
         List<String> modules = scope == ArtifactScope.PROJECT ? workspace.readTeam(project).moduleNames() : List.of();
         return catalog.entries(type, scope, modules).stream()
             .filter(e -> e.kind() == kind)
-            .map(e -> new CatalogItem(e, root.resolve(e.relativePath()), Files.exists(root.resolve(e.relativePath())), null))
+            .map(e -> new CatalogItem(e, root.resolve(e.location()), Files.exists(root.resolve(e.location())), null))
             .toList();
     }
 
@@ -143,7 +147,7 @@ public class CreateArtifact {
     public CatalogItem template(ProviderType type, ArtifactScope scope, ArtifactKind kind, String name, Path project) {
         Path root = rootOf(type, scope, project, name);
         CatalogEntry entry = entryOf(type, scope, kind, name, project);
-        Path target = root.resolve(entry.relativePath());
+        Path target = root.resolve(entry.location());
         try {
             Template template;
             if(entry.isDirectory()) {
@@ -180,7 +184,7 @@ public class CreateArtifact {
         Path temp = Files.createTempDirectory("agentic-skill-");
         try {
             ClasspathResources.copyTreeIfAbsent(entry.resource(), temp).orElseThrow(() -> missing(entry.resource()));
-            if(entry.provider() == ProviderType.CODEX && entry.scope() == ArtifactScope.GLOBAL)
+            if(entry.provider() == ProviderType.CODEX)
                 copyHelper(temp);
 
             List<TemplateFile> files = new ArrayList<>();
@@ -210,17 +214,15 @@ public class CreateArtifact {
         if(scope == ArtifactScope.GLOBAL) {
             if(!paths.hasHome())
                 throw new PathDomainException(AppErrorCode.ARTIFACT_SCOPE_UNSUPPORTED, name);
-            return paths.providerHome(type).toAbsolutePath().normalize();
+            return paths.globalBase(type).toAbsolutePath().normalize();
         }
-        if(!type.supportsProject())
-            throw new PathDomainException(AppErrorCode.ARTIFACT_SCOPE_UNSUPPORTED, type.id());
         if(project == null)
             throw new DomainException(AppErrorCode.MODULE_NO_PROJECT);
         if(!Files.exists(project))
             throw new PathDomainException(AppErrorCode.PROJECT_PATH_NOT_FOUND, project);
         if(!Files.isDirectory(project))
             throw new PathDomainException(AppErrorCode.PROJECT_PATH_NOT_DIRECTORY, project);
-        return project.resolve(type.projectDir()).toAbsolutePath().normalize();
+        return paths.projectBase(type, project).toAbsolutePath().normalize();
     }
 
     private CatalogEntry entryOf(ProviderType type, ArtifactScope scope, ArtifactKind kind, String name, Path project) {
@@ -249,7 +251,7 @@ public class CreateArtifact {
         if(!exists) {
             ClasspathResources.copyTreeIfAbsent(entry.resource(), target)
                 .orElseThrow(() -> missing(entry.resource()));
-            if(entry.provider() == ProviderType.CODEX && entry.scope() == ArtifactScope.GLOBAL)
+            if(entry.provider() == ProviderType.CODEX)
                 copyHelper(target);
         }
         if(content == null && !exists)
@@ -281,6 +283,6 @@ public class CreateArtifact {
         String groupId = GroupIds.of(entry);
         if(metadata.group(groupId).isEmpty())
             metadata.putGroup(new GroupRecord(groupId, entry.scope(), shared));
-        metadata.putArtifactHash(root.resolve(entry.relativePath()), groupId, inventory.inspect(entry, root).hash(), LinkState.LINKED);
+        metadata.putArtifactHash(root.resolve(entry.location()), groupId, inventory.inspect(entry, root).hash(), LinkState.LINKED);
     }
 }

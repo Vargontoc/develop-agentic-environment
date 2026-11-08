@@ -7,11 +7,11 @@ import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
 import es.vargontoc.agentic.develop.cli.domain.artifact.CatalogEntry;
 
 /**
- * Un artefacto del catálogo identificado en disco: proveedor, ámbito, carpeta del proveedor ({@code root}) y entrada.
+ * Un artefacto del catálogo identificado en disco: proveedor, ámbito, base del proveedor ({@code root}) y entrada.
  */
 public record ArtifactLocation(ProviderType provider, ArtifactScope scope, Path root, CatalogEntry entry) {
 
     public Path path() {
-        return root.resolve(entry.relativePath());
+        return root.resolve(entry.location());
     }
 }

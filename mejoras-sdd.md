@@ -863,44 +863,55 @@ Segunda: las dependencias. El planificador no necesita convertirse en un sistema
 
 Tercera: los permisos. Es la parte donde más distinguiría entre una regla escrita en una skill y una restricción realmente garantizada por la plataforma. No afirmaría que existe aislamiento técnico hasta comprobarlo.
 
-## 18. Configuracion codex a nivel proyecto
+## 18. Configuracion proveedores global y proyecto
 
-Configuracion de los tecnicos a nivel proyecto oara el proveedor Codex. Tiene una rareza en como se comportan.
+### Claude
+#### Skills
+- (global) ~/.claude/skills/<skill>/SKILL.md (y resto de archivos)
+- (proyecto) .claude/skills/<skill>/SKILL.md (y resto de archivos)
 
-<proyecto>/
-├── .agents/                          # 🤖 EXCLUSIVO PARA CODEX
-│   ├── config.toml                   # Configuración de Codex
-│   ├── profiles/
-│   │   ├── analista-router.md        # Router versión Codex
-│   │   └── analista-<module>.md
-│   └── skills/
-│       └── team-conventions.md
-|   --> resto perfiles
-│
-├── .antigravity-env/                     # 🚀 EXCLUSIVO PARA GEMINI / ANTIGRAVITY
-│   ├── agents/
-│   │   ├── analista-router.md        # Router versión Antigravity (con YAML)
-│   │   └── analista-<module>.md
-│   └── skills/
-│       └── team-conventions/
-│           └── SKILL.md
-|       --> resto skills
-│
+#### Agents
+- (global) ~/.claude/agents/*.md
+- (proyecto) .claude/agents/*.md
 
-y agregar para el readme  `agy --agent <agente> --add-dir=<carpetas de trabajo> antigravity-env`
+#### Hooks
+- (global) ~/claude/hooks/
+
+### Opencode
+
+#### Skills
+
+- (global) ~/.config/opencode/skills/<skill>/SKILL.md (y resto de archivos)
+- (proyecto) .opencode/skills/<skill>/SKILL.md (y resto de archivos)
+#### Agents
+
+- (global) ~/.config/opencode/agents/*.md
+- (proyecto) .opencode/agents/*.md
+
+### Codex
+
+#### Skills
+- (global) ~/.agents/skills/<skill>/SKILL.md (y resto de archivos)
+- (proyecto) .agents/skills/<skill>/SKILL.md (y resto de archivos)
+
+    * Particularidad: cada skill contiene agents/openai.yaml
+
+#### Agents
+- (global) ~/.codex/agents/*.toml
+- (proyecto) .codex/agents/*.toml
+
+#### Profiles
+
+- (global) ~/.codex/profiles/*.toml
+- (proyecto) .codex/profiles/*.toml
 
 
+### Gemini (antigravity)
 
-## Conclusión
+#### Skills
+- (global) ~/.gemini/skills/<skill>/SKILL.md (y resto de archivos)
+- (proyecto) .agents/skills/<skill>/SKILL.md (y resto de archivos)
 
-Mi propuesta mantiene intacta la filosofía original de tu Development Kit.
-
-El analista sigue planificando, el desarrollador implementando y el documentador describiendo el producto real. Los routers siguen coordinando, sin convertirse en especialistas.
-
-Las mejoras se concentran en continuidad entre sesiones, coherencia documental, ejecución controlada y reducción de bloqueos artificiales.
-
-Para mí, el cambio más importante respecto a la implementación actual es este:
-
-> El Development Kit debe poder interrumpir, revisar y retomar una feature sin perder el contexto de qué se aprobó, qué se implementó, qué se verificó y qué queda pendiente.
-
-Conservaría esta propuesta como especificación de referencia para la v1.1, y antes de implementarla cerraría especialmente los contratos de `.sdd/team.md`, revisiones y validación, porque el resto depende de ellos.
+#### Agents
+- (global) ~/.gemini/config/agents/<agent>/agent.md
+- (proyecto) .agents/agents/<agent>/agent.md

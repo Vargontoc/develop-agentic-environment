@@ -163,10 +163,6 @@ class CreateArtifactTest {
             ArtifactScope.GLOBAL, ArtifactKind.AGENT, "no-existe", null, null, false));
         assertEquals(AppErrorCode.ARTIFACT_NOT_CATALOGUED, unknown.code());
 
-        DomainException scope = assertThrows(DomainException.class, () -> create.execute(ProviderType.CODEX,
-            ArtifactScope.PROJECT, ArtifactKind.AGENT, "analista-router", project, null, false));
-        assertEquals(AppErrorCode.ARTIFACT_SCOPE_UNSUPPORTED, scope.code());
-
         DomainException noProject = assertThrows(DomainException.class, () -> create.execute(ProviderType.CLAUDE,
             ArtifactScope.PROJECT, ArtifactKind.AGENT, "analista-router", null, null, false));
         assertEquals(AppErrorCode.MODULE_NO_PROJECT, noProject.code());

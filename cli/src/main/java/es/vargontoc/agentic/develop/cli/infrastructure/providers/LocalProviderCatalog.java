@@ -49,11 +49,11 @@ public class LocalProviderCatalog implements ProviderCatalog {
         if(!paths.hasHome() || !Files.exists(paths.providerHome(type)))
             return new ProviderStatus(type, ProviderState.NOT_INSTALLED, List.of());
 
-        Path home = paths.providerHome(type);
+        Path base = paths.globalBase(type);
         List<CatalogEntry> expected = artifacts.entries(type, ArtifactScope.GLOBAL);
         List<String> missing = expected.stream()
+            .filter(entry -> !Files.exists(base.resolve(entry.location())))
             .map(CatalogEntry::relativePath)
-            .filter(path -> !Files.exists(home.resolve(path)))
             .toList();
 
         if(missing.isEmpty())

@@ -1,5 +1,7 @@
 package es.vargontoc.agentic.develop.cli.application;
 
+import es.vargontoc.agentic.develop.cli.domain.artifact.CatalogEntry;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactKind;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -62,13 +64,19 @@ class SkillDirectoryTest {
     }
 
     private Path skill(ProviderType provider, String... filesAndContents) throws IOException {
-        Path dir = paths.providerHome(provider).resolve("skills/sdd-design");
+        Path dir = globalPath(provider, ArtifactKind.SKILL, "sdd-design", "skills/sdd-design");
         for(int i = 0; i < filesAndContents.length; i += 2) {
             Path file = dir.resolve(filesAndContents[i]);
             Files.createDirectories(file.getParent());
             Files.writeString(file, filesAndContents[i + 1]);
         }
         return dir;
+    }
+
+    // Ubicación física de un artefacto global según el proveedor (Gemini: agents/<n>/agent.md, skills fuera de config)
+    private Path globalPath(ProviderType provider, ArtifactKind kind, String name, String relative) {
+        CatalogEntry entry = new CatalogEntry(provider, ArtifactScope.GLOBAL, kind, name, relative, null, null, null, null, null);
+        return paths.globalBase(provider).resolve(entry.location());
     }
 
     private ArtifactLocation at(Path dir) {

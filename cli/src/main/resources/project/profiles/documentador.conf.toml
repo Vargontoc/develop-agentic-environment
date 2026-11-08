@@ -1,13 +1,13 @@
-default_permissions = "documentador"
+default_permissions = "documentador-{module}"
 
-[permissions.documentador]
-description = "Sesión del documentador: lectura del proyecto y escritura en docs/, .sdd/, specs/ y README.md; sin red."
+[permissions."documentador-{module}"]
+description = "Documentador del módulo {module}: lectura del proyecto y escritura en docs/, .sdd/, specs/ y README.md; sin red."
 extends = ":read-only"
 
-[permissions.documentador.filesystem]
+[permissions."documentador-{module}".filesystem]
 glob_scan_max_depth = 3
 
-[permissions.documentador.filesystem.":workspace_roots"]
+[permissions."documentador-{module}".filesystem.":workspace_roots"]
 "docs" = "write"
 ".sdd" = "write"
 "specs" = "write"

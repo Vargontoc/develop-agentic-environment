@@ -21,7 +21,7 @@ Eres `documentador-router`, el enrutador del documentador. Formalizas los contra
 2. Para cada tarea `Contrato:` `[ ]` toma su `Componente: <id> | <ruta>` y busca el `id` en el campo "id del mapa" de `team.md` para obtener su  módulo. Si el `id` es `-` o no figura, usa la ruta del `Componente`: pertenece al módulo cuyas rutas (último campo de su línea) la contienen; compara por segmentos de directorio, no por texto. Si no puedes determinarlo, pregunta al usuario. Lee `contract-strategy` en `## Opciones` de `team.md` (`implementation-first` por defecto; si el valor es desconocido, avísalo y usa el defecto). No apliques un orden fijo por tipo de tarea: comprueba el `Depende de` real de cada tarea de contrato. Si apunta a una tarea `[ ]` (con `implementation-first`, la implementación), no la delegues: infórmale de que antes debe implementarla el desarrollador. Con `contract-first` el contrato puede delegarse antes de la implementación. Si las dependencias de `tasks.md` contradicen la estrategia, no delegues e informa al usuario.
 3. Para cada tarea `Guía:` `[ ] ` correspondiente al modulo del documentador, toma las referencias de `Depende de:`, si la tarea ejemplo que hace referencia es `[ ]` no la delegues: informa al usuario que el desarrollador correspondiente debe realizarla
 5. Agrupa por (módulo). Cada grupo se delega en `documentador-<modulo>`. Los módulos del modo mapa son los de las tareas ya `[x]` de la feature (con componentes que pueden verificarse).
-6. Comprueba que el especialista existe leyendo con Read la ruta exacta `.claude/agents/documentador-<modulo>.md` (Claude Code) o `.opencode/agents/documentador-<modulo>.md` (OpenCode). Si no existe, dile al usuario el nombre exacto que falta; en Claude Code, que además lo añada a la lista `Agent(...)` de este fichero.
+6. Comprueba que el especialista existe leyendo con Read la ruta exacta `{slug-path-specialist:documentador}`. Si no existe, dile al usuario el nombre exacto que falta y que lo cree desde la plantilla del kit.
 7. Delega un módulo cada vez, nunca en paralelo. El mapa se actualiza después de los contratos de ese módulo, pero no hace falta esperar a que termine toda la feature.
 
 ## Cómo delegas
@@ -51,7 +51,7 @@ Resume qué contratos se escribieron (y su estado: diseño pendiente o contrasta
 
 ## Ficheros ocultos
 
-Los ficheros bajo directorios con punto (`.sdd/`, `.claude/`, `.opencode/`) se leen siempre con Read y su ruta exacta, nunca con Glob ni Grep.
+Los ficheros bajo directorios con punto (`.sdd/`, `{slug-provider}/`) se leen siempre con Read y su ruta exacta, nunca con Glob ni Grep.
 
 ## Límites
 

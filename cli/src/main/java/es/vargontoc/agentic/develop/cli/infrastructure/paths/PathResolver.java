@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ProviderLayout;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
@@ -62,6 +63,19 @@ public final class PathResolver {
             case GEMINI -> home.resolve(".gemini").resolve("config");
             case OPENCODE -> configHome(home).resolve("opencode");
         };
+    }
+
+    /**
+     * Base de la que cuelgan los artefactos globales del proveedor (ver {@link ProviderLayout}): su carpeta global
+     * (Claude, OpenCode) o el home del usuario (Codex, Gemini).
+     */
+    public Path globalBase(ProviderType type) {
+        return ProviderLayout.globalBase(type, providerHome(type));
+    }
+
+    /** Base de la que cuelgan los artefactos del proveedor en el proyecto. */
+    public Path projectBase(ProviderType type, Path project) {
+        return ProviderLayout.projectBase(type, project);
     }
 
     /**

@@ -91,8 +91,9 @@ class ConfigureProviderCommandTest {
     void codexGetsItsProfileToo() {
         Map<?, ?> out = run(0, "configure-provider", "--provider", "codex");
 
-        assertTrue(((List<?>) data(out).get("created")).contains("sdd.config.toml"));
-        assertTrue(Files.isRegularFile(home.resolve(".codex/sdd.config.toml")));
+        assertTrue(((List<?>) data(out).get("created")).contains("profiles/sdd.config.toml"));
+        assertTrue(Files.isRegularFile(home.resolve(".codex/profiles/sdd.config.toml")));
+        assertTrue(Files.isRegularFile(home.resolve(".agents/skills/sdd-design/agents/openai.yaml")));
     }
 
     // --- avisos del hook en la salida cli-json (REQ-006, REQ-007, REQ-008) ---

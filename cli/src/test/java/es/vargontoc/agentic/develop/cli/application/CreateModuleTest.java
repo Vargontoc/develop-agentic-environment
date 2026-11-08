@@ -171,12 +171,55 @@ class CreateModuleTest {
     }
 
     @Test
-    void providersWithoutProjectSupportAreSkippedWithAWarning() {
-        OperationResult result = createModule.execute(project, "alfa", List.of(Technician.ANALYST),
-            List.of(new Provider(ProviderType.CODEX, Path.of("ignorado"))));
+    void codexGetsASkillRouterTomlSpecialistAndOneProfilePerAgentAndModule() throws IOException {
+        Provider codex = new Provider(ProviderType.CODEX, Path.of("ignorado"));
 
-        assertEquals(1, result.warnings().stream().filter(w -> w.contains("Codex")).count());
-        assertFalse(Files.exists(project.resolve(".codex")));
+        OperationResult result = createModule.execute(project, "alfa", List.of(Technician.ANALYST), List.of(codex));
+
+        assertTrue(result.warnings().isEmpty(), result.warnings().toString());
+        // Las skills y el router (que es una skill) viven en .agents; agentes y perfiles, en .codex
+        assertTrue(Files.isRegularFile(project.resolve(".agents/skills/team-conventions/SKILL.md")));
+        assertTrue(Files.isRegularFile(project.resolve(".agents/skills/team-conventions/agents/openai.yaml")));
+        assertTrue(Files.isRegularFile(project.resolve(".agents/skills/analista-router/SKILL.md")));
+        assertTrue(Files.isRegularFile(project.resolve(".agents/skills/analista-router/agents/openai.yaml")));
+        Path specialist = project.resolve(".codex/agents/analista_alfa.toml");
+        String toml = Files.readString(specialist);
+        assertTrue(toml.contains("name = \"analista_alfa\""));
+        assertTrue(toml.contains("developer_instructions = \"\"\""));
+        assertFalse(toml.contains("{module}"));
+        String profile = Files.readString(project.resolve(".codex/profiles/analista-alfa.toml"));
+        assertTrue(profile.contains("[permissions.\"analista-alfa\"]"));
+        assertFalse(profile.contains("{module}"));
+        assertFalse(Files.exists(project.resolve(".codex/profiles/analista-router.toml")));
+        // Un módulo más: el router y las skills ya existen; solo se añaden su especialista y su perfil
+        createModule.execute(project, "beta", List.of(Technician.ANALYST), List.of(codex));
+        assertTrue(Files.isRegularFile(project.resolve(".codex/agents/analista_beta.toml")));
+        assertTrue(Files.isRegularFile(project.resolve(".codex/profiles/analista-beta.toml")));
+    }
+
+    @Test
+    void geminiAgentsAreFoldersWithAgentMdAndCodexAndGeminiShareTheProjectSkills() throws IOException {
+        Provider gemini = new Provider(ProviderType.GEMINI, Path.of("ignorado"));
+        Provider codex = new Provider(ProviderType.CODEX, Path.of("ignorado"));
+
+        OperationResult first = createModule.execute(project, "alfa", List.of(Technician.ANALYST), List.of(gemini));
+        assertTrue(first.warnings().isEmpty(), first.warnings().toString());
+        assertTrue(Files.isRegularFile(project.resolve(".agents/agents/analista-router/agent.md")));
+        assertTrue(Files.isRegularFile(project.resolve(".agents/agents/analista-alfa/agent.md")));
+        assertTrue(Files.isRegularFile(project.resolve(".agents/skills/team-conventions/SKILL.md")));
+        assertFalse(Files.exists(project.resolve(".agents/skills/team-conventions/agents/openai.yaml")));
+
+        // Codex reutiliza las skills que dejó Gemini y solo les añade agents/openai.yaml
+        OperationResult second = createModule.execute(project, "alfa", List.of(Technician.ANALYST), List.of(codex));
+        assertTrue(second.warnings().isEmpty(), second.warnings().toString());
+        assertTrue(Files.isRegularFile(project.resolve(".agents/skills/team-conventions/agents/openai.yaml")));
+        // El fichero añadido no cuenta como una modificación de la skill que ya estaba registrada
+        Path skill = project.resolve(".agents/skills/team-conventions").toAbsolutePath().normalize();
+        var catalog = new ResourceArtifactCatalog();
+        var entry = catalog.identify(ProviderType.GEMINI, ArtifactScope.PROJECT, "skills/team-conventions", List.of()).orElseThrow();
+        var inventory = new ArtifactInventory(paths, catalog, metadata, tmp.resolve("backups"));
+        assertEquals(metadata.artifact(skill).orElseThrow().hash(),
+            inventory.inspect(entry, project.toAbsolutePath().normalize()).hash());
     }
 
     @Test

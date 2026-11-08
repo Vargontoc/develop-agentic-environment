@@ -105,7 +105,7 @@ public class ArtifactDescriptor {
     private ArtifactLocation find(Path path, Path project) {
         if(paths.hasHome()) {
             for(ProviderType provider : ProviderType.values()) {
-                Optional<ArtifactLocation> found = match(path, provider, ArtifactScope.GLOBAL, paths.providerHome(provider), List.of());
+                Optional<ArtifactLocation> found = match(path, provider, ArtifactScope.GLOBAL, paths.globalBase(provider), List.of());
                 if(found.isPresent())
                     return found.get();
             }
@@ -114,10 +114,8 @@ public class ArtifactDescriptor {
         if(project != null) {
             List<String> modules = workspace.readTeam(project).moduleNames();
             for(ProviderType provider : ProviderType.values()) {
-                if(!provider.supportsProject())
-                    continue;
                 Optional<ArtifactLocation> found = match(path, provider, ArtifactScope.PROJECT,
-                    project.resolve(provider.projectDir()), modules);
+                    paths.projectBase(provider, project), modules);
                 if(found.isPresent())
                     return found.get();
             }
@@ -131,8 +129,7 @@ public class ArtifactDescriptor {
             return Optional.empty();
 
         String relative = normalizedRoot.relativize(path).toString().replace('\\', '/');
-        Optional<CatalogEntry> entry = catalog.identify(provider, scope, relative, modules)
-            .or(() -> catalog.identify(provider, scope, skillRoot(relative), modules));
+        Optional<CatalogEntry> entry = catalog.identifyAt(provider, scope, relative, modules);
         if(entry.isEmpty())
             return Optional.empty();
 
@@ -142,12 +139,6 @@ public class ArtifactDescriptor {
             throw new PathDomainException(e.code(), path, e);
         }
         return Optional.of(new ArtifactLocation(provider, scope, normalizedRoot, entry.get()));
-    }
-
-    // Un fichero dentro de una skill (SKILL.md, assets) describe la skill entera
-    private static String skillRoot(String relative) {
-        String[] parts = relative.split("/");
-        return parts.length > 2 && "skills".equals(parts[0]) ? parts[0] + "/" + parts[1] : relative;
     }
 
     private ArtifactDescription build(ArtifactLocation located, InstalledArtifact installed) {

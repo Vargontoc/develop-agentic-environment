@@ -128,7 +128,7 @@ class CreateArtifactCommandTest {
     @Test
     void aSkillIsCreatedCompleteWithItsAssetsAndWithModifiedContent() throws IOException {
         Map<?, ?> codex = create(0, "codex", "global", "skill", "sdd-design");
-        Path skill = home.resolve(".codex/skills/sdd-design");
+        Path skill = home.resolve(".agents/skills/sdd-design");
         assertTrue(Files.isRegularFile(skill.resolve("SKILL.md")));
         assertTrue(Files.isRegularFile(skill.resolve("agents/openai.yaml")));
         assertEquals("skill", data(codex).get("kind"));
@@ -158,7 +158,6 @@ class CreateArtifactCommandTest {
         assertEquals("usage.invalid_value", errorCode(create(2, "claude", "mundial", "agent", "sdd-design")));
         assertEquals("usage.invalid_value", errorCode(create(2, "claude", "global", "perfil", "sdd-design")));
         assertEquals("validation.artifact.not_catalogued", errorCode(create(1, "claude", "global", "agent", "no-existe")));
-        assertEquals("validation.artifact.scope_unsupported", errorCode(create(1, "codex", "project", "agent", "analista-router")));
         assertEquals("usage.missing_option", errorCode(run(2, "create-artifact", "--provider", "claude")));
         assertFalse(Files.exists(home.resolve(".claude/agents")));
     }

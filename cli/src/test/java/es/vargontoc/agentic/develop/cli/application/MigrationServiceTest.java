@@ -1,5 +1,7 @@
 package es.vargontoc.agentic.develop.cli.application;
 
+import es.vargontoc.agentic.develop.cli.domain.artifact.CatalogEntry;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactKind;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -69,9 +71,15 @@ class MigrationServiceTest {
     }
 
     private Path agent(ProviderType provider, String content) throws IOException {
-        Path file = paths.providerHome(provider).resolve("agents/sdd-agent.md");
+        Path file = globalPath(provider, ArtifactKind.AGENT, "sdd-agent", "agents/sdd-agent.md");
         Files.createDirectories(file.getParent());
         return Files.writeString(file, content);
+    }
+
+    // Ubicación física de un artefacto global según el proveedor (Gemini: agents/<n>/agent.md, skills fuera de config)
+    private Path globalPath(ProviderType provider, ArtifactKind kind, String name, String relative) {
+        CatalogEntry entry = new CatalogEntry(provider, ArtifactScope.GLOBAL, kind, name, relative, null, null, null, null, null);
+        return paths.globalBase(provider).resolve(entry.location());
     }
 
     private ArtifactLocation at(Path path) {

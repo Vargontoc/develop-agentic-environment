@@ -1,5 +1,4 @@
 name = "desarrollador_{module}"
 model = "gpt-5.6-terra"
 description = "Desarrollador del módulo {module}. Implementa las tareas de un sprint en el código del módulo, ejecuta sus pruebas y las marca como hechas en tasks.md. Lo invoca $desarrollador-router; no hace operaciones de git."
-developer_instructions = """
-"""
+developer_instructions = 

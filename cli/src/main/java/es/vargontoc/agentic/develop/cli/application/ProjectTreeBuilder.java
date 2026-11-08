@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
@@ -65,11 +66,9 @@ public class ProjectTreeBuilder {
     private List<TreeNode> projectNodes(Path project, TeamInfo team, List<Inventory.Problem> problems) {
         Map<ProviderType, Inventory> inventories = new EnumMap<>(ProviderType.class);
         for(ProviderType type : ProviderType.values()) {
-            if(type.supportsProject()) {
-                Inventory inv = inventory.scanProject(project, type, team.moduleNames());
-                problems.addAll(inv.problems());
-                inventories.put(type, inv);
-            }
+            Inventory inv = inventory.scanProject(project, type, team.moduleNames());
+            problems.addAll(inv.problems());
+            inventories.put(type, inv);
         }
 
         List<TreeNode> nodes = new ArrayList<>();
@@ -79,11 +78,14 @@ public class ProjectTreeBuilder {
         for(ModuleEntry module : team.modules())
             nodes.add(moduleNode(project, module, inventories));
 
-        inventories.forEach((type, inv) -> {
-            if(Files.isDirectory(project.resolve(type.projectDir())))
-                nodes.add(providerNode(type, project.resolve(type.projectDir()), providerLevel(inv)));
-        });
+        inventories.forEach((type, inv) -> existingDir(project, type)
+            .ifPresent(dir -> nodes.add(providerNode(type, dir, providerLevel(inv)))));
         return nodes;
+    }
+
+    // Un proveedor puede repartirse en varias carpetas (Codex: .agents y .codex): el nodo cuelga de la primera que exista
+    private static Optional<Path> existingDir(Path project, ProviderType type) {
+        return type.projectDirs().stream().map(project::resolve).filter(Files::isDirectory).findFirst();
     }
 
     // Bajo el proveedor solo van lo compartido (skills y routers); los especialistas cuelgan de su módulo

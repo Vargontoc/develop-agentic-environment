@@ -200,7 +200,7 @@ Crea un agente o una skill del catálogo a partir de su plantilla.
 | `--overwrite` | no | Sobrescribe un artefacto existente (se conserva copia). |
 
 `data`: `{"provider","scope","kind","name","path","replaced","custom","backup"|null}`. Errores: `conflict.artifact.already_exists`,
-`validation.artifact.not_catalogued`, `validation.artifact.scope_unsupported`, `validation.module.no_project`.
+`validation.artifact.not_catalogued`, `validation.artifact.scope_unsupported` (global sin carpeta de usuario), `validation.module.no_project`.
 
 ### `save`
 

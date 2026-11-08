@@ -148,8 +148,6 @@ class ViewerSupportCommandsTest {
     void catalogErrors() {
         assertEquals("validation.artifact.not_catalogued",
             errorCode(run(1, "catalog", "--provider", "claude", "--scope", "global", "--kind", "agent", "--name", "no-existe")));
-        assertEquals("validation.artifact.scope_unsupported",
-            errorCode(run(1, "catalog", "--provider", "codex", "--scope", "project", "--kind", "agent", "--project", project.toString())));
         assertEquals("validation.provider.unknown",
             errorCode(run(1, "catalog", "--provider", "otro", "--scope", "global", "--kind", "agent")));
         assertEquals("usage.invalid_value",

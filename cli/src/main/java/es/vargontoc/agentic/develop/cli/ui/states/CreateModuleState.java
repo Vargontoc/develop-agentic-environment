@@ -65,11 +65,9 @@ public class CreateModuleState implements TerminalState {
             parent);
     }
 
-    // Solo los instalados y con soporte a nivel de proyecto (Codex queda fuera de momento)
+    // Solo los proveedores instalados
     private TerminalState selectProviders(String module, List<Technician> technicians) {
-        List<Provider> supported = catalog.availableProviders().stream()
-            .filter(p -> p.getType().supportsProject())
-            .toList();
+        List<Provider> supported = catalog.availableProviders();
 
         if(supported.isEmpty()) {
             System.out.println("[ERROR] No hay proveedores instalados compatibles con proyectos");

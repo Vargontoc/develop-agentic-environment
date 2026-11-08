@@ -1,5 +1,4 @@
 name = "analista_{module}"
 model = "gpt-5.6-terra"
 description = "Analista técnico del módulo {module}. Crea o revisa sprints en docs/sprints/{module}/ a partir de las tareas de una feature. Lo invoca $analista-router; no escribe código."
-developer_instructions = """
-"""
+developer_instructions = 

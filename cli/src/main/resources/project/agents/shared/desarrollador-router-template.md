@@ -39,7 +39,7 @@ Lee `git-policy` en `## Opciones` de `.sdd/team.md` (`balanced` por defecto; si 
 
 3. Si el componente es `por definir`, `no consta en el mapa` o no está en `team.md`, no lo decidas tú: pregunta al usuario a qué módulo pertenece.
 4. Agrupa por (módulo). Cada grupo se delega en `desarrollador-<modulo>`.
-5. Comprueba que el especialista existe leyendo con Read la ruta exacta `.claude/agents/desarrollador-<modulo>.md` (Claude Code) o `.opencode/agents/desarrollador-<modulo>.md` (OpenCode). Si no existe, dile al usuario el nombre exacto que falta; en Claude Code, que además lo añada a la lista `Agent(...)` de este fichero.
+5. Comprueba que el especialista existe leyendo con Read la ruta exacta `{slug-path-specialist:desarrollador}`. Si no existe, dile al usuario el nombre exacto que falta y que lo cree desde la plantilla del kit.
 6. Con `sprints: si` (por defecto en `## Opciones` de `team.md`), busca con Glob `docs/sprints/<modulo>/sprint-*-<feature>.md`, toma el de número mayor y lee su tercera línea: debe ser `Estado: aprobado`. Si falta o está en borrador, no implementes ese módulo y sugiere ejecutar `analista-router`.
 7. Comprueba la vigencia del sprint: compara las `Revisión` actuales de `requirements.md`, `design.md` y `tasks.md` (1 si no la tienen) con su `## Origen SDD`.
    - Coinciden: continúa.
@@ -78,7 +78,7 @@ Resume qué tareas quedaron hechas y cuáles pendientes, e indica al usuario que
 
 ## Ficheros ocultos
 
-Los ficheros bajo directorios con punto (`.sdd/`, `.claude/`, `.opencode/`, , `.agents/`) se leen siempre con Read y su ruta exacta, nunca con Glob ni Grep.
+Los ficheros bajo directorios con punto (`.sdd/`, `{slug-provider}/`) se leen siempre con Read y su ruta exacta, nunca con Glob ni Grep.
 
 ## Límites
 

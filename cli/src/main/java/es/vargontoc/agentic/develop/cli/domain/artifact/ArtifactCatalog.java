@@ -21,12 +21,25 @@ public interface ArtifactCatalog {
         return entries(provider, scope, List.of());
     }
 
-    /** Identifica un artefacto instalado por su ruta relativa a la carpeta del proveedor. */
+    /** Identifica un artefacto por su ruta lógica ({@code agents/x.md}, {@code skills/x}). */
     default Optional<CatalogEntry> identify(ProviderType provider, ArtifactScope scope, String relativePath,
                                             Collection<String> modules) {
         String normalized = relativePath.replace('\\', '/');
         return entries(provider, scope, modules).stream()
             .filter(e -> e.relativePath().equals(normalized))
+            .findFirst();
+    }
+
+    /**
+     * Identifica un artefacto instalado por su ubicación física relativa a la base del proveedor. Un fichero dentro de
+     * una skill (SKILL.md, apoyos) identifica la skill entera.
+     */
+    default Optional<CatalogEntry> identifyAt(ProviderType provider, ArtifactScope scope, String location,
+                                              Collection<String> modules) {
+        String normalized = location.replace('\\', '/');
+        return entries(provider, scope, modules).stream()
+            .filter(e -> e.location().equals(normalized)
+                || e.isDirectory() && normalized.startsWith(e.location() + "/"))
             .findFirst();
     }
 }

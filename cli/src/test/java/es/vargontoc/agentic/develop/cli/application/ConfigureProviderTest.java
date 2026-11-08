@@ -35,7 +35,7 @@ class ConfigureProviderTest {
     private final ConfigureProvider configure = new ConfigureProvider();
 
     private Provider provider(ProviderType type) throws IOException {
-        return new Provider(type, Files.createDirectories(tmp.resolve(type.id())));
+        return new Provider(type, Files.createDirectories(tmp.resolve(type.globalDirName())));
     }
 
     @Test
@@ -74,8 +74,10 @@ class ConfigureProviderTest {
 
         OperationResult result = configure.execute(codex, true);
 
-        assertTrue(result.created().contains("sdd.config.toml"));
-        assertTrue(Files.isRegularFile(codex.getPath().resolve("skills/sdd-design/agents/openai.yaml")));
+        assertTrue(result.created().contains("profiles/sdd.config.toml"));
+        // Las skills de Codex viven en ~/.agents/skills (junto a ~/.codex, que guarda agentes y perfiles)
+        assertTrue(Files.isRegularFile(codex.getPath().resolveSibling(".agents/skills/sdd-design/agents/openai.yaml")));
+        assertTrue(Files.isRegularFile(codex.getPath().resolve("profiles/sdd.config.toml")));
 
         String toml = Files.readString(codex.getPath().resolve("agents/sdd_agent.toml"));
         ArtifactParts parts = ArtifactFormat.CODEX_TOML.split(toml);
@@ -132,11 +134,12 @@ class ConfigureProviderTest {
 
         assertTrue(result.warnings().isEmpty(), result.warnings().toString());
         Path root = codex.getPath().toAbsolutePath().normalize();
+        Path home = root.getParent();
         var agent = store[0].artifact(root.resolve("agents/sdd_agent.toml")).orElseThrow();
         assertEquals("global/agent/sdd-agent", agent.groupId());
         assertEquals(LinkState.LINKED, agent.state());
-        assertTrue(store[0].artifact(root.resolve("skills/sdd-design")).isPresent());
-        assertTrue(store[0].artifact(root.resolve("sdd.config.toml")).isPresent());
+        assertTrue(store[0].artifact(home.resolve(".agents/skills/sdd-design")).isPresent());
+        assertTrue(store[0].artifact(root.resolve("profiles/sdd.config.toml")).isPresent());
         assertEquals(ClasspathResources.readText("/global/agents/shared/sdd-agent-body.md").orElseThrow(),
             store[0].group("global/agent/sdd-agent").orElseThrow().sharedBody());
         var inventory = new ArtifactInventory(new PathResolver(Map.of("HOME", tmp.toString()), PathResolver.Os.LINUX),

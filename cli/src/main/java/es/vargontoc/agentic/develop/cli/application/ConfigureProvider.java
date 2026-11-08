@@ -16,6 +16,7 @@ import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactCatalog;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactKind;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
 import es.vargontoc.agentic.develop.cli.domain.artifact.CatalogEntry;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ProviderLayout;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
 import es.vargontoc.agentic.develop.cli.domain.format.HeaderMarkers;
@@ -42,6 +43,7 @@ public class ConfigureProvider {
     private static final String TEMPLATES_RESOURCE = "/global/agents/shared";
     private static final String PROFILES_RESOURCE = "/global/profiles";
     private static final String CODEX_PROFILE = "sdd.config.toml";
+    private static final String CODEX_PROFILE_PATH = "profiles/" + CODEX_PROFILE;
 
     private final TargetOs os;
     private final ArtifactCatalog catalog;
@@ -83,7 +85,12 @@ public class ConfigureProvider {
         return result;
     }
 
-    private void loadAgents(Path providerDir, ProviderType type, OperationResult result) {
+    // Ubicación física (relativa a la base del proveedor) de un artefacto global a partir de su ruta lógica
+    private static String locationOf(ProviderType type, ArtifactKind kind, String name, String relative) {
+        return new CatalogEntry(type, ArtifactScope.GLOBAL, kind, name, relative, null, null, null, null, null).location();
+    }
+
+    private void loadAgents(Path base, ProviderType type, OperationResult result) {
         String realPath = AGENTS_RESOURCE + "/" + type.resourceDir();
 
         try {
@@ -92,19 +99,17 @@ public class ConfigureProvider {
                 fail(result, "Resource '" + realPath + "' not found", null);
                 return;
             }
-            createAgents(realPath, agents.get(), providerDir.resolve("agents"), type, result);
+            createAgents(realPath, agents.get(), base, type, result);
         }catch(IOException e) {
             fail(result, e.getMessage(), e);
         }
     }
 
-    private void createAgents(String agentsResource, List<String> agents, Path destRoot, ProviderType type,
+    private void createAgents(String agentsResource, List<String> agents, Path base, ProviderType type,
                               OperationResult result) throws IOException {
-        Files.createDirectories(destRoot);
-
         for(String fileName : agents) {
-            Path target = destRoot.resolve(fileName);
             String relative = "agents/" + fileName;
+            Path target = base.resolve(locationOf(type, ArtifactKind.AGENT, baseName(fileName), relative));
 
             if(Files.exists(target)) {
                 result.skipped().add(relative);
@@ -122,6 +127,7 @@ public class ConfigureProvider {
                 continue;
             }
 
+            Files.createDirectories(target.getParent());
             Path temp = Files.createTempFile("agent-", ".md");
             try {
                 Files.writeString(temp, composeAgent(agent, body, type));
@@ -153,31 +159,34 @@ public class ConfigureProvider {
         return text.orElse(null);
     }
 
-    private void loadSkills(Path providerDir, ProviderType type, OperationResult result) {
+    private static String baseName(String fileName) {
+        return fileName.substring(0, fileName.lastIndexOf('.'));
+    }
+
+    private void loadSkills(Path base, ProviderType type, OperationResult result) {
         try {
             Optional<List<String>> skills = ClasspathResources.listDirectories(SKILLS_RESOURCE);
             if(skills.isEmpty()) {
                 fail(result, "Resource '" + SKILLS_RESOURCE + "' not found", null);
                 return;
             }
-            copySkills(skills.get(), providerDir.resolve("skills"), type, result);
+            copySkills(skills.get(), base, type, result);
         }catch(IOException e) {
             fail(result, e.getMessage(), e);
         }
     }
 
-    private void copySkills(List<String> skills, Path destRoot, ProviderType type, OperationResult result) throws IOException {
-        Files.createDirectories(destRoot);
-
+    private void copySkills(List<String> skills, Path base, ProviderType type, OperationResult result) throws IOException {
         for(String name : skills) {
-            Path target = destRoot.resolve(name);
             String relative = "skills/" + name;
+            Path target = base.resolve(locationOf(type, ArtifactKind.SKILL, name, relative));
 
             if(Files.exists(target)) {
                 result.skipped().add(relative);
                 continue;
             }
 
+            Files.createDirectories(target.getParent());
             ClasspathResources.copyTreeIfAbsent(SKILLS_RESOURCE + "/" + name, target);
             if(type == ProviderType.CODEX)
                 copyCodexHelper(target, result);
@@ -200,10 +209,10 @@ public class ConfigureProvider {
         }
     }
 
-    private void copyCodexProfile(Path providerDir, OperationResult result) {
-        Path target = providerDir.resolve(CODEX_PROFILE);
+    private void copyCodexProfile(Path base, OperationResult result) {
+        Path target = base.resolve(locationOf(ProviderType.CODEX, ArtifactKind.PROFILE, "sdd.config", CODEX_PROFILE_PATH));
         if(Files.exists(target)) {
-            result.skipped().add(CODEX_PROFILE);
+            result.skipped().add(CODEX_PROFILE_PATH);
             return;
         }
 
@@ -212,8 +221,9 @@ public class ConfigureProvider {
                 fail(result, "Resource '" + PROFILES_RESOURCE + "/" + CODEX_PROFILE + "' not found", null);
                 return;
             }
+            Files.createDirectories(target.getParent());
             Files.copy(profile, target);
-            result.created().add(CODEX_PROFILE);
+            result.created().add(CODEX_PROFILE_PATH);
         } catch(IOException e) {
             fail(result, e.getMessage(), e);
         }
@@ -234,15 +244,18 @@ public class ConfigureProvider {
 
         if(global)
         {
+            // La base de la que cuelgan los artefactos: la carpeta del proveedor o el home (ver ProviderLayout)
+            Path base = ProviderLayout.globalBase(type, provider.getPath());
+
             // Skills
-            loadSkills(provider.getPath(), type, result);
+            loadSkills(base, type, result);
 
             // Agents
-            loadAgents(provider.getPath(), type, result);
+            loadAgents(base, type, result);
 
             // Profiles (Codex)
             if(type == ProviderType.CODEX)
-                copyCodexProfile(provider.getPath(), result);
+                copyCodexProfile(base, result);
 
             register(provider, result);
 
@@ -258,7 +271,7 @@ public class ConfigureProvider {
             return;
 
         ProviderType type = provider.getType();
-        Path root = provider.getPath().toAbsolutePath().normalize();
+        Path root = ProviderLayout.globalBase(type, provider.getPath()).toAbsolutePath().normalize();
         for(String relative : result.created()) {
             Optional<CatalogEntry> entry = catalog.entries(type, ArtifactScope.GLOBAL).stream()
                 .filter(e -> e.relativePath().equals(relative))
@@ -270,7 +283,7 @@ public class ConfigureProvider {
                 String groupId = GroupIds.of(entry.get());
                 if(metadata.group(groupId).isEmpty())
                     metadata.putGroup(new GroupRecord(groupId, ArtifactScope.GLOBAL, sharedBody(entry.get())));
-                metadata.putArtifactHash(root.resolve(relative), groupId, inventory.inspect(entry.get(), root).hash(),
+                metadata.putArtifactHash(root.resolve(entry.get().location()), groupId, inventory.inspect(entry.get(), root).hash(),
                     LinkState.LINKED);
             } catch(IOException | DomainException e) {
                 fail(result, relative + ": instalado pero no se pudo registrar", e);

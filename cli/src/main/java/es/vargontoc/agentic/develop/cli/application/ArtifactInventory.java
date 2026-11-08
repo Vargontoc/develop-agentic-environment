@@ -51,14 +51,12 @@ public class ArtifactInventory {
     }
 
     public Inventory scanGlobal(ProviderType provider) {
-        return scan(paths.providerHome(provider), ArtifactScope.GLOBAL, provider, List.of());
+        return scan(paths.globalBase(provider), ArtifactScope.GLOBAL, provider, List.of());
     }
 
     /** {@code modules} son los registrados en {@code team.md}: solo sus especialistas son artefactos de la aplicación. */
     public Inventory scanProject(Path project, ProviderType provider, Collection<String> modules) {
-        if(!provider.supportsProject())
-            return new Inventory(List.of(), List.of());
-        return scan(project.resolve(provider.projectDir()), ArtifactScope.PROJECT, provider, modules);
+        return scan(paths.projectBase(provider, project), ArtifactScope.PROJECT, provider, modules);
     }
 
     private Inventory scan(Path root, ArtifactScope scope, ProviderType provider, Collection<String> modules) {
@@ -69,7 +67,7 @@ public class ArtifactInventory {
             return new Inventory(installed, problems);
 
         for(CatalogEntry entry : catalog.entries(provider, scope, modules)) {
-            Path path = root.resolve(entry.relativePath());
+            Path path = root.resolve(entry.location());
             if(!Files.exists(path))
                 continue;
 
@@ -83,11 +81,11 @@ public class ArtifactInventory {
     }
 
     /**
-     * Estado de un único artefacto del catálogo bajo la carpeta del proveedor {@code root}.
+     * Estado de un único artefacto del catálogo bajo la base del proveedor {@code root} (ver {@code ProviderLayout}).
      * Lanza {@code DomainException} si es ilegible o de un tipo distinto al esperado.
      */
     public InstalledArtifact inspect(CatalogEntry entry, Path root) {
-        Path path = root.resolve(entry.relativePath());
+        Path path = root.resolve(entry.location());
         return describe(entry, path, root, new TextStore(paths, List.of(root), backupRoot));
     }
 

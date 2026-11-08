@@ -61,13 +61,12 @@ public class MigrationService {
             if(paths.hasHome())
                 for(ProviderType provider : ProviderType.values())
                     collect(inventory.scanGlobal(provider).artifacts(), provider, ArtifactScope.GLOBAL,
-                        paths.providerHome(provider), group, found);
+                        paths.globalBase(provider), group, found);
         } else if(project != null) {
             List<String> modules = workspace.readTeam(project).moduleNames();
             for(ProviderType provider : ProviderType.values())
-                if(provider.supportsProject())
-                    collect(inventory.scanProject(project, provider, modules).artifacts(), provider, ArtifactScope.PROJECT,
-                        project.resolve(provider.projectDir()), group, found);
+                collect(inventory.scanProject(project, provider, modules).artifacts(), provider, ArtifactScope.PROJECT,
+                    paths.projectBase(provider, project), group, found);
         }
         found.sort(Comparator.comparing(l -> l.path().toString()));
         return found;

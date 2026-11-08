@@ -36,7 +36,7 @@ class ResourceArtifactCatalogTest {
     @Test
     void codexAgentsAreTomlAndTheProfileIsPartOfTheCatalog() {
         CatalogEntry agent = catalog.identify(ProviderType.CODEX, ArtifactScope.GLOBAL, "agents/sdd_agent.toml", List.of()).orElseThrow();
-        CatalogEntry profile = catalog.identify(ProviderType.CODEX, ArtifactScope.GLOBAL, "sdd.config.toml", List.of()).orElseThrow();
+        CatalogEntry profile = catalog.identify(ProviderType.CODEX, ArtifactScope.GLOBAL, "profiles/sdd.config.toml", List.of()).orElseThrow();
 
         assertEquals(ArtifactFormat.CODEX_TOML, agent.format());
         assertEquals(ArtifactKind.PROFILE, profile.kind());
@@ -90,8 +90,38 @@ class ResourceArtifactCatalogTest {
     }
 
     @Test
-    void codexHasNoProjectArtifactsYet() {
-        assertTrue(catalog.entries(ProviderType.CODEX, ArtifactScope.PROJECT, List.of("alfa")).isEmpty());
+    void codexProjectHasSkillRoutersSpecialistsAndOneProfilePerAgentAndModule() {
+        List<CatalogEntry> entries = catalog.entries(ProviderType.CODEX, ArtifactScope.PROJECT, List.of("alfa"));
+
+        CatalogEntry router = entries.stream().filter(e -> e.name().equals("analista-router")).findFirst().orElseThrow();
+        assertEquals(".agents/skills/analista-router/SKILL.md", router.location());
+        CatalogEntry specialist = entries.stream().filter(e -> e.name().equals("analista_alfa")).findFirst().orElseThrow();
+        assertEquals(".codex/agents/analista_alfa.toml", specialist.location());
+        assertEquals(ArtifactFormat.CODEX_TOML, specialist.format());
+        CatalogEntry profile = entries.stream().filter(e -> e.kind() == ArtifactKind.PROFILE && e.module() != null
+            && e.name().equals("desarrollador-alfa")).findFirst().orElseThrow();
+        assertEquals(".codex/profiles/desarrollador-alfa.toml", profile.location());
+        assertEquals(".agents/skills/team-conventions", entries.stream().filter(e -> e.name().equals("team-conventions"))
+            .findFirst().orElseThrow().location());
+    }
+
+    @Test
+    void geminiHasOneFolderPerAgentAndSharesProjectSkillsWithCodex() {
+        List<CatalogEntry> gemini = catalog.entries(ProviderType.GEMINI, ArtifactScope.PROJECT, List.of("alfa"));
+        List<CatalogEntry> codex = catalog.entries(ProviderType.CODEX, ArtifactScope.PROJECT, List.of("alfa"));
+
+        assertEquals(".agents/agents/analista-alfa/agent.md", gemini.stream().filter(e -> e.name().equals("analista-alfa"))
+            .findFirst().orElseThrow().location());
+        assertEquals(".gemini/config/agents/sdd-agent/agent.md", catalog.entries(ProviderType.GEMINI, ArtifactScope.GLOBAL).stream()
+            .filter(e -> e.name().equals("sdd-agent")).findFirst().orElseThrow().location());
+        assertEquals(".gemini/skills/sdd-design", catalog.entries(ProviderType.GEMINI, ArtifactScope.GLOBAL).stream()
+            .filter(e -> e.kind() == ArtifactKind.SKILL && e.name().equals("sdd-design")).findFirst().orElseThrow().location());
+        // La misma ruta física en los dos proveedores: .agents/skills/<skill>
+        assertEquals(locations(gemini, ArtifactKind.SKILL), locations(codex, ArtifactKind.SKILL));
+    }
+
+    private static List<String> locations(List<CatalogEntry> entries, ArtifactKind kind) {
+        return entries.stream().filter(e -> e.kind() == kind).map(CatalogEntry::location).sorted().toList();
     }
 
     @Test

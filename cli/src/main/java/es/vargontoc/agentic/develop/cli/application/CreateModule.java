@@ -17,15 +17,17 @@ import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.Technician;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactCatalog;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactKind;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactScope;
 import es.vargontoc.agentic.develop.cli.domain.artifact.CatalogEntry;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ProviderLayout;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.domain.errors.PathDomainException;
-import es.vargontoc.agentic.develop.cli.domain.format.ArtifactFormat;
 import es.vargontoc.agentic.develop.cli.domain.format.BodyPlaceholders;
 import es.vargontoc.agentic.develop.cli.domain.format.HeaderMarkers;
 import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
+import es.vargontoc.agentic.develop.cli.domain.metadata.ArtifactRecord;
 import es.vargontoc.agentic.develop.cli.domain.metadata.GroupIds;
 import es.vargontoc.agentic.develop.cli.domain.metadata.GroupRecord;
 import es.vargontoc.agentic.develop.cli.domain.metadata.LinkState;
@@ -47,7 +49,8 @@ public class CreateModule {
     private static final Logger log = LoggerFactory.getLogger(CreateModule.class);
 
     private static final String SKILLS_RESOURCE = "/project/skills";
-    private static final String AGENTS_RESOURCE = "/project/agents/";
+    private static final String HELPER = "/global/helper/openai.yaml";
+    private static final String CODEX_HELPER_FILE = "agents/openai.yaml";
     private static final String TEAM_FILE = ".sdd/team.md";
 
     private static final int MIN_NAME_LENGTH = 3;
@@ -160,40 +163,33 @@ public class CreateModule {
 
         for(Provider provider : providers) {
             ProviderType type = provider.getType();
-            if(!type.supportsProject()) {
-                warn(result, type + ": aún no se soporta a nivel de proyecto, se omite");
-                continue;
-            }
-
-            Path providerDir = project.resolve(type.projectDir());
+            Path base = paths.projectBase(type, project);
             try {
-                paths.requireWithin(project, providerDir);
+                paths.requireWithin(project, base);
             } catch(DomainException e) {
-                warn(result, type + ": " + type.projectDir() + " queda fuera del proyecto, se omite");
+                warn(result, type + ": " + base.getFileName() + " queda fuera del proyecto, se omite");
                 continue;
             }
 
+            List<CatalogEntry> entries = catalog.entries(type, ArtifactScope.PROJECT, List.of(module));
             if(withSkills)
-                copySkills(providerDir, type, dryRun, result, created);
+                copySkills(project, base, type, entries, dryRun, result, created);
 
+            // El router es único por técnico y proveedor; el especialista (y, en Codex, su perfil) depende del módulo
             for(Technician technician : technicians) {
-                String slug = technician.slug();
-                // El router es único por técnico y proveedor; el especialista depende del módulo
-                generateAgent(new AgentRequest(providerDir, type, module, slug + "-router", slug + "-router-template",
-                    slug + "-router", dryRun), text, result, created);
-                generateAgent(new AgentRequest(providerDir, type, module, slug, slug + "-template", slug + "-" + module, dryRun),
-                    text, result, created);
+                entries.stream()
+                    .filter(e -> e.kind() != ArtifactKind.SKILL && e.technician() == technician)
+                    .forEach(e -> generateEntry(new Target(project, base, e, dryRun), text, result, created));
             }
         }
 
-        register(created, module, result);
+        register(created, result);
     }
 
-    // Artefacto nuevo pendiente de registrar: su carpeta de proveedor y su ruta relativa (fichero o skill)
-    private record Created(ProviderType type, Path providerDir, String relativePath, String sharedBody) {}
+    // Artefacto nuevo pendiente de registrar: su entrada, la base de su proveedor y el cuerpo compartido que usó
+    private record Created(CatalogEntry entry, Path base, String sharedBody) {}
 
-    private record AgentRequest(Path providerDir, ProviderType type, String module, String headerName,
-                                String templateName, String targetName, boolean dryRun) {}
+    private record Target(Path project, Path base, CatalogEntry entry, boolean dryRun) {}
 
     // Añade "- <modulo> | - | -" al final de la sección "## Módulos" de .sdd/team.md, sin duplicar
     private void registerInTeam(Path project, String module, TextStore text, OperationResult result, boolean dryRun) {
@@ -255,125 +251,159 @@ public class CreateModule {
     }
 
     // Copia solo lo que falta; las skills cuyo directorio no existía antes se registran como nuevas
-    private void copySkills(Path providerDir, ProviderType type, boolean dryRun, OperationResult result, List<Created> created) {
+    private void copySkills(Path project, Path base, ProviderType type, List<CatalogEntry> entries, boolean dryRun,
+                            OperationResult result, List<Created> created) {
+        List<CatalogEntry> skills = entries.stream().filter(e -> e.kind() == ArtifactKind.SKILL).toList();
+        if(skills.isEmpty()) {
+            log.error("Resource '{}' not found", SKILLS_RESOURCE);
+            throw new DomainException(AppErrorCode.MODULE_SKILLS_NOT_FOUND);
+        }
+
         try {
-            Optional<List<String>> skills = ClasspathResources.listDirectories(SKILLS_RESOURCE);
-            if(skills.isEmpty()) {
-                log.error("Resource '{}' not found", SKILLS_RESOURCE);
-                throw new DomainException(AppErrorCode.MODULE_SKILLS_NOT_FOUND);
+            int copied = 0;
+            int skipped = 0;
+            for(CatalogEntry skill : skills) {
+                Path dir = base.resolve(skill.location());
+                boolean brandNew = !Files.exists(dir);
+                String label = type + ": " + relative(project, dir);
+
+                if(dryRun) {
+                    (brandNew ? result.created() : result.skipped()).add(brandNew ? label : label + " (ya existe)");
+                    continue;
+                }
+
+                ClasspathResources.CopyStats stats = ClasspathResources.copyTreeIfAbsent(skill.resource(), dir)
+                    .orElseThrow(() -> new DomainException(AppErrorCode.MODULE_SKILLS_NOT_FOUND));
+                copied += stats.copied();
+                skipped += stats.skipped();
+                if(type == ProviderType.CODEX)
+                    addCodexHelper(skill, base, dir, brandNew);
+                if(brandNew)
+                    created.add(new Created(skill, base, ""));
             }
 
-            List<String> brandNew = skills.get().stream()
-                .filter(name -> !Files.exists(providerDir.resolve("skills").resolve(name)))
-                .toList();
-
-            if(dryRun) {
-                brandNew.forEach(name -> result.created().add(type + ": skills/" + name));
-                skills.get().stream().filter(name -> !brandNew.contains(name))
-                    .forEach(name -> result.skipped().add(type + ": skills/" + name + " (ya existe)"));
-                return;
-            }
-
-            Optional<ClasspathResources.CopyStats> stats =
-                ClasspathResources.copyTreeIfAbsent(SKILLS_RESOURCE, providerDir.resolve("skills"));
-            if(stats.isEmpty())
-                throw new DomainException(AppErrorCode.MODULE_SKILLS_NOT_FOUND);
-
-            if(stats.get().copied() > 0)
-                result.created().add(type + ": skills (" + stats.get().copied() + " ficheros copiados)");
-            if(stats.get().skipped() > 0)
-                result.skipped().add(type + ": skills (" + stats.get().skipped() + " ficheros ya existían)");
-            brandNew.forEach(name -> created.add(new Created(type, providerDir, "skills/" + name, "")));
+            if(copied > 0)
+                result.created().add(type + ": skills (" + copied + " ficheros copiados)");
+            if(skipped > 0)
+                result.skipped().add(type + ": skills (" + skipped + " ficheros ya existían)");
         } catch(IOException e) {
             fail(result, type + ": no se pudieron copiar las skills", e);
         }
     }
 
-    // Une cabecera del proveedor + cuerpo (el del grupo si existe, si no la plantilla) y resuelve los placeholders
-    private void generateAgent(AgentRequest request, TextStore text, OperationResult result, List<Created> created) {
-        ProviderType type = request.type();
-        String relative = "agents/" + request.targetName() + ".md";
-        Path target = request.providerDir().resolve(relative);
-        String label = type + ": " + type.projectDir() + "/" + relative;
+    // Cada skill de Codex lleva agents/openai.yaml. Si la skill ya existía (p. ej. la instaló Gemini en la misma
+    // carpeta .agents/skills) y estaba sin tocar, su registro se actualiza para que el fichero añadido no cuente como cambio
+    private void addCodexHelper(CatalogEntry skill, Path base, Path dir, boolean brandNew) throws IOException {
+        Path helper = dir.resolve(CODEX_HELPER_FILE);
+        if(Files.exists(helper))
+            return;
 
-        if(Files.exists(target)) {
+        Path key = dir.toAbsolutePath().normalize();
+        Optional<ArtifactRecord> record = brandNew ? Optional.empty() : metadata.artifact(key);
+        boolean untouched = record.isPresent() && record.get().hash().equals(inventory.inspect(skill, base).hash());
+
+        writeCodexHelper(dir);
+        if(untouched)
+            metadata.putArtifactHash(key, record.get().groupId(), inventory.inspect(skill, base).hash(), record.get().state());
+    }
+
+    private static void writeCodexHelper(Path dir) throws IOException {
+        Path helper = dir.resolve(CODEX_HELPER_FILE);
+        String yaml = ClasspathResources.readText(HELPER).orElseThrow(() -> new IOException("Resource '" + HELPER + "' not found"));
+        Files.createDirectories(helper.getParent());
+        Files.writeString(helper, yaml);
+    }
+
+    // Agente: cabecera del proveedor + cuerpo (el del grupo si existe, si no la plantilla) con los placeholders resueltos.
+    // Perfil (Codex): el recurso con el módulo resuelto.
+    private void generateEntry(Target target, TextStore text, OperationResult result, List<Created> created) {
+        CatalogEntry entry = target.entry();
+        ProviderType type = entry.provider();
+        Path path = target.base().resolve(entry.location());
+        String label = type + ": " + relative(target.project(), path);
+
+        if(Files.exists(path)) {
             result.skipped().add(label + " (ya existe)");
             return;
         }
 
-        String headerResource = AGENTS_RESOURCE + type.resourceDir() + "/" + request.headerName() + ".md";
-        String templateResource = AGENTS_RESOURCE + "shared/" + request.templateName() + ".md";
         try {
-            Optional<String> header = ClasspathResources.readText(headerResource);
-            Optional<String> template = ClasspathResources.readText(templateResource);
-            if(header.isEmpty() || template.isEmpty()) {
-                warn(result, label + ": no existe el recurso " + (header.isEmpty() ? headerResource : templateResource));
+            Optional<Composed> composed = compose(entry, label, result);
+            if(composed.isEmpty())
                 return;
-            }
 
-            String renderedHeader;
-            try {
-                renderedHeader = HeaderMarkers.render(header.get(), os, type);
-            } catch(DomainException e) {
-                warn(result, label + ": marcador de cabecera no válido en " + headerResource);
-                return;
-            }
-
-            String shared = sharedBodyFor(type, request.module(), request.targetName())
-                .orElse(template.get().strip() + "\n");
-            // La cabecera también lleva placeholders (nombre del agente); el cuerpo compartido se guarda sin resolver
-            String module = isRouter(request) ? null : request.module();
-            String content = ArtifactFormat.MARKDOWN.assemble(BodyPlaceholders.resolve(renderedHeader, type, module),
-                BodyPlaceholders.resolve(shared, type, module));
-
-            if(request.dryRun()) {
+            if(target.dryRun()) {
                 result.created().add(label);
                 return;
             }
-            text.write(target, content);
+            text.write(path, composed.get().content());
+            // El router de Codex es una skill: lleva su agents/openai.yaml como las demás
+            if(type == ProviderType.CODEX && ProviderLayout.isRouter(entry))
+                writeCodexHelper(path.getParent());
             result.created().add(label);
-            created.add(new Created(type, request.providerDir(), relative, shared));
+            created.add(new Created(entry, target.base(), composed.get().shared()));
         } catch(IOException | DomainException e) {
             fail(result, label + ": no se pudo escribir", e);
         }
     }
 
-    private static boolean isRouter(AgentRequest request) {
-        return request.targetName().endsWith("-router");
+    private record Composed(String content, String shared) {}
+
+    // Vacío (con aviso) si falta el recurso o su cabecera no es válida
+    private Optional<Composed> compose(CatalogEntry entry, String label, OperationResult result) throws IOException {
+        ProviderType type = entry.provider();
+        Optional<String> header = ClasspathResources.readText(entry.resource());
+        Optional<String> template = entry.kind() == ArtifactKind.AGENT
+            ? ClasspathResources.readText(entry.bodyResource()) : Optional.of("");
+        if(header.isEmpty() || template.isEmpty()) {
+            warn(result, label + ": no existe el recurso " + (header.isEmpty() ? entry.resource() : entry.bodyResource()));
+            return Optional.empty();
+        }
+
+        if(entry.kind() == ArtifactKind.PROFILE)
+            return Optional.of(new Composed(BodyPlaceholders.resolve(header.get(), type, entry.module()), ""));
+
+        String renderedHeader;
+        try {
+            renderedHeader = HeaderMarkers.render(header.get(), os, type);
+        } catch(DomainException e) {
+            warn(result, label + ": marcador de cabecera no válido en " + entry.resource());
+            return Optional.empty();
+        }
+
+        String shared = sharedBodyFor(entry).orElse(template.get().strip() + "\n");
+        // La cabecera también lleva placeholders (nombre del agente); el cuerpo compartido se guarda sin resolver.
+        // El router no tiene módulo: sus {module} se dejan intactos
+        String content = entry.format().assemble(BodyPlaceholders.resolve(renderedHeader, type, entry.module()),
+            BodyPlaceholders.resolve(shared, type, entry.module()));
+        return Optional.of(new Composed(content, shared));
     }
 
     // El cuerpo compartido del grupo, si ya existe y no está vacío
-    private Optional<String> sharedBodyFor(ProviderType type, String module, String targetName) {
-        return catalog.entries(type, ArtifactScope.PROJECT, List.of(module)).stream()
-            .filter(e -> e.relativePath().equals("agents/" + targetName + ".md"))
-            .findFirst()
-            .map(GroupIds::of)
-            .flatMap(metadata::group)
+    private Optional<String> sharedBodyFor(CatalogEntry entry) {
+        return metadata.group(GroupIds.of(entry))
             .map(GroupRecord::sharedBody)
             .filter(body -> !body.isBlank());
     }
 
-    // Registra grupos y artefactos nuevos con el hash de lo que quedó en disco
-    private void register(List<Created> created, String module, OperationResult result) {
-        for(Created c : created) {
-            try {
-                Optional<CatalogEntry> entry = catalog.entries(c.type(), ArtifactScope.PROJECT, List.of(module)).stream()
-                    .filter(e -> e.relativePath().equals(c.relativePath()))
-                    .findFirst();
-                if(entry.isEmpty()) {
-                    warn(result, c.type() + ": " + c.relativePath() + " no figura en el catálogo y no se registra");
-                    continue;
-                }
+    private static String relative(Path project, Path path) {
+        return project.relativize(path).toString().replace('\\', '/');
+    }
 
-                String groupId = GroupIds.of(entry.get());
+    // Registra grupos y artefactos nuevos con el hash de lo que quedó en disco
+    private void register(List<Created> created, OperationResult result) {
+        for(Created c : created) {
+            CatalogEntry entry = c.entry();
+            try {
+                String groupId = GroupIds.of(entry);
                 if(metadata.group(groupId).isEmpty())
                     metadata.putGroup(new GroupRecord(groupId, ArtifactScope.PROJECT, c.sharedBody()));
 
-                Path root = c.providerDir().toAbsolutePath().normalize();
-                String hash = inventory.inspect(entry.get(), root).hash();
-                metadata.putArtifactHash(root.resolve(c.relativePath()), groupId, hash, LinkState.LINKED);
+                Path root = c.base().toAbsolutePath().normalize();
+                String hash = inventory.inspect(entry, root).hash();
+                metadata.putArtifactHash(root.resolve(entry.location()), groupId, hash, LinkState.LINKED);
             } catch(DomainException e) {
-                fail(result, c.type() + ": " + c.relativePath() + " creado pero no se pudo registrar", e);
+                fail(result, entry.provider() + ": " + entry.relativePath() + " creado pero no se pudo registrar", e);
             }
         }
     }

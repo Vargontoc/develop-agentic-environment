@@ -190,10 +190,15 @@ class ModuleCommandsTest {
     }
 
     @Test
-    void aProviderWithoutProjectSupportOnlyGivesAWarning() {
+    void codexAndGeminiAreGeneratedInTheirOwnFolders() {
         Map<?, ?> out = run(0, "create-module", "--project", project.toString(), "--module", "alfa", "--technicians",
-            "analista", "--providers", "codex");
+            "analista", "--providers", "codex,gemini");
 
-        assertTrue(anyContains(data(out).get("warnings"), "no se soporta a nivel de proyecto"));
+        assertTrue(((List<?>) data(out).get("warnings")).isEmpty(), String.valueOf(data(out).get("warnings")));
+        assertTrue(Files.isRegularFile(project.resolve(".codex/agents/analista_alfa.toml")));
+        assertTrue(Files.isRegularFile(project.resolve(".codex/profiles/analista-alfa.toml")));
+        assertTrue(Files.isRegularFile(project.resolve(".agents/skills/analista-router/SKILL.md")));
+        assertTrue(Files.isRegularFile(project.resolve(".agents/agents/analista-alfa/agent.md")));
+        assertTrue(Files.isRegularFile(project.resolve(".agents/agents/analista-router/agent.md")));
     }
 }
