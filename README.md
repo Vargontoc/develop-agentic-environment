@@ -3,7 +3,8 @@ Pequeña aplicación para la instalación de un entorno agéntico de desarrollo 
 
 Instala y mantiene los agentes y skills de **Spec-Driven Development** (requisitos, diseño y tareas) en los
 proveedores que tengas (Claude, Codex, Gemini, OpenCode), prepara proyectos con la estructura `.sdd` y genera los
-agentes de cada módulo y técnico de un proyecto.
+agentes de cada módulo y técnico de un proyecto (analista, desarrollador y documentador), con sus skills y, en Codex,
+sus perfiles de permisos.
 
 ## Estado
 La CLI (`cli/`) está completa según su especificación (`specs/cli/`): menú interactivo, comandos no interactivos con
@@ -298,8 +299,27 @@ Normas que conviene conocer:
 - **Propagación.** `save --mode group` actualiza solo los artefactos que ya existen del mismo grupo y ámbito; nunca crea nuevos.
   Los agentes generados antes de que existieran los metadatos cuentan como personalizados y no se tocan.
 - **Cabeceras por sistema.** Las cabeceras de los agentes se generan para el sistema operativo en el que se ejecuta el CLI
-  (PowerShell en Windows, bash en Linux). Los scripts de los hooks (`hooks/<script>.bat` o `.sh`) los aportas tú en la
-  carpeta global del proveedor.
+  (PowerShell en Windows, bash en Linux). `configure-provider` instala además el hook `sdd-specs-only` en la carpeta
+  global del proveedor (`hooks/sdd-specs-only.bat` o `.sh`) y no pisa uno que hayas modificado; los demás scripts de
+  `hooks/` son tuyos.
+- **Todos los proveedores admiten proyecto.** `create-module --providers claude,codex,gemini,opencode` genera cada uno en
+  su estructura (ver «Capa técnica por proveedor»). Si Codex y Gemini comparten `.agents/skills/`, se reutilizan.
+
+### Flujo de trabajo
+1. **Especificación (SDD).** `sdd-agent` lleva una feature por requisitos, diseño y tareas (`specs/<feature>/`), con
+   aprobación entre fases. No escribe código ni README.
+2. **Capa técnica.** Con los módulos registrados en `.sdd/team.md` (`<modulo> | <id del mapa> | <rutas>`), tres routers
+   delegan en un especialista por módulo (`<rol>-<modulo>`):
+   - `analista-router`: convierte las tareas aprobadas en sprints por módulo (`docs/sprints/<modulo>/`).
+   - `desarrollador-router`: implementa las tareas del sprint, comprueba antes la rama según `git-policy` y no hace
+     operaciones de git que modifiquen nada.
+   - `documentador-router`: redacta los contratos (`docs/contracts/`), mantiene el mapa `.sdd/architecture.md` y el
+     `README.md` (este último, el módulo indicado en `readme-owner`).
+3. **Opciones** en la sección `## Opciones` de `.sdd/team.md`: `sprints` (si/no), `git-policy` (`balanced`/`strict`),
+   `contract-strategy` (`implementation-first`/`contract-first`) y `readme-owner`.
+
+Los permisos por rol los exige el texto de los prompts y, donde el proveedor lo permite, su configuración (OpenCode,
+perfiles de Codex, hook global); no hay un aislamiento garantizado por la plataforma.
 
 ### Viewer (en construcción)
 El viewer espera el jar ejecutable en `viewer/cli/agentic-develop.jar`. Si falta, muestra un error de aplicación.
