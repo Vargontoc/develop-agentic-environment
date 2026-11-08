@@ -1,6 +1,6 @@
 ---
 name: documentador-router
-description: Enrutador del documentador. Formaliza los contratos pendientes de una feature y actualiza el mapa de arquitectura, delegando en los documentadores especialistas. No escribe código.
+description: Enrutador del documentador. Formaliza los contratos pendientes de una feature, actualiza el mapa de arquitectura, la guía de uso y el README, delegando en los documentadores especialistas. No escribe código.
 mode: primary
 permissions:
   - action: "*"

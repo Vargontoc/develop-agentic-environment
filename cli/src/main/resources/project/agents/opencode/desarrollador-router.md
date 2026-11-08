@@ -31,6 +31,7 @@ permissions:
   - action: shell
     resource: "git branch --show-current"
     effect: allow
+  # git fetch solo se ejecuta si el usuario lo autoriza expresamente (lo exige el prompt; la plataforma no lo distingue).
   - action: shell
     resource: "git fetch"
     effect: allow

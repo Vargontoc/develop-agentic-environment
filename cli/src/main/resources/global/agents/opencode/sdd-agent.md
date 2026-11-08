@@ -1,5 +1,5 @@
 ---
-description: Enrutador de Spec-Driven Development. Lleva una feature por Requirements, Design y TaskList con aprobación entre fases, o invoca Docs. No escribe código.
+description: Enrutador de Spec-Driven Development. Lleva una feature por Requirements, Design y TaskList con aprobación entre fases. No escribe código.
 mode: primary
 permissions:
   - action: "*"
@@ -34,8 +34,5 @@ permissions:
     effect: allow
   - action: subagent
     resource: "sdd-tasklist"
-    effect: allow
-  - action: subagent
-    resource: "docs-readme"
     effect: allow
 ---

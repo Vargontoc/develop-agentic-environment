@@ -1,7 +1,7 @@
 default_permissions = "analista"
 
 [permissions.analista]
-description = "Sesión del analista: lectura del proyecto y escritura solo en docs/sprints/."
+description = "Sesión del analista: lectura del proyecto y escritura solo en docs/sprints/ y docs/changes/."
 extends = ":read-only"
 
 [permissions.analista.filesystem]
@@ -9,4 +9,5 @@ glob_scan_max_depth = 3
 
 [permissions.analista.filesystem.":workspace_roots"]
 "docs/sprints" = "write"
+"docs/changes" = "write"
 "**/*.env" = "deny"

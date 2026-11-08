@@ -30,6 +30,9 @@ permissions:
   - action: edit
     resource: "docs/sprints/*"
     effect: allow
+  - action: edit
+    resource: "docs/changes/*"
+    effect: allow
   - action: subagent
     resource: "analista-*"
     effect: allow

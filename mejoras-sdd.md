@@ -863,6 +863,34 @@ Segunda: las dependencias. El planificador no necesita convertirse en un sistema
 
 Tercera: los permisos. Es la parte donde más distinguiría entre una regla escrita en una skill y una restricción realmente garantizada por la plataforma. No afirmaría que existe aislamiento técnico hasta comprobarlo.
 
+## 18. Configuracion codex a nivel proyecto
+
+Configuracion de los tecnicos a nivel proyecto oara el proveedor Codex. Tiene una rareza en como se comportan.
+
+<proyecto>/
+├── .agents/                          # 🤖 EXCLUSIVO PARA CODEX
+│   ├── config.toml                   # Configuración de Codex
+│   ├── profiles/
+│   │   ├── analista-router.md        # Router versión Codex
+│   │   └── analista-<module>.md
+│   └── skills/
+│       └── team-conventions.md
+|   --> resto perfiles
+│
+├── .antigravity-env/                     # 🚀 EXCLUSIVO PARA GEMINI / ANTIGRAVITY
+│   ├── agents/
+│   │   ├── analista-router.md        # Router versión Antigravity (con YAML)
+│   │   └── analista-<module>.md
+│   └── skills/
+│       └── team-conventions/
+│           └── SKILL.md
+|       --> resto skills
+│
+
+y agregar para el readme  `agy --agent <agente> --add-dir=<carpetas de trabajo> antigravity-env`
+
+
+
 ## Conclusión
 
 Mi propuesta mantiene intacta la filosofía original de tu Development Kit.

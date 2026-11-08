@@ -1,5 +1,5 @@
 ---
-description: Documentador del modulo {module}. Formaliza contratos de comunicación, mantiene las líneas del módulo en .sdd/architecture.md y actualiza el README. Lo invoca documentador-router; no escribe código.
+description: Documentador del modulo {module}. Formaliza contratos de comunicación, mantiene las líneas del módulo en .sdd/architecture.md y, si es el responsable (readme-owner), crea o actualiza el README. Lo invoca documentador-router; no escribe código.
 mode: subagent
 model: opencode-go/minimax-m3
 permissions:
@@ -33,11 +33,14 @@ permissions:
   - action: skill
     resource: "guide-conventions"
     effect: allow
+  - action: skill
+    resource: "docs-readme"
+    effect: allow
   - action: edit
     resource: "docs/contracts/*"
     effect: allow
   - action: edit
-    resource: "docs/guide/core/*"
+    resource: "docs/guide/{module}/*"
     effect: allow
   - action: edit
     resource: "*.sdd/architecture.md"

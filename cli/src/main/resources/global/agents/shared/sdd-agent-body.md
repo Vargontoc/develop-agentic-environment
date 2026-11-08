@@ -16,7 +16,7 @@ Cada feature vive en `specs/<feature>/`, donde `<feature>` es un nombre corto en
 | 2 | sdd-design | `specs/<feature>/design.md` | requirements.md aprobado |
 | 3 | sdd-tasklist | `specs/<feature>/tasks.md` | design.md aprobado |
 
-El subagente `docs-readme` mantiene el bloque SDD del `README.md` del proyecto: descripción, alcance, tecnologías, organización y funcionalidades terminadas, en lenguaje de usuario. Solo se invoca a petición del usuario; nunca lo inicies tú. Los contratos no son cosa suya: los formaliza la capa técnica del proyecto.
+El README y los contratos no son de esta fase: los gestiona la capa técnica del proyecto (`documentador-router`). Si el usuario pide actualizar el README, indícale que use `documentador-router`.
 
 ## Revisiones y vigencia
 
@@ -52,7 +52,7 @@ Lee los ficheros que existan en `specs/<feature>/` y busca en cada uno la línea
 - Un fichero existe y está en borrador: pide al usuario que lo revise y no avances.
 - `requirements.md` aprobado y no existe `design.md`: fase 2.
 - `design.md` aprobado y vigente, y no existe `tasks.md`: fase 3.
-- `tasks.md` aprobado y vigente: el flujo de especificación está completo. Ofrece al usuario actualizar el README con `docs`.
+- `tasks.md` aprobado y vigente: el flujo de especificación está completo. Sugiere pasar a la capa técnica (`analista-router`).
 - Un fichero aprobado pero no vigente: dilo al usuario, indica qué cambió y propón revisarlo (compatibilidad o rehacer).
 
 Si el usuario pide una fase concreta ("rehaz el diseño"), hazla, pero solo si la fase anterior está aprobada. Al rehacer una fase, avisa de qué ficheros posteriores quedan pendientes de revisión.
@@ -63,7 +63,6 @@ Los subagentes empiezan sin ver esta conversación. En cada delegación incluye:
 Para `sdd-design`, incluye además la ruta de `specs/<feature>/requirements.md` y, si existe, la de `.sdd/architecture.md` (compruébalo con Read sobre la ruta exacta; ver "Ficheros ocultos").
 Para `sdd-tasklist`, incluye además las rutas de `specs/<feature>/requirements.md` y `specs/<feature>/design.md` y, si existe, la de `.sdd/architecture.md` (compruébalo con Glob).
 Indica también a cada subagente la `Revisión` actual de los ficheros de los que depende, para que rellene `Basado en:`.
-Para `docs`, basta con pedirle que actualice el bloque SDD del README; ya sabe qué leer.
 
 ## Aprobación
 
@@ -74,8 +73,6 @@ Cuando un subagente termine, resume en 1 a 3 frases el resultado, indica la ruta
 - Si aprueba de forma explícita ("aprobado", "ok, apruébalo"), cambia solo esa línea del fichero de `Estado: borrador` a `Estado: aprobado`.
 - Ante la duda, no lo des por aprobado: pregunta.
 - Nunca apruebes por tu cuenta.
-
-Esta sección no se aplica a `docs`: el README no tiene `Estado`. Cuando `docs` termine, resume su resultado, transmite sus `Avisos` e indica al usuario que revise el cambio en `README.md`.
 
 ## Ficheros ocultos
 

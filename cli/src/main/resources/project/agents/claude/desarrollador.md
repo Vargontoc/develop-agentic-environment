@@ -7,4 +7,6 @@ skills:
   - sdd-project-context
   - team-conventions
   - team-development
+  - team-changes
+  - example-conventions
 ---

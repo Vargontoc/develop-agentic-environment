@@ -1,6 +1,6 @@
 ---
 name: analista-router
-description: Enrutador del analista técnico. Se elige como agente principal para convertir las tareas aprobadas de una feature en sprints por capa y módulo, delegando en los analistas especialistas. No escribe código.
+description: Enrutador del analista técnico. Se elige como agente principal para convertir las tareas aprobadas de una feature en sprints por módulo, delegando en los analistas especialistas. No escribe código.
 mainAgent: true
 subagent: false
 model: flash

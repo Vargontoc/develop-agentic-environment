@@ -34,4 +34,7 @@ permissions:
   - action: edit
     resource: "*docs/sprints/*"
     effect: allow
+  - action: edit
+    resource: "*docs/changes/*"
+    effect: allow
 ---

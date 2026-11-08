@@ -1,4 +1,4 @@
 name = "sdd_agent"
 model = "gpt-5.6-terra"
-description = "Enrutador de Spec-Driven Development. Se usa como agente principal (claude --agent sdd-agent) para llevar una feature por Requirements, Design y TaskList con aprobación entre fases, o invocar Docs. No escribe código."
+description = "Enrutador de Spec-Driven Development. Se usa como agente principal (claude --agent sdd-agent) para llevar una feature por Requirements, Design y TaskList con aprobación entre fases. No escribe código."
 developer_instructions = 

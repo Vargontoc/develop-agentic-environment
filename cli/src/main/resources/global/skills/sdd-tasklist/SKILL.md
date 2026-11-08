@@ -60,7 +60,7 @@ Por cada fila de la tabla "Contratos afectados" de `design.md` crea una tarea pa
 - `implementation-first` (por defecto, si nada dice lo contrario): primero se implementa la interfaz y después se formaliza el contrato.
 - `contract-first`: primero se define el contrato y después se implementa.
 
-El proyecto la fija con la convención `estrategia-contratos: <valor>` en `.sdd/architecture.md` (mapa) o en `.sdd/task-types.md`. Si ambos la definen con valores distintos, no la resuelvas: responde `BLOQUEADO` con código `ESTRATEGIA_CONTRADICTORIA`. Respeta además las dependencias que añada `.sdd/task-types.md`, siempre que no generen ciclos.
+La fuente única es la opción `contract-strategy` de `## Opciones` en `.sdd/team.md` (léela con Read y su ruta exacta). Si `team.md` no existe, no define la opción o su valor es desconocido, usa `implementation-first` y avísalo en `Avisos:` si el valor era desconocido. No leas la estrategia de ningún otro fichero. Respeta además las dependencias que añada `.sdd/task-types.md`, siempre que no generen ciclos.
 
 ## Pruebas dentro de cada tarea
 
@@ -135,7 +135,7 @@ Antes de escribir y de responder `LISTO`, comprueba:
 - Los IDs de las tareas ya existentes se conservan, y las `[x]` no cambian.
 - Las tareas nuevas tienen un resultado verificable ("Hecho cuando") y pruebas proporcionales o un `No aplica` justificado.
 - Cada `ALT-xxx` relevante de `design.md` aparece en el alcance, las pruebas o el `Cubre` de alguna tarea.
-- La estrategia de contratos no es contradictoria y las dependencias de las tareas de contrato la respetan.
+- Las dependencias de las tareas de contrato respetan la estrategia de `contract-strategy` de `.sdd/team.md`.
 - Cada fila de "Contratos afectados" tiene su tarea de contrato.
 - No hay tareas sin respaldo en los requisitos, el diseño o las reglas de `.sdd/task-types.md`.
 

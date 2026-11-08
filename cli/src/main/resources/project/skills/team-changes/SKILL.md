@@ -26,8 +26,12 @@ Si no se cumple, no escribas nada y responde `DERIVAR`:
 
 - `NN`: dos dígitos, el siguiente número libre de esa carpeta (`01` si está vacía). Lista la carpeta según "Búsqueda de ficheros" de `sdd-project-context`.
 - `<slug>`: minúsculas, sin acentos, con guiones, máximo 5 palabras.
-- Un documento afecta a un solo módulo.
+- Un documento afecta a un solo módulo. Nunca crees un documento que autorice a un especialista a modificar varios módulos.
 - Primera línea, el título; segunda, `Módulo: <modulo>`; tercera, `Estado: borrador` o `Estado: aprobado`. Solo el router lo pasa a aprobado.
+
+## Cambios que afectan a varios módulos
+
+Si el router te da un identificador de cambio (`CHG-AAAA-NNN`), añade tras `Afecta a:` la línea `Cambio relacionado: <CHG-...>` y una sección `## Dependencias externas` con los documentos de otros módulos de los que depende tu parte (`FIX-002 de persistence: requiere la interfaz corregida en core`), o `Ninguna`. El identificador no sustituye a los `FIX`/`IMP`. Una dependencia no da permiso para tocar el módulo ajeno: cada parte la hace el especialista de ese módulo.
 
 ## Plantilla de fix
 
@@ -54,7 +58,7 @@ Qué se cambia y por qué, a nivel técnico, sin código.
 - Debe fallar con:
 ### [ ] FIX-002 <corrección>
 - Archivos:
-- Hecho cuando: la prueba de FIX-001 pasa y no se rompe ninguna otra
+- Hecho cuando: la prueba de FIX-001 pasa y no se rompen las pruebas específicas afectadas
 
 ## Riesgos y alcance
 - Qué más podría verse afectado:
@@ -87,6 +91,7 @@ Sin cambiar el comportamiento observable ni los contratos públicos.
 1. Aplica la comprobación previa de `team-conventions`.
 2. Lee la descripción que te da el router y, del código de la carpeta de trabajo de tu módulo, solo lo necesario para localizar el punto afectado. No explores todo.
 3. Aplica la compuerta. Si no es un cambio, `DERIVAR` con el motivo en una frase.
+3a. Clasifica solo **tu parte**: fix, mejora técnica, o modificación que requiere SDD (`DERIVAR`). No disfraces de refactor lo que cambia requisitos.
 4. Si te falta información para reproducir o clasificar, responde `PREGUNTAS` (máximo 5, cada una con propuesta por defecto).
 5. Lista la carpeta de destino. Si ya hay un documento del mismo tema, no lo dupliques: revísalo si está en borrador; si está aprobado, avisa.
 6. `Afecta a` solo si el usuario indicó la feature o el REQ. No busques por tu cuenta en `specs/`.
@@ -99,6 +104,7 @@ Sin cambiar el comportamiento observable ni los contratos públicos.
 2. Implementa solo las tareas `[ ]` que te indican, en orden, dentro de tu carpeta de trabajo.
 3. **Fix:** en FIX-001, escribe la prueba y ejecútala: debe fallar por el motivo descrito. Si pasa o falla por otro motivo, responde `PARCIAL` con lo observado y no toques más. FIX-001 se marca cuando la prueba existe, compila y falla por ese motivo. Las demás, cuando compila y pasan todas las pruebas.
 4. **Mejora:** las pruebas existentes pasan antes y después y el comportamiento observable no cambia. Si necesitas cambiar una prueba existente para que pase, es un cambio de comportamiento: responde `PARCIAL`.
+4a. Si el documento tiene `## Dependencias externas` o `Cambio relacionado:`, comprueba que las dependencias están satisfechas (la tarea ajena `[x]` y su condición cumplida); si no, `BLOQUEADO` (`DEPENDENCIA_NO_CUMPLIDA`).
 5. Marca `### [x]` en el documento de cambio y, si procede, completa rutas reales. No toques `tasks.md` ni el resto del documento.
 6. Si el cambio afecta a un contrato o a la guía, díselo en `Avisos:` para que lo pida el usuario al documentador.
 7. Si terminas con una prueba en rojo (porque quedó solo FIX-001), avísalo en `Avisos:`.
@@ -106,4 +112,4 @@ Sin cambiar el comportamiento observable ni los contratos públicos.
 
 ## Cómo respondes
 
-La primera línea es `PREGUNTAS`, `LISTO`, `PARCIAL`, `SIN CAMBIOS` o, solo el analista, `DERIVAR` (ver `team-conventions`).
+La primera línea es `PREGUNTAS`, `LISTO`, `PARCIAL`, `SIN CAMBIOS`, `BLOQUEADO` o, solo el analista, `DERIVAR` (ver `team-conventions`).

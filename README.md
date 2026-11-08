@@ -323,9 +323,48 @@ mvn test        # pruebas de la lógica
 mvn javafx:run  # abre la ventana
 ```
 
+### Capa técnica por proveedor (proyecto)
+
+Los routers (`analista-router`, `desarrollador-router`, `documentador-router`) y los especialistas por módulo
+(`<rol>-<modulo>`) se instalan en el proyecto con una estructura distinta según el proveedor. Codex y Gemini / Antigravity
+comparten nombre de carpeta histórico, así que no se mezclan:
+
+```
+<proyecto>/
+├── .agents/                           # exclusivo de Codex
+│   ├── config.toml                    # configuración de Codex
+│   ├── profiles/
+│   │   ├── analista-router.md         # router, versión Codex
+│   │   ├── analista-<modulo>.md       # especialista, versión Codex
+│   │   └── ...                        # resto de perfiles (desarrollador, documentador)
+│   └── skills/
+│       └── team-conventions.md        # resto de skills de la capa técnica
+│
+└── .antigravity-env/                  # exclusivo de Gemini / Antigravity
+    ├── agents/
+    │   ├── analista-router.md         # router, versión Antigravity (cabecera YAML)
+    │   ├── analista-<modulo>.md
+    │   └── ...
+    └── skills/
+        └── team-conventions/
+            └── SKILL.md               # resto de skills, cada una en su carpeta
+```
+
+Los perfiles de permisos de Codex (`profiles/*.conf.toml` de los recursos del CLI) se incorporan a `.agents/config.toml`.
+
+Para trabajar con un agente de Antigravity, se arranca indicando el agente y las carpetas de trabajo del módulo:
+
+```bash
+agy --agent <agente> --add-dir=<carpetas de trabajo> antigravity-env
+```
+
+Por ejemplo, `agy --agent desarrollador-core --add-dir=framework/core antigravity-env`. El último argumento es el entorno
+del proyecto, tal como figura en la especificación; compruébalo con tu versión de `agy`, porque la forma exacta del
+comando no está verificada.
+
 ### Dónde guarda cosas
 - **Proveedores (global):** `.claude`, `.codex`, `.gemini/config` y `.config/opencode` bajo tu carpeta de usuario.
-- **Proveedores (proyecto):** `.claude`, `.agents` (Gemini) y `.opencode` dentro del proyecto. Codex aún no tiene ámbito de proyecto.
+- **Proveedores (proyecto):** `.claude`, `.opencode`, `.agents` (Codex) y `.antigravity-env` (Gemini / Antigravity) dentro del proyecto. Ver «Capa técnica por proveedor» más abajo: el ámbito de proyecto de Codex y el nuevo destino de Gemini están **definidos pero aún pendientes de implementar en el CLI** (hoy el CLI escribe Gemini en `.agents` y Codex no tiene ámbito de proyecto).
 - **Estado de la aplicación** (metadatos y copias de seguridad): `%LOCALAPPDATA%\agentic-develop` en Windows y
   `$XDG_STATE_HOME/agentic-develop` (o `~/.local/state/agentic-develop`) en Linux. No se mezcla con los ficheros del proyecto.
 - **Menú en Windows:** si ves caracteres extraños (acentos), ejecuta antes `chcp 65001` o usa `java -Dfile.encoding=UTF-8 -jar ...`.

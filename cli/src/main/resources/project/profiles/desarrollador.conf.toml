@@ -1,19 +1,22 @@
 default_permissions = "desarrollador-{module}"
 
-[permissions.dev-framework-core]
-description = "Desarrollador del módulo {module}: escritura en su carpeta y en specs/; sin red."
+[permissions."desarrollador-{module}"]
+description = "Desarrollador del módulo {module}: escritura en su carpeta, en specs/ y en los registros de docs/sprints, docs/changes y docs/validation (solo la sección permitida: lo exige el prompt); sin red."
 extends = ":workspace"
 
-[permissions.dev-framework-core.filesystem]
+[permissions."desarrollador-{module}".filesystem]
 glob_scan_max_depth = 3
 "~/.m2" = "read"
 "~/.config/git" = "read"
 "~/.gitconfig" = "read"
 
-[permissions.dev-framework-core.filesystem.":workspace_roots"]
+[permissions."desarrollador-{module}".filesystem.":workspace_roots"]
 "." = "read"
 "specs" = "write"
+"docs/sprints" = "write"
+"docs/changes" = "write"
+"docs/validation" = "write"
 "**/*.env" = "deny"
 
-[permissions.dev-framework-core.network]
+[permissions."desarrollador-{module}".network]
 enabled = false
