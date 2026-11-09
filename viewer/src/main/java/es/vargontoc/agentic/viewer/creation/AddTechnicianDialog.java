@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import es.vargontoc.agentic.viewer.ui.Theme;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -38,16 +39,18 @@ public final class AddTechnicianDialog {
         Dialog<Result> dialog = new Dialog<>();
         dialog.initOwner(owner);
         dialog.setTitle("Añadir técnicos a " + moduleName);
-        dialog.setHeaderText("Generar agentes para nuevos técnicos en el módulo «" + moduleName + "».");
+        dialog.setHeaderText("Genera los agentes de nuevos técnicos en el módulo «" + moduleName + "».");
+        Theme.apply(dialog);
 
-        ButtonType add = new ButtonType("Añadir", ButtonBar.ButtonData.OK_DONE);
+        ButtonType add = new ButtonType("Añadir técnicos", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(add, cancel);
 
-        VBox content = new VBox(10);
-        content.setPadding(new Insets(10));
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(8));
+        content.setPrefWidth(380);
 
-        Label techLabel = new Label("Técnicos a añadir:");
+        Label techLabel = formLabel("Técnicos a añadir");
         Map<String, CheckBox> techChecks = new LinkedHashMap<>();
         for (String tech : TECHNICIANS) {
             CheckBox cb = new CheckBox(tech);
@@ -55,7 +58,7 @@ public final class AddTechnicianDialog {
             techChecks.put(tech, cb);
         }
 
-        Label provLabel = new Label("Proveedores:");
+        Label provLabel = formLabel("Proveedores");
         Map<String, CheckBox> provChecks = new LinkedHashMap<>();
         for (String prov : providerIds) {
             CheckBox cb = new CheckBox(prov);
@@ -63,41 +66,56 @@ public final class AddTechnicianDialog {
             provChecks.put(prov, cb);
         }
 
-        VBox techBox = new VBox(4);
-        for (CheckBox cb : techChecks.values()) {
-            techBox.getChildren().add(cb);
-        }
-
-        VBox provBox = new VBox(4);
-        for (CheckBox cb : provChecks.values()) {
-            provBox.getChildren().add(cb);
-        }
+        VBox techBox = checkBoxGroup(techChecks);
+        VBox provBox = checkBoxGroup(provChecks);
         if (provChecks.isEmpty()) {
-            provBox.getChildren().add(new Label("(sin proveedores configurados)"));
+            Label empty = new Label("No hay proveedores configurados.");
+            empty.getStyleClass().add("warning");
+            provBox.getChildren().add(empty);
         }
 
         content.getChildren().addAll(techLabel, techBox, provLabel, provBox);
         dialog.getDialogPane().setContent(content);
 
+        var addButton = dialog.getDialogPane().lookupButton(add);
+        Runnable validate = () -> addButton.setDisable(
+            techChecks.values().stream().noneMatch(CheckBox::isSelected)
+                || provChecks.values().stream().noneMatch(CheckBox::isSelected));
+        techChecks.values().forEach(check -> check.selectedProperty().addListener((o, p, c) -> validate.run()));
+        provChecks.values().forEach(check -> check.selectedProperty().addListener((o, p, c) -> validate.run()));
+        validate.run();
+
         dialog.setResultConverter(buttonType -> {
-            if (buttonType == add) {
-                List<String> technicians = new ArrayList<>();
-                for (var entry : techChecks.entrySet()) {
-                    if (entry.getValue().isSelected()) {
-                        technicians.add(entry.getKey());
-                    }
-                }
-                List<String> providers = new ArrayList<>();
-                for (var entry : provChecks.entrySet()) {
-                    if (entry.getValue().isSelected()) {
-                        providers.add(entry.getKey());
-                    }
-                }
-                return new Result(technicians, providers);
+            if (buttonType != add) {
+                return null;
             }
-            return null;
+            return new Result(selected(techChecks), selected(provChecks));
         });
 
         return dialog.showAndWait();
+    }
+
+    private static VBox checkBoxGroup(Map<String, CheckBox> checks) {
+        VBox box = new VBox(6);
+        for (CheckBox check : checks.values()) {
+            box.getChildren().add(check);
+        }
+        return box;
+    }
+
+    private static List<String> selected(Map<String, CheckBox> checks) {
+        List<String> result = new ArrayList<>();
+        for (var entry : checks.entrySet()) {
+            if (entry.getValue().isSelected()) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    private static Label formLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("form-label");
+        return label;
     }
 }

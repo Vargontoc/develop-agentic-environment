@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import es.vargontoc.agentic.viewer.cli.CliCommand;
 import javafx.application.Platform;
@@ -15,14 +16,16 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
  * Panel de consola PTY que ejecuta el CLI interactivo. Muestra la salida en
- * un área de texto, permite enviar líneas, redimensionar, interrumpir, cerrar
- * y reiniciar la sesión.
+ * un área de texto, permite enviar líneas, interrumpir, cerrar y reiniciar la
+ * sesión.
  */
 public final class PtyConsolePanel extends VBox {
 
@@ -31,16 +34,19 @@ public final class PtyConsolePanel extends VBox {
 
     private final TextArea output = new TextArea();
     private final TextField input = new TextField();
+    private final Button startButton = new Button("Iniciar");
     private final Button sendButton = new Button("Enviar");
-    private final Button interruptButton = new Button("Interrupt");
+    private final Button interruptButton = new Button("Interrumpir");
     private final Button restartButton = new Button("Reiniciar");
     private final Button closeButton = new Button("Cerrar");
     private final Button clearButton = new Button("Limpiar");
+    private final Label statusDot = new Label("●");
     private final Label statusLabel = new Label("Consola cerrada");
 
     private PtySession session;
     private Thread readerThread;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private Consumer<Boolean> onStateChanged = active -> { };
 
     /** Proveedor funcional para resolver el directorio de trabajo. */
     public interface Supplier<T> {
@@ -56,21 +62,38 @@ public final class PtyConsolePanel extends VBox {
 
     private void setupUI() {
         getStyleClass().add("pty-console");
-        setPadding(new Insets(10));
-        setSpacing(8);
+        setPadding(new Insets(14));
+        setSpacing(10);
 
-        Label title = new Label("Consola PTY");
-        title.getStyleClass().add("heading");
+        startButton.getStyleClass().add("primary");
+        sendButton.getStyleClass().add("primary");
+        interruptButton.getStyleClass().add("danger");
+        restartButton.getStyleClass().add("secondary");
+        closeButton.getStyleClass().add("secondary");
+        clearButton.getStyleClass().add("ghost");
 
-        // Área de salida
+        startButton.setTooltip(new Tooltip("Inicia el CLI interactivo en el proyecto actual"));
+        interruptButton.setTooltip(new Tooltip("Envía Ctrl+C al proceso"));
+        restartButton.setTooltip(new Tooltip("Cierra y vuelve a iniciar la sesión"));
+        clearButton.setTooltip(new Tooltip("Limpia la salida de la consola"));
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        statusDot.getStyleClass().add("status-dot");
+        statusLabel.getStyleClass().add("muted");
+
+        HBox toolbar = new HBox(8, startButton, interruptButton, restartButton, closeButton, clearButton,
+            spacer, statusDot, statusLabel);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+
         output.setEditable(false);
         output.setWrapText(false);
         output.getStyleClass().add("console");
-        output.setPrefRowCount(12);
+        output.setPrefRowCount(14);
+        output.setText("La consola está cerrada.\nPulsa «Iniciar» para ejecutar el CLI interactivo del proyecto.\n");
         VBox.setVgrow(output, Priority.ALWAYS);
 
-        // Barra de entrada
-        input.setPromptText("Escribe una opción del menú o comando...");
+        input.setPromptText("Escribe una opción del menú o un comando y pulsa Enter…");
         input.setOnAction(event -> sendLine());
         input.setDisable(true);
 
@@ -79,18 +102,18 @@ public final class PtyConsolePanel extends VBox {
         restartButton.setOnAction(event -> restart());
         closeButton.setOnAction(event -> close());
         clearButton.setOnAction(event -> clearOutput());
+        startButton.setOnAction(event -> startSession());
 
-        HBox inputBar = new HBox(6, input, sendButton);
+        HBox inputBar = new HBox(8, input, sendButton);
         HBox.setHgrow(input, Priority.ALWAYS);
         inputBar.setAlignment(Pos.CENTER_LEFT);
 
-        HBox controlBar = new HBox(6, interruptButton, restartButton, closeButton, clearButton);
-        controlBar.setAlignment(Pos.CENTER_LEFT);
+        getChildren().addAll(toolbar, output, inputBar);
+    }
 
-        statusLabel.getStyleClass().add("muted");
-        statusLabel.setWrapText(true);
-
-        getChildren().addAll(title, output, inputBar, controlBar, statusLabel);
+    /** Registra un callback que se invoca cuando la consola pasa a activa o se cierra. */
+    public void setOnStateChanged(Consumer<Boolean> listener) {
+        this.onStateChanged = listener == null ? active -> { } : listener;
     }
 
     /** Inicia la sesión PTY con el CLI interactivo. */
@@ -98,35 +121,41 @@ public final class PtyConsolePanel extends VBox {
         if (running.get()) {
             return;
         }
+        if (cliCommand == null) {
+            appendOutput("[ERROR] El CLI no está disponible.\n");
+            statusLabel.setText("CLI no disponible");
+            return;
+        }
 
         Path workDir = workingDirectory.get();
         if (workDir == null) {
             appendOutput("[ERROR] No hay proyecto seleccionado.\n");
-            statusLabel.setText("Error: sin proyecto");
+            statusLabel.setText("Selecciona un proyecto");
             return;
         }
 
-        // Construir el comando: java -jar agentic-develop.jar (sin argumentos = interactivo)
         List<String> command = cliCommand.command(List.of());
 
         output.clear();
-        appendOutput("[Iniciando consola PTY...]\n");
+        appendOutput("[Iniciando consola PTY…]\n");
         appendOutput("[Directorio: " + workDir + "]\n");
         appendOutput("[Comando: " + String.join(" ", command) + "]\n\n");
 
         try {
-            session = new Pty4jSession(command, workDir, 80, 24);
-            session.start();
+            PtySession current = new Pty4jSession(command, workDir, 80, 24);
+            session = current;
+            current.start();
             running.set(true);
 
-            // Hilo lector de salida
-            readerThread = Thread.ofVirtual().start(this::readOutput);
+            readerThread = Thread.ofVirtual().start(() -> readOutput(current));
 
-            // Hilo que espera el final del proceso
             Thread.ofVirtual().start(() -> {
                 try {
-                    int exitCode = session.waitFor();
+                    int exitCode = current.waitFor();
                     Platform.runLater(() -> {
+                        if (session != current) {
+                            return;
+                        }
                         running.set(false);
                         appendOutput("\n\n[Proceso terminado con código " + exitCode + "]\n");
                         statusLabel.setText("Código de salida: " + exitCode);
@@ -147,11 +176,16 @@ public final class PtyConsolePanel extends VBox {
         }
     }
 
-    private void readOutput() {
+    /** Enfoca el campo de entrada de la consola. */
+    public void focusInput() {
+        input.requestFocus();
+    }
+
+    private void readOutput(PtySession current) {
         try {
             byte[] buffer = new byte[4096];
-            while (running.get() && session != null && session.isAlive()) {
-                int bytesRead = session.getInputStream().read(buffer);
+            while (running.get() && session == current && current.isAlive()) {
+                int bytesRead = current.getInputStream().read(buffer);
                 if (bytesRead == -1) {
                     break;
                 }
@@ -162,7 +196,7 @@ public final class PtyConsolePanel extends VBox {
                 }
             }
         } catch (IOException exception) {
-            if (running.get()) {
+            if (running.get() && session == current) {
                 Platform.runLater(() -> appendOutput("\n[Error de lectura: " + exception.getMessage() + "]\n"));
             }
         }
@@ -174,7 +208,7 @@ public final class PtyConsolePanel extends VBox {
             return;
         }
         if (!running.get() || session == null || !session.isAlive()) {
-            appendOutput("[ERROR] Consola no activa.\n");
+            appendOutput("[ERROR] La consola no está activa.\n");
             return;
         }
 
@@ -191,7 +225,7 @@ public final class PtyConsolePanel extends VBox {
 
     private void sendInterrupt() {
         if (!running.get() || session == null || !session.isAlive()) {
-            appendOutput("[ERROR] Consola no activa.\n");
+            appendOutput("[ERROR] La consola no está activa.\n");
             return;
         }
         session.interrupt();
@@ -204,14 +238,16 @@ public final class PtyConsolePanel extends VBox {
     }
 
     private void close() {
+        boolean wasActive = running.getAndSet(false);
         if (session != null) {
-            running.set(false);
             session.close();
             session = null;
-            appendOutput("\n[Consola cerrada]\n");
-            statusLabel.setText("Consola cerrada");
-            updateButtonStates();
         }
+        if (wasActive) {
+            appendOutput("\n[Consola cerrada]\n");
+        }
+        statusLabel.setText("Consola cerrada");
+        updateButtonStates();
     }
 
     private void clearOutput() {
@@ -220,17 +256,26 @@ public final class PtyConsolePanel extends VBox {
 
     private void appendOutput(String text) {
         output.appendText(text);
-        // Auto-scroll al final
         output.setScrollTop(Double.MAX_VALUE);
     }
 
     private void updateButtonStates() {
         boolean active = running.get();
+        startButton.setDisable(active || cliCommand == null);
+        startButton.setManaged(!active);
+        startButton.setVisible(!active);
         input.setDisable(!active);
         sendButton.setDisable(!active);
         interruptButton.setDisable(!active);
         closeButton.setDisable(!active);
-        restartButton.setDisable(false);
+        restartButton.setDisable(cliCommand == null);
+
+        statusDot.getStyleClass().removeAll("on", "off");
+        statusDot.getStyleClass().add(active ? "on" : "off");
+        statusLabel.getStyleClass().removeAll("muted", "ok");
+        statusLabel.getStyleClass().add(active ? "ok" : "muted");
+
+        onStateChanged.accept(active);
     }
 
     /** Indica si la consola está activa. */

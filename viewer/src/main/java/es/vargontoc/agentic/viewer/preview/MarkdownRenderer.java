@@ -11,16 +11,18 @@ import org.commonmark.renderer.html.HtmlRenderer;
 public final class MarkdownRenderer {
 
     private static final String STYLES = """
-        body { background: #151515; color: #d8d8d8; font-family: "Segoe UI", sans-serif; margin: 14px 18px; }
-        h1, h2, h3, h4 { color: #f2f2f2; border-bottom: 1px solid #333333; padding-bottom: 4px; }
-        code { background: #262626; color: #6ee7b7; padding: 1px 4px; border-radius: 4px; font-family: Consolas, monospace; }
-        pre { background: #262626; padding: 10px; border-radius: 6px; overflow: auto; }
-        pre code { background: transparent; color: #d8d8d8; padding: 0; }
-        a { color: #93c5fd; }
-        blockquote { border-left: 3px solid #3b82f6; margin-left: 0; padding-left: 12px; color: #b8b8b8; }
+        body { background: #12151a; color: #dfe3e8; font-family: "Segoe UI", sans-serif; font-size: 14px; line-height: 1.55; margin: 18px 22px; }
+        h1, h2, h3, h4 { color: #f3f5f7; border-bottom: 1px solid #2e343d; padding-bottom: 4px; }
+        code { background: #1f242b; color: #8ee6b0; padding: 1px 5px; border-radius: 4px; font-family: Consolas, "Cascadia Mono", monospace; }
+        pre { background: #1a1e24; padding: 12px; border-radius: 8px; border: 1px solid #2e343d; overflow: auto; }
+        pre code { background: transparent; color: #dfe3e8; padding: 0; }
+        a { color: #8ab4ff; }
+        blockquote { border-left: 3px solid #4f8cff; margin-left: 0; padding-left: 14px; color: #b9c0c9; }
         table { border-collapse: collapse; }
-        th, td { border: 1px solid #444444; padding: 4px 8px; }
-        hr { border: none; border-top: 1px solid #333333; }
+        th, td { border: 1px solid #39414b; padding: 6px 10px; }
+        th { background: #1c2128; }
+        hr { border: none; border-top: 1px solid #2e343d; }
+        ::selection { background: #2f4f85; }
         """;
 
     private final Parser parser = Parser.builder().build();

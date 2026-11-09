@@ -9,8 +9,8 @@ public final class SharedBody {
     public static final String MODULE_PLACEHOLDER = "{module}";
 
     private static final String STYLES = """
-        body { background: #151515; color: #d8d8d8; font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; margin: 10px 14px; }
-        .placeholder { color: #fbbf24; background: #3a2f14; border-radius: 3px; padding: 0 2px; }
+        body { background: #12151a; color: #dfe3e8; font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; line-height: 1.5; margin: 14px 18px; }
+        .placeholder { color: #ffd479; background: #3a2f14; border-radius: 3px; padding: 0 3px; }
         """;
 
     private SharedBody() {}

@@ -12,12 +12,17 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.web.WebView;
@@ -55,6 +60,11 @@ public final class PreviewPanel extends VBox {
         void onPropagateSkillFile(SkillEditorModel editor, String file);
     }
 
+    /** Acción de guardar todos los ficheros modificados de una skill. */
+    public interface SaveAllSkillFilesListener {
+        void onSaveAllSkillFiles(SkillEditorModel editor);
+    }
+
     private final MarkdownRenderer markdown = new MarkdownRenderer();
 
     private Consumer<Path> onSddFileSelected = file -> { };
@@ -63,6 +73,8 @@ public final class PreviewPanel extends VBox {
     private AdoptListener onAdopt = editor -> { };
     private SaveSkillFileListener onSaveSkillFile = (editor, file) -> { };
     private PropagateSkillFileListener onPropagateSkillFile = (editor, file) -> { };
+    private SaveAllSkillFilesListener onSaveAllSkillFiles = editor -> { };
+    private Runnable onDirtyChanged = () -> { };
 
     // Estado para agentes
     private EditorModel editor;
@@ -70,14 +82,21 @@ public final class PreviewPanel extends VBox {
     private String headerLanguage = "";
     private String bodyLanguage = "";
     private boolean updatingFromModel = false;
+    private boolean lastDirtyNotified = false;
 
     // Estado para skills
     private SkillEditorModel skillEditor;
     private boolean isSkillMode = false;
 
-    private final Label title = new Label("Selecciona un artefacto");
+    private final Label title = new Label("Nada seleccionado");
     private final Label notice = new Label();
     private final VBox metaBox = new VBox(3);
+
+    // Sección de ficheros .sdd
+    private final VBox sddSection = new VBox(8);
+    private final Label sddTitle = new Label("Ficheros de .sdd");
+    private final VBox sddList = new VBox(2);
+    private final ScrollPane sddScroll = new ScrollPane();
 
     // Sección de cabecera (solo agentes)
     private final VBox headerSection = new VBox(6);
@@ -85,11 +104,11 @@ public final class PreviewPanel extends VBox {
     private final TextArea headerEdit = new TextArea();
 
     // Sección de ficheros de skill
-    private final VBox skillFilesSection = new VBox(6);
+    private final VBox skillFilesSection = new VBox(8);
     private final ChoiceBox<String> skillFileChoice = new ChoiceBox<>();
     private final TextArea skillFileEdit = new TextArea();
     private final Button saveSkillFileButton = new Button("Guardar fichero");
-    private final Button propagateSkillFileButton = new Button("Propagar fichero");
+    private final Button propagateSkillFileButton = new Button("Propagar");
 
     // Sección de cuerpo compartido (solo agentes)
     private final VBox sharedSection = new VBox(6);
@@ -111,17 +130,17 @@ public final class PreviewPanel extends VBox {
     private final Button adoptButton = new Button("Volver al grupo");
     private final Label dirtyLabel = new Label();
     private final Label saveStatus = new Label();
-    private final HBox actionBar = new HBox(10, saveButton, adoptButton, dirtyLabel, saveStatus);
+    private final HBox actionBar = new HBox(10);
 
     public PreviewPanel() {
         getStyleClass().add("preview-panel");
-        setPadding(new Insets(14));
-        setSpacing(10);
+        setPadding(new Insets(16));
+        setSpacing(12);
 
-        title.getStyleClass().add("heading");
+        title.getStyleClass().add("panel-title");
         title.setWrapText(true);
 
-        notice.getStyleClass().add("readonly");
+        notice.getStyleClass().add("notice");
         notice.setWrapText(true);
         notice.setManaged(false);
         notice.setVisible(false);
@@ -130,9 +149,11 @@ public final class PreviewPanel extends VBox {
         setupSkillFilesSection();
         setupSharedSection();
         setupBodySection();
+        setupSddSection();
         setupActionButtons();
 
-        getChildren().setAll(title, notice, metaBox, headerSection, skillFilesSection,
+        VBox.setVgrow(metaBox, Priority.NEVER);
+        getChildren().setAll(title, notice, metaBox, sddSection, headerSection, skillFilesSection,
             sharedSection, bodySection, actionBar);
 
         showEmpty();
@@ -153,13 +174,17 @@ public final class PreviewPanel extends VBox {
     }
 
     private void setupSkillFilesSection() {
-        skillFileChoice.setPrefWidth(200);
+        Label fileLabel = new Label("Fichero");
+        fileLabel.getStyleClass().add("form-label");
+
+        skillFileChoice.setPrefWidth(240);
+        skillFileChoice.setMaxWidth(Double.MAX_VALUE);
         skillFileEdit.setWrapText(false);
         skillFileEdit.getStyleClass().add("editor");
+        VBox.setVgrow(skillFileEdit, Priority.ALWAYS);
 
         skillFileChoice.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (skillEditor != null && newVal != null && !updatingFromModel) {
-                // Guardar contenido actual antes de cambiar
                 if (oldVal != null) {
                     skillEditor.setContent(oldVal, skillFileEdit.getText());
                 }
@@ -167,6 +192,7 @@ public final class PreviewPanel extends VBox {
                 updatingFromModel = true;
                 skillFileEdit.setText(skillEditor.getContent(newVal));
                 updatingFromModel = false;
+                updateDirty();
             }
         });
 
@@ -180,6 +206,8 @@ public final class PreviewPanel extends VBox {
             }
         });
 
+        saveSkillFileButton.getStyleClass().add("primary");
+        saveSkillFileButton.setTooltip(new Tooltip("Guarda el fichero seleccionado"));
         saveSkillFileButton.setOnAction(event -> {
             if (skillEditor != null) {
                 String selected = skillEditor.selectedFile();
@@ -189,6 +217,8 @@ public final class PreviewPanel extends VBox {
             }
         });
 
+        propagateSkillFileButton.getStyleClass().add("secondary");
+        propagateSkillFileButton.setTooltip(new Tooltip("Propaga este fichero al resto de copias del grupo"));
         propagateSkillFileButton.setOnAction(event -> {
             if (skillEditor != null) {
                 String selected = skillEditor.selectedFile();
@@ -201,12 +231,8 @@ public final class PreviewPanel extends VBox {
         HBox skillActions = new HBox(8, saveSkillFileButton, propagateSkillFileButton);
         skillActions.setAlignment(Pos.CENTER_LEFT);
 
-        skillFilesSection.getChildren().setAll(
-            new Label("Fichero:"),
-            skillFileChoice,
-            skillFileEdit,
-            skillActions
-        );
+        skillFilesSection.getChildren().setAll(fileLabel, skillFileChoice, skillFileEdit, skillActions);
+        VBox.setVgrow(skillFilesSection, Priority.ALWAYS);
     }
 
     private void setupSharedSection() {
@@ -214,13 +240,16 @@ public final class PreviewPanel extends VBox {
         sharedEdit.setWrapText(false);
         sharedEdit.getStyleClass().add("editor");
         sharedEdit.setPrefRowCount(7);
-        sharedView.setPrefHeight(140);
-        sharedView.setMinHeight(100);
+        sharedView.setPrefHeight(150);
+        sharedView.setMinHeight(110);
+        sharedView.getStyleClass().add("render-view");
         sharedResolved.selectedProperty().addListener((observable, previous, selected) -> applySharedView());
 
+        propagateButton.getStyleClass().add("secondary");
         HBox sharedActions = new HBox(8, propagateButton, sharedResolved);
         sharedActions.setAlignment(Pos.CENTER_LEFT);
         StackPane sharedStack = new StackPane(sharedEdit, sharedView);
+        VBox.setVgrow(sharedStack, Priority.ALWAYS);
         sharedSection.getChildren().setAll(sharedTitle, sharedActions, sharedStack);
 
         sharedEdit.textProperty().addListener((observable, previous, current) -> {
@@ -239,12 +268,15 @@ public final class PreviewPanel extends VBox {
         textToggle.setToggleGroup(group);
         renderToggle.setToggleGroup(group);
         textToggle.setSelected(true);
+        textToggle.getStyleClass().add("segment");
+        renderToggle.getStyleClass().add("segment");
         group.selectedToggleProperty().addListener((observable, previous, selected) -> applyBodyView());
 
-        HBox toggleRow = new HBox(8, textToggle, renderToggle);
+        HBox toggleRow = new HBox(6, textToggle, renderToggle);
         toggleRow.setAlignment(Pos.CENTER_LEFT);
 
         StackPane bodyStack = new StackPane(bodyEdit, renderView);
+        renderView.getStyleClass().add("render-view");
         VBox.setVgrow(bodyStack, Priority.ALWAYS);
         bodySection.getChildren().setAll(toggleRow, bodyStack);
         VBox.setVgrow(bodySection, Priority.ALWAYS);
@@ -257,6 +289,39 @@ public final class PreviewPanel extends VBox {
         });
     }
 
+    private void setupSddSection() {
+        sddTitle.getStyleClass().add("section-title");
+        Label hint = new Label("Solo lectura · selecciona un fichero para verlo");
+        hint.getStyleClass().add("muted");
+        hint.setWrapText(true);
+        sddList.setPadding(new Insets(2, 0, 0, 0));
+        sddScroll.setContent(sddList);
+        sddScroll.setFitToWidth(true);
+        sddScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        sddScroll.getStyleClass().add("sdd-scroll");
+        VBox.setVgrow(sddScroll, Priority.ALWAYS);
+        sddSection.getChildren().setAll(sddTitle, hint, sddScroll);
+        VBox.setVgrow(sddSection, Priority.ALWAYS);
+    }
+
+    private void showSddSectionFull() {
+        VBox.setVgrow(sddSection, Priority.ALWAYS);
+        sddScroll.setPrefViewportHeight(320);
+        sddScroll.setMaxHeight(Double.MAX_VALUE);
+        show(sddSection);
+    }
+
+    private void showSddSectionCompact() {
+        if (sddList.getChildren().isEmpty()) {
+            hide(sddSection);
+            return;
+        }
+        VBox.setVgrow(sddSection, Priority.NEVER);
+        sddScroll.setPrefViewportHeight(120);
+        sddScroll.setMaxHeight(150);
+        show(sddSection);
+    }
+
     private void setupActionButtons() {
         propagateButton.setOnAction(event -> {
             if (editor != null && editor.hasGroup()) {
@@ -264,6 +329,7 @@ public final class PreviewPanel extends VBox {
             }
         });
 
+        adoptButton.getStyleClass().add("secondary");
         adoptButton.setOnAction(event -> {
             if (editor != null) {
                 onAdopt.onAdopt(editor);
@@ -272,7 +338,15 @@ public final class PreviewPanel extends VBox {
         adoptButton.setManaged(false);
         adoptButton.setVisible(false);
 
+        saveButton.getStyleClass().add("primary");
+        saveButton.setTooltip(new Tooltip("Guardar (Ctrl+S)"));
         saveButton.setOnAction(event -> {
+            if (isSkillMode) {
+                if (skillEditor != null && skillEditor.isDirty()) {
+                    onSaveAllSkillFiles.onSaveAllSkillFiles(skillEditor);
+                }
+                return;
+            }
             if (editor != null && editor.isDirty()) {
                 onSave.onSave(editor);
             }
@@ -283,8 +357,11 @@ public final class PreviewPanel extends VBox {
         dirtyLabel.setWrapText(true);
         saveStatus.setWrapText(true);
 
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        actionBar.getChildren().setAll(saveButton, propagateButton, adoptButton, spacer, dirtyLabel, saveStatus);
         actionBar.setAlignment(Pos.CENTER_LEFT);
-        actionBar.setPadding(new Insets(4, 0, 0, 0));
+        actionBar.getStyleClass().add("action-bar");
     }
 
     public void setOnSddFileSelected(Consumer<Path> handler) {
@@ -311,6 +388,15 @@ public final class PreviewPanel extends VBox {
         this.onPropagateSkillFile = listener == null ? (editor, file) -> { } : listener;
     }
 
+    public void setOnSaveAllSkillFiles(SaveAllSkillFilesListener listener) {
+        this.onSaveAllSkillFiles = listener == null ? editor -> { } : listener;
+    }
+
+    /** Se invoca solo cuando el panel pasa de limpio a sucio (o al contrario). */
+    public void setOnDirtyChanged(Runnable listener) {
+        this.onDirtyChanged = listener == null ? () -> { } : listener;
+    }
+
     public EditorModel editor() {
         return editor;
     }
@@ -319,11 +405,40 @@ public final class PreviewPanel extends VBox {
         return skillEditor;
     }
 
+    public boolean isSkillMode() {
+        return isSkillMode;
+    }
+
     public boolean isDirty() {
         if (isSkillMode && skillEditor != null) {
             return skillEditor.isDirty();
         }
         return editor != null && editor.isDirty();
+    }
+
+    /** Ruta del artefacto abierto, sea agente o skill. */
+    public Path currentPath() {
+        if (isSkillMode && skillEditor != null) {
+            return skillEditor.skillPath();
+        }
+        return editor == null ? null : editor.path();
+    }
+
+    /** Indica si el nodo del árbol con esta ruta tiene cambios sin guardar. */
+    public boolean isDirtyNode(String nodePath) {
+        if (!isDirty() || nodePath == null) {
+            return false;
+        }
+        Path current = currentPath();
+        if (current == null) {
+            return false;
+        }
+        try {
+            return current.toAbsolutePath().normalize()
+                .equals(Path.of(nodePath).toAbsolutePath().normalize());
+        } catch (RuntimeException exception) {
+            return false;
+        }
     }
 
     public void setEditorBody(String newBody) {
@@ -336,14 +451,17 @@ public final class PreviewPanel extends VBox {
         editor = null;
         skillEditor = null;
         isSkillMode = false;
-        title.setText("Selecciona un artefacto");
+        title.setText("Nada seleccionado");
         hideNotice();
-        metaBox.getChildren().setAll(hint("Elige un agente, una skill o .sdd en el árbol para verlo aquí."));
+        setMetaMode(true);
+        metaBox.getChildren().setAll(emptyState());
+        hide(sddSection);
         hide(headerSection);
         hide(skillFilesSection);
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
+        notifyDirtyChanged();
     }
 
     public void showLoading(String name) {
@@ -352,12 +470,22 @@ public final class PreviewPanel extends VBox {
         isSkillMode = false;
         title.setText(name);
         hideNotice();
-        metaBox.getChildren().setAll(hint("Cargando…"));
+        setMetaMode(false);
+        ProgressIndicator spinner = new ProgressIndicator();
+        spinner.setPrefSize(18, 18);
+        spinner.setMaxSize(18, 18);
+        Label label = new Label("Cargando…");
+        label.getStyleClass().add("muted");
+        HBox row = new HBox(10, spinner, label);
+        row.setAlignment(Pos.CENTER_LEFT);
+        metaBox.getChildren().setAll(row);
+        hide(sddSection);
         hide(headerSection);
         hide(skillFilesSection);
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
+        notifyDirtyChanged();
     }
 
     public void showArtifact(ArtifactPreview preview, EditorModel editor) {
@@ -370,14 +498,19 @@ public final class PreviewPanel extends VBox {
 
         title.setText(preview.name());
         hideNotice();
+        setMetaMode(false);
         showMeta(preview);
+        hide(sddSection);
+        hide(skillFilesSection);
         showHeader();
         showSharedBody();
-        showSkillFiles(preview);
         showBody();
 
         saveStatus.setText("");
-        saveButton.setDisable(false);
+        saveButton.setText("Guardar");
+        saveButton.setDisable(true);
+        propagateButton.setManaged(editor.hasGroup());
+        propagateButton.setVisible(editor.hasGroup());
         updateAdoptButton();
         updateDirty();
         show(actionBar);
@@ -389,14 +522,23 @@ public final class PreviewPanel extends VBox {
         this.isSkillMode = true;
         this.status = preview.status() == null ? "" : preview.status();
 
-        title.setText(preview.name() + " (skill)");
+        title.setText(preview.name() + " · skill");
         hideNotice();
+        setMetaMode(false);
         showMeta(preview);
+        hide(sddSection);
+        hide(headerSection);
+        hide(sharedSection);
+        hide(bodySection);
         showSkillEditor();
 
         saveStatus.setText("");
-        saveButton.setDisable(true); // Ocultar, usamos saveSkillFileButton
-        updateAdoptButton();
+        saveButton.setText("Guardar todo");
+        saveButton.setDisable(true);
+        propagateButton.setManaged(false);
+        propagateButton.setVisible(false);
+        adoptButton.setManaged(false);
+        adoptButton.setVisible(false);
         updateDirty();
         show(actionBar);
     }
@@ -409,9 +551,9 @@ public final class PreviewPanel extends VBox {
 
         updatingFromModel = true;
         skillFileChoice.getItems().setAll(skillEditor.files());
-        String firstFile = skillEditor.selectedFile();
-        skillFileChoice.getSelectionModel().select(firstFile);
-        skillFileEdit.setText(skillEditor.getContent(firstFile));
+        String selected = skillEditor.selectedFile();
+        skillFileChoice.getSelectionModel().select(selected);
+        skillFileEdit.setText(skillEditor.getContent(selected));
         updatingFromModel = false;
 
         show(skillFilesSection);
@@ -429,15 +571,33 @@ public final class PreviewPanel extends VBox {
         isSkillMode = false;
         title.setText(".sdd");
         hideNotice();
-        metaBox.getChildren().clear();
+        setMetaMode(false);
         hide(headerSection);
         hide(skillFilesSection);
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
 
-        // Mostrar lista de ficheros .sdd
-        // (implementación existente)
+        sddTitle.setText("Ficheros de .sdd (" + files.size() + ")");
+        sddList.getChildren().clear();
+        if (files.isEmpty()) {
+            Label empty = new Label("No hay ficheros .md ni .toml en .sdd.");
+            empty.getStyleClass().add("muted");
+            empty.setWrapText(true);
+            sddList.getChildren().add(empty);
+        } else {
+            for (Path file : files) {
+                Hyperlink link = new Hyperlink(file.getFileName().toString());
+                link.getStyleClass().add("file-link");
+                link.setTooltip(new Tooltip(file.toString()));
+                link.setOnAction(event -> onSddFileSelected.accept(file));
+                sddList.getChildren().add(link);
+            }
+        }
+
+        metaBox.getChildren().setAll(hint("Especificaciones del proyecto en solo lectura."));
+        showSddSectionFull();
+        notifyDirtyChanged();
     }
 
     public void showSddFile(String name, String content) {
@@ -445,14 +605,16 @@ public final class PreviewPanel extends VBox {
         skillEditor = null;
         isSkillMode = false;
         title.setText(name);
-        showNotice("Solo lectura · fichero de .sdd");
+        showNotice("Solo lectura · fichero de .sdd", false);
+        setMetaMode(false);
         metaBox.getChildren().clear();
+        showSddSectionCompact();
         hide(headerSection);
         hide(skillFilesSection);
         hide(sharedSection);
-        hide(bodySection);
         hide(actionBar);
         showBodyContent(content, languageFor(name), false);
+        notifyDirtyChanged();
     }
 
     public void showError(String heading, String message) {
@@ -460,13 +622,41 @@ public final class PreviewPanel extends VBox {
         skillEditor = null;
         isSkillMode = false;
         title.setText(heading);
-        showNotice("No se pudo previsualizar: " + message);
+        showNotice("No se pudo previsualizar: " + message, true);
+        setMetaMode(false);
         metaBox.getChildren().clear();
+        hide(sddSection);
         hide(headerSection);
         hide(skillFilesSection);
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
+        notifyDirtyChanged();
+    }
+
+    /** Muestra una explicación para nodos que no son artefactos editables. */
+    public void showMessage(String heading, String message) {
+        editor = null;
+        skillEditor = null;
+        isSkillMode = false;
+        title.setText(heading);
+        hideNotice();
+        setMetaMode(true);
+        Label text = new Label(message);
+        text.getStyleClass().add("muted");
+        text.setWrapText(true);
+        text.setMaxWidth(620);
+        VBox box = new VBox(8, text);
+        box.getStyleClass().add("empty-state");
+        box.setPadding(new Insets(24));
+        metaBox.getChildren().setAll(box);
+        hide(sddSection);
+        hide(headerSection);
+        hide(skillFilesSection);
+        hide(sharedSection);
+        hide(bodySection);
+        hide(actionBar);
+        notifyDirtyChanged();
     }
 
     public void showSaveStatus(String message, boolean error) {
@@ -478,22 +668,73 @@ public final class PreviewPanel extends VBox {
 
     private void showMeta(ArtifactPreview preview) {
         metaBox.getChildren().clear();
-        metaBox.getChildren().add(metaRow("Tipo", preview.kind()));
+        metaBox.getChildren().add(metaRow("Tipo", kindLabel(preview.kind())));
         metaBox.getChildren().add(metaRow("Proveedor", preview.provider()));
-        metaBox.getChildren().add(metaRow("Ámbito", preview.scope()));
+        metaBox.getChildren().add(metaRow("Ámbito", scopeLabel(preview.scope())));
         if (preview.module() != null) {
             metaBox.getChildren().add(metaRow("Módulo", preview.module()));
         }
         if (preview.format() != null) {
-            metaBox.getChildren().add(metaRow("Formato", preview.format()));
+            metaBox.getChildren().add(metaRow("Formato", formatLabel(preview.format())));
         }
         if (preview.status() != null) {
-            metaBox.getChildren().add(metaRow("Estado", preview.status()));
+            metaBox.getChildren().add(metaRow("Estado", statusLabel(preview.status())));
         }
         if (preview.modifiedExternally()) {
-            metaBox.getChildren().add(metaRow("Modificado fuera", "sí"));
+            metaBox.getChildren().add(metaRow("Modificado fuera", "Sí"));
         }
         metaBox.getChildren().add(metaRow("Ruta", preview.path()));
+    }
+
+    private void setMetaMode(boolean fill) {
+        VBox.setVgrow(metaBox, fill ? Priority.ALWAYS : Priority.NEVER);
+        metaBox.setAlignment(fill ? Pos.CENTER : Pos.TOP_LEFT);
+    }
+
+    private static String kindLabel(String kind) {
+        if (kind == null) {
+            return "—";
+        }
+        return switch (kind) {
+            case "agent" -> "Agente";
+            case "skill" -> "Skill";
+            case "profile" -> "Perfil";
+            default -> kind;
+        };
+    }
+
+    private static String scopeLabel(String scope) {
+        if (scope == null) {
+            return "—";
+        }
+        return switch (scope) {
+            case "global" -> "Global";
+            case "project" -> "Proyecto";
+            default -> scope;
+        };
+    }
+
+    private static String statusLabel(String status) {
+        if (status == null) {
+            return "—";
+        }
+        return switch (status) {
+            case "linked" -> "Vinculado";
+            case "legacy" -> "Personalizado";
+            case "detached" -> "Desvinculado";
+            default -> status;
+        };
+    }
+
+    private static String formatLabel(String format) {
+        if (format == null) {
+            return "—";
+        }
+        return switch (format) {
+            case "markdown" -> "Markdown";
+            case "codex_toml" -> "TOML";
+            default -> format;
+        };
     }
 
     private void showHeader() {
@@ -502,7 +743,7 @@ public final class PreviewPanel extends VBox {
             return;
         }
         String languageName = CodeHighlighter.YAML.equals(headerLanguage) ? "YAML" : "TOML";
-        headerTitle.setText("Cabecera (" + languageName + ")");
+        headerTitle.setText("Cabecera · " + languageName);
         updatingFromModel = true;
         headerEdit.setText(editor.header());
         updatingFromModel = false;
@@ -517,8 +758,8 @@ public final class PreviewPanel extends VBox {
             return;
         }
         sharedTitle.setText(editor.hasPlaceholder()
-            ? "Cuerpo compartido (propagación · placeholder " + SharedBody.MODULE_PLACEHOLDER + ")"
-            : "Cuerpo compartido (propagación)");
+            ? "Cuerpo compartido · placeholder " + SharedBody.MODULE_PLACEHOLDER
+            : "Cuerpo compartido");
         updatingFromModel = true;
         sharedEdit.setText(editor.sharedBody());
         updatingFromModel = false;
@@ -542,11 +783,6 @@ public final class PreviewPanel extends VBox {
             sharedView.getEngine().loadContent(
                 SharedBody.toDocument(editor.sharedBody(), editor.module(), true));
         }
-    }
-
-    private void showSkillFiles(ArtifactPreview preview) {
-        // Solo se usa para mostrar información, la edición se hace en showSkillEditor
-        hide(skillFilesSection);
     }
 
     private void showBody() {
@@ -576,13 +812,28 @@ public final class PreviewPanel extends VBox {
         boolean anyDirty;
         if (isSkillMode && skillEditor != null) {
             anyDirty = skillEditor.isDirty();
-            saveSkillFileButton.setDisable(!skillEditor.isDirty(skillEditor.selectedFile()));
+            saveButton.setDisable(!anyDirty);
+            String selected = skillEditor.selectedFile();
+            saveSkillFileButton.setDisable(selected == null || !skillEditor.isDirty(selected));
+            long dirtyFiles = skillEditor.files().stream().filter(skillEditor::isDirty).count();
+            dirtyLabel.setText(anyDirty
+                ? "Cambios sin guardar" + (dirtyFiles > 1 ? " · " + dirtyFiles + " ficheros" : "")
+                : "");
         } else {
             anyDirty = editor != null && editor.isDirty();
             boolean instanceDirty = editor != null && (editor.headerDirty() || editor.bodyDirty());
             saveButton.setDisable(!instanceDirty);
+            dirtyLabel.setText(anyDirty ? "Cambios sin guardar" : "");
         }
-        dirtyLabel.setText(anyDirty ? "Cambios sin guardar" : "");
+        if (anyDirty != lastDirtyNotified) {
+            lastDirtyNotified = anyDirty;
+            onDirtyChanged.run();
+        }
+    }
+
+    private void notifyDirtyChanged() {
+        lastDirtyNotified = isDirty();
+        onDirtyChanged.run();
     }
 
     private void applyBodyView() {
@@ -615,6 +866,28 @@ public final class PreviewPanel extends VBox {
         return name.endsWith(".toml") ? CodeHighlighter.TOML : "markdown";
     }
 
+    private static VBox emptyState() {
+        Label heading = new Label("Elige un artefacto para empezar");
+        heading.getStyleClass().add("empty-title");
+
+        Label text = new Label(
+            "Selecciona un agente, una skill o el directorio .sdd en el árbol de la izquierda. "
+                + "Los cambios se guardan con el CLI, nunca directamente sobre los ficheros.");
+        text.getStyleClass().add("muted");
+        text.setWrapText(true);
+        text.setMaxWidth(620);
+
+        Label keys = new Label("Ctrl+F buscar · F5 recargar · Ctrl+S guardar · F6 consola");
+        keys.getStyleClass().add("key-hint");
+        keys.setWrapText(true);
+
+        VBox box = new VBox(8, heading, text, keys);
+        box.getStyleClass().add("empty-state");
+        box.setPadding(new Insets(24));
+        VBox.setVgrow(box, Priority.ALWAYS);
+        return box;
+    }
+
     private static Node hint(String text) {
         Label hint = new Label(text);
         hint.getStyleClass().add("muted");
@@ -622,26 +895,22 @@ public final class PreviewPanel extends VBox {
         return hint;
     }
 
-    private static Label sectionTitle(String text) {
-        Label label = new Label(text);
-        label.getStyleClass().add("section-title");
-        return label;
-    }
-
     private static HBox metaRow(String key, String value) {
-        Label keyLabel = new Label(key + ":");
+        Label keyLabel = new Label(key);
         keyLabel.getStyleClass().add("meta-key");
-        Label valueLabel = new Label(value == null ? "-" : value);
+        Label valueLabel = new Label(value == null ? "—" : value);
         valueLabel.getStyleClass().add("meta-value");
         valueLabel.setWrapText(true);
-        HBox row = new HBox(6, keyLabel, valueLabel);
+        HBox row = new HBox(10, keyLabel, valueLabel);
         row.setAlignment(Pos.TOP_LEFT);
         HBox.setHgrow(valueLabel, Priority.ALWAYS);
         return row;
     }
 
-    private void showNotice(String text) {
+    private void showNotice(String text, boolean error) {
         notice.setText(text);
+        notice.getStyleClass().removeAll("error", "warning");
+        notice.getStyleClass().add(error ? "error" : "warning");
         notice.setManaged(true);
         notice.setVisible(true);
     }

@@ -11,14 +11,14 @@ public final class CodeHighlighter {
     public static final String TOML = "toml";
 
     private static final String STYLES = """
-        body { background: #151515; color: #d8d8d8; font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; margin: 10px 14px; }
+        body { background: #12151a; color: #dfe3e8; font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; line-height: 1.5; margin: 14px 18px; }
         .tok-key { color: #9cdcfe; }
         .tok-string { color: #ce9178; }
         .tok-number { color: #b5cea8; }
-        .tok-bool { color: #569cd6; }
-        .tok-comment { color: #6a9955; }
-        .tok-section { color: #c586c0; font-weight: bold; }
-        .tok-punct { color: #808080; }
+        .tok-bool { color: #6ea8ff; }
+        .tok-comment { color: #7f9a72; }
+        .tok-section { color: #d7a6e8; font-weight: bold; }
+        .tok-punct { color: #8b949e; }
         """;
 
     private CodeHighlighter() {}

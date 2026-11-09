@@ -4,11 +4,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +19,6 @@ import es.vargontoc.agentic.viewer.cli.CliClientException;
 import es.vargontoc.agentic.viewer.cli.CliCommand;
 import es.vargontoc.agentic.viewer.cli.CliLocator;
 import es.vargontoc.agentic.viewer.cli.CliProcess;
-import es.vargontoc.agentic.viewer.cli.CliProcess.CliResult;
 import es.vargontoc.agentic.viewer.cli.ErrorPresenter;
 import es.vargontoc.agentic.viewer.cli.ErrorPresenter.ErrorNotice;
 import es.vargontoc.agentic.viewer.cli.model.AdoptData;
@@ -43,77 +43,211 @@ import es.vargontoc.agentic.viewer.preview.ArtifactPreview;
 import es.vargontoc.agentic.viewer.preview.PreviewPanel;
 import es.vargontoc.agentic.viewer.preview.SddFiles;
 import es.vargontoc.agentic.viewer.terminal.PtyConsolePanel;
+import es.vargontoc.agentic.viewer.tree.TreeFilter;
 import es.vargontoc.agentic.viewer.tree.TreeLabels;
 import es.vargontoc.agentic.viewer.tree.TreeModel;
+import es.vargontoc.agentic.viewer.ui.Theme;
+import es.vargontoc.agentic.viewer.ui.WelcomePane;
 import es.vargontoc.agentic.viewer.watcher.CacheStore;
 import es.vargontoc.agentic.viewer.watcher.ProjectWatcher;
 import es.vargontoc.agentic.viewer.watcher.ProjectWatcher.ChangeEvent;
 import es.vargontoc.agentic.viewer.watcher.StaleTracker;
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
-import javafx.scene.control.TextArea;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.input.KeyCombination;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.control.OverrunStyle;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
+import javafx.util.Duration;
 
 /**
- * Viewer JavaFX: árbol lateral, sesión de proyecto, estado y herramientas del
- * CLI. TASK-005 añade la navegación Global/Project.
+ * Viewer JavaFX: navegación por el árbol de artefactos, previsualización y
+ * edición, consola PTY integrada y operaciones del CLI.
  */
 public final class App extends Application {
 
     private static final String[] TREE_CLASSES = {
         "tree-root", "tree-provider", "tree-agent", "tree-skill", "tree-profile",
         "tree-sdd", "tree-module", "tree-technician", "tree-pending", "tree-legacy",
-        "tree-detached", "tree-stale"
+        "tree-detached", "tree-stale", "tree-dirty"
     };
 
     private Stage stage;
     private CliCommand cliCommand;
     private CliClient cliClient;
     private ProjectSession projectSession;
+    private StatusData globalStatus;
     private String cliError;
 
     private ProjectWatcher projectWatcher;
     private CacheStore cacheStore;
     private StaleTracker staleTracker;
-    private Label staleWarning;
 
-    private Label projectPath;
-    private Label projectState;
-    private Label projectSummary;
-    private Button selectProjectButton;
+    private Label projectPathLabel;
+    private Label projectStateChip;
+    private Label projectSummaryLabel;
+    private Button openProjectButton;
     private Button initProjectButton;
-    private Button createModuleButton;
-    private Button addTechnicianButton;
-    private Button createArtifactButton;
+    private MenuButton createMenuButton;
+
+    private MenuItem openProjectMenuItem;
+    private MenuItem reloadMenuItem;
+    private MenuItem saveMenuItem;
+    private MenuItem closeProjectMenuItem;
+    private MenuItem initProjectMenuItem;
+    private final List<MenuItem> createModuleItems = new ArrayList<>();
+    private final List<MenuItem> addTechnicianItems = new ArrayList<>();
+    private final List<MenuItem> createArtifactItems = new ArrayList<>();
+    private MenuItem searchMenuItem;
+    private MenuItem consoleMenuItem;
+    private CheckMenuItem autoRefreshMenuItem;
 
     private TreeView<TreeData.Node> treeView;
     private TreeItem<TreeData.Node> treeRoot;
+    private TreeData.Node selectedNode;
+    private TreeData lastTreeData;
+    private TextField searchField;
+    private Label filterStatus;
     private Label treeWarnings;
+    private Label staleWarning;
+    private HBox staleBanner;
     private Label selectionInfo;
-    private PreviewPanel previewPanel;
-    private PtyConsolePanel ptyConsolePanel;
+    private Button sidebarRefreshButton;
     private boolean suppressSelection;
+
+    private PreviewPanel previewPanel;
+    private WelcomePane welcomePane;
+    private StackPane centerHost;
+    private TabPane workspaceTabs;
+    private Tab consoleTab;
+    private PtyConsolePanel ptyConsolePanel;
+
+    private Label statusMessage;
+    private Label dirtyStatus;
+    private Label watcherStatus;
+    private ProgressIndicator busySpinner;
+    private CheckBox autoRefreshCheck;
+    private PauseTransition autoRefreshDelay;
+    private int busyCount;
 
     @Override
     public void start(Stage stage) {
         this.stage = stage;
+        initServices();
+
+        previewPanel = new PreviewPanel();
+        previewPanel.setOnSddFileSelected(this::loadSddFile);
+        previewPanel.setOnSave(this::saveEditorAsync);
+        previewPanel.setOnPropagate(this::propagate);
+        previewPanel.setOnAdopt(this::adopt);
+        previewPanel.setOnSaveSkillFile(this::saveSkillFile);
+        previewPanel.setOnSaveAllSkillFiles(this::saveAllSkillFiles);
+        previewPanel.setOnPropagateSkillFile(this::propagateSkillFile);
+        previewPanel.setOnDirtyChanged(this::onEditorDirtyChanged);
+
+        ptyConsolePanel = new PtyConsolePanel(cliCommand, this::currentProject);
+        ptyConsolePanel.setOnStateChanged(this::onConsoleStateChanged);
+
+        welcomePane = new WelcomePane();
+        welcomePane.setOnOpenProject(this::chooseProject);
+        welcomePane.setOnInitProject(this::initProject);
+        welcomePane.setOnCreateArtifact(this::createArtifact);
+
+        workspaceTabs = new TabPane();
+        workspaceTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        workspaceTabs.getStyleClass().add("workspace-tabs");
+        Tab artifactTab = new Tab("Artefacto", previewPanel);
+        artifactTab.setClosable(false);
+        consoleTab = new Tab("Consola", consoleContent());
+        consoleTab.setClosable(false);
+        workspaceTabs.getTabs().addAll(artifactTab, consoleTab);
+
+        centerHost = new StackPane(welcomePane, workspaceTabs);
+        centerHost.getStyleClass().add("workspace");
+        centerHost.setPadding(new Insets(14));
+
+        autoRefreshDelay = new PauseTransition(Duration.millis(650));
+        autoRefreshDelay.setOnFinished(event -> autoRefresh());
+
+        VBox top = new VBox(menuBar(), headerBar());
+        SplitPane body = new SplitPane(sidebar(), centerHost);
+        body.getStyleClass().add("main-split");
+        body.setDividerPositions(0.27);
+        SplitPane.setResizableWithParent(body.getItems().getFirst(), false);
+
+        BorderPane root = new BorderPane();
+        root.getStyleClass().add("app");
+        root.setTop(top);
+        root.setCenter(body);
+        root.setBottom(statusBar());
+
+        Scene scene = new Scene(root, 1320, 880);
+        Theme.apply(scene);
+
+        stage.setTitle("Agentic Viewer");
+        stage.setMinWidth(1040);
+        stage.setMinHeight(700);
+        stage.setScene(scene);
+        stage.setOnCloseRequest(event -> {
+            if (!confirmCloseApplication()) {
+                event.consume();
+                return;
+            }
+            closeResources();
+        });
+
+        stage.show();
+
+        updateWelcomeState();
+        updateMenuStates();
+        updateWatcherStatus();
+        updateWindowTitle();
+        showWelcome();
+
+        if (cliError != null) {
+            welcomePane.setCli(false, cliError);
+            showErrorAlert("Error de aplicación", "No se encontró el CLI", cliError);
+        } else {
+            welcomePane.setCli(true, null);
+            refreshTree();
+            loadGlobalStatus();
+        }
+    }
+
+    private void initServices() {
         try {
             cliCommand = CliLocator.resolve(Path.of("").toAbsolutePath());
             cliClient = new CliClient(new CliProcess(cliCommand), new ObjectMapper());
@@ -124,77 +258,166 @@ public final class App extends Application {
         } catch (RuntimeException exception) {
             cliError = exception.getMessage();
         }
-
-        Label title = new Label("Agentic Viewer");
-        title.getStyleClass().add("title");
-
-        Label subtitle = new Label("JavaFX · TASK-014: watcher y refresco tras cambios");
-        subtitle.getStyleClass().add("subtitle");
-
-        VBox header = new VBox(4, title, subtitle);
-
-        previewPanel = new PreviewPanel();
-        previewPanel.setOnSddFileSelected(this::loadSddFile);
-        previewPanel.setOnSave(this::saveEditorAsync);
-        previewPanel.setOnPropagate(this::propagate);
-        previewPanel.setOnAdopt(this::adopt);
-        previewPanel.setOnSaveSkillFile(this::saveSkillFile);
-        previewPanel.setOnPropagateSkillFile(this::propagateSkillFile);
-
-        ptyConsolePanel = new PtyConsolePanel(cliCommand, this::currentProject);
-
-        VBox main = new VBox(12, projectCard(), previewPanel, ptyConsoleSection());
-        VBox.setVgrow(previewPanel, Priority.ALWAYS);
-
-        SplitPane split = new SplitPane(sidebar(), main);
-        split.setDividerPositions(0.30);
-
-        VBox root = new VBox(20, header, split);
-        VBox.setVgrow(split, Priority.ALWAYS);
-        root.getStyleClass().add("app");
-        root.setPadding(new Insets(24));
-
-        Scene scene = new Scene(root, 1180, 820);
-        scene.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
-
-        stage.setTitle("Agentic Viewer");
-        stage.setMinWidth(960);
-        stage.setMinHeight(640);
-        stage.setScene(scene);
-        stage.show();
-
-        stage.setOnCloseRequest(event -> {
-            if (projectWatcher != null) {
-                projectWatcher.close();
-            }
-            if (ptyConsolePanel != null) {
-                ptyConsolePanel.shutdown();
-            }
-        });
-
-        if (cliError != null) {
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.initOwner(stage);
-            alert.setTitle("Error de aplicación");
-            alert.setHeaderText("No se encontró el CLI");
-            alert.setContentText(cliError);
-            alert.showAndWait();
-        } else {
-            refreshTree();
-        }
     }
 
-    private VBox sidebar() {
+    private Node consoleContent() {
+        VBox box = new VBox(ptyConsolePanel);
+        VBox.setVgrow(ptyConsolePanel, Priority.ALWAYS);
+        return box;
+    }
+
+    // ------------------------------------------------------------------
+    // Estructura de la ventana
+    // ------------------------------------------------------------------
+
+    private MenuBar menuBar() {
+        Menu file = new Menu("Archivo");
+        openProjectMenuItem = menuItem("Abrir proyecto…", "Shortcut+O", this::chooseProject);
+        reloadMenuItem = menuItem("Recargar", "F5", this::reloadWithGuard);
+        saveMenuItem = menuItem("Guardar", "Shortcut+S", this::saveCurrent);
+        closeProjectMenuItem = menuItem("Cerrar proyecto", null, this::closeProject);
+        MenuItem exit = menuItem("Salir", "Shortcut+Q", this::requestExit);
+        file.getItems().addAll(openProjectMenuItem, reloadMenuItem, saveMenuItem,
+            new SeparatorMenuItem(), closeProjectMenuItem, new SeparatorMenuItem(), exit);
+
+        Menu project = new Menu("Proyecto");
+        initProjectMenuItem = menuItem("Iniciar proyecto", null, this::initProject);
+        MenuItem createModule = menuItem("Crear módulo…", "Shortcut+M", this::createModule);
+        MenuItem addTechnician = menuItem("Añadir técnico…", "Shortcut+Shift+T", this::addTechnician);
+        MenuItem createArtifact = menuItem("Crear artefacto…", "Shortcut+N", this::createArtifact);
+        createModuleItems.add(createModule);
+        addTechnicianItems.add(addTechnician);
+        createArtifactItems.add(createArtifact);
+        project.getItems().addAll(initProjectMenuItem, createModule,
+            addTechnician, createArtifact);
+
+        Menu view = new Menu("Ver");
+        searchMenuItem = menuItem("Buscar artefactos", "Shortcut+F", this::focusSearch);
+        consoleMenuItem = menuItem("Consola", "F6", this::showConsole);
+        autoRefreshMenuItem = new CheckMenuItem("Actualización automática");
+        autoRefreshMenuItem.setSelected(true);
+        view.getItems().addAll(searchMenuItem, consoleMenuItem,
+            new SeparatorMenuItem(), autoRefreshMenuItem);
+
+        Menu help = new Menu("Ayuda");
+        help.getItems().addAll(menuItem("Atajos de teclado", null, this::showShortcuts),
+            menuItem("Acerca de", null, this::showAbout));
+
+        MenuBar bar = new MenuBar(file, project, view, help);
+        bar.getStyleClass().add("app-menu");
+        return bar;
+    }
+
+    private MenuItem menuItem(String text, String accelerator, Runnable action) {
+        MenuItem item = new MenuItem(text);
+        if (accelerator != null) {
+            item.setAccelerator(KeyCombination.keyCombination(accelerator));
+        }
+        item.setOnAction(event -> action.run());
+        return item;
+    }
+
+    private Node headerBar() {
+        Label mark = new Label("◈");
+        mark.getStyleClass().add("brand-mark");
+
+        Label title = new Label("Agentic Viewer");
+        title.getStyleClass().add("brand-title");
+
+        Label tagline = new Label("Agentes y skills de tu proyecto, en un solo lugar.");
+        tagline.getStyleClass().add("brand-tagline");
+
+        VBox brandText = new VBox(1, title, tagline);
+        HBox brand = new HBox(10, mark, brandText);
+        brand.setAlignment(Pos.CENTER_LEFT);
+
+        openProjectButton = new Button("Abrir proyecto");
+        openProjectButton.getStyleClass().add("secondary");
+        openProjectButton.setTooltip(new Tooltip("Abrir un proyecto (Ctrl+O)"));
+        openProjectButton.setOnAction(event -> chooseProject());
+
+        initProjectButton = new Button("Iniciar proyecto");
+        initProjectButton.getStyleClass().add("primary");
+        initProjectButton.setTooltip(new Tooltip("Crear la estructura .sdd del proyecto"));
+        initProjectButton.setOnAction(event -> initProject());
+        initProjectButton.setManaged(false);
+        initProjectButton.setVisible(false);
+
+        createMenuButton = new MenuButton("Crear");
+        createMenuButton.getStyleClass().addAll("primary", "create-menu");
+        MenuItem quickModule = new MenuItem("Módulo…");
+        quickModule.setOnAction(event -> createModule());
+        MenuItem quickTechnician = new MenuItem("Añadir técnico…");
+        quickTechnician.setOnAction(event -> addTechnician());
+        MenuItem quickArtifact = new MenuItem("Artefacto…");
+        quickArtifact.setOnAction(event -> createArtifact());
+        createModuleItems.add(quickModule);
+        addTechnicianItems.add(quickTechnician);
+        createArtifactItems.add(quickArtifact);
+        createMenuButton.getItems().addAll(quickModule, quickTechnician,
+            new SeparatorMenuItem(), quickArtifact);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox topRow = new HBox(12, brand, spacer, openProjectButton, initProjectButton, createMenuButton);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        projectStateChip = new Label("Sin proyecto");
+        projectStateChip.getStyleClass().addAll("chip", "muted");
+
+        projectPathLabel = new Label("Ningún proyecto seleccionado");
+        projectPathLabel.getStyleClass().add("project-path");
+        projectPathLabel.setTextOverrun(OverrunStyle.CENTER_ELLIPSIS);
+        projectPathLabel.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(projectPathLabel, Priority.ALWAYS);
+
+        projectSummaryLabel = new Label();
+        projectSummaryLabel.getStyleClass().add("project-summary");
+        projectSummaryLabel.setWrapText(true);
+        projectSummaryLabel.setManaged(false);
+        projectSummaryLabel.setVisible(false);
+
+        HBox projectRow = new HBox(10, projectStateChip, projectPathLabel);
+        projectRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox header = new VBox(8, topRow, projectRow, projectSummaryLabel);
+        header.getStyleClass().add("app-header");
+        header.setPadding(new Insets(12, 18, 12, 18));
+        return header;
+    }
+
+    private Node sidebar() {
         Label heading = new Label("Navegación");
         heading.getStyleClass().add("heading");
 
-        Button refresh = new Button("Recargar");
-        refresh.setDisable(cliClient == null);
-        refresh.setOnAction(event -> reloadWithGuard());
+        sidebarRefreshButton = new Button("↻");
+        sidebarRefreshButton.getStyleClass().addAll("ghost", "icon");
+        sidebarRefreshButton.setTooltip(new Tooltip("Recargar (F5)"));
+        sidebarRefreshButton.setAccessibleText("Recargar el árbol de artefactos");
+        sidebarRefreshButton.setOnAction(event -> reloadWithGuard());
 
-        HBox headingRow = new HBox(8, heading, refresh);
+        Region headingSpacer = new Region();
+        HBox.setHgrow(headingSpacer, Priority.ALWAYS);
+        HBox headingRow = new HBox(8, heading, headingSpacer, sidebarRefreshButton);
         headingRow.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(heading, Priority.ALWAYS);
+
+        searchField = new TextField();
+        searchField.setPromptText("Buscar artefactos…  (Ctrl+F)");
+        searchField.getStyleClass().add("search-field");
+        searchField.textProperty().addListener((observable, previous, current) -> applyTreeFilter());
+        searchField.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                searchField.clear();
+                treeView.requestFocus();
+            }
+        });
+
+        filterStatus = new Label();
+        filterStatus.getStyleClass().add("filter-status");
+        filterStatus.setWrapText(true);
+        filterStatus.setManaged(false);
+        filterStatus.setVisible(false);
 
         treeView = new TreeView<>();
         treeRoot = new TreeItem<>();
@@ -212,8 +435,12 @@ public final class App extends Application {
                     setTooltip(null);
                     return;
                 }
-                setText(TreeLabels.label(node));
+                boolean dirty = previewPanel != null && previewPanel.isDirtyNode(node.path());
+                setText(TreeLabels.label(node) + (dirty ? "  ●" : ""));
                 getStyleClass().add("tree-" + node.type());
+                if (dirty) {
+                    getStyleClass().add("tree-dirty");
+                }
                 if (node.pending()) {
                     getStyleClass().add("tree-pending");
                 }
@@ -223,12 +450,15 @@ public final class App extends Application {
                 if ("detached".equals(node.status())) {
                     getStyleClass().add("tree-detached");
                 }
+                String tooltip = node.path();
+                if (dirty) {
+                    tooltip = "Cambios sin guardar" + (tooltip == null ? "" : "\n" + tooltip);
+                }
                 if (staleTracker != null && node.path() != null && staleTracker.isStale(node.path())) {
                     getStyleClass().add("tree-stale");
-                    setTooltip(new Tooltip(node.path() + " (desactualizado)"));
-                } else {
-                    setTooltip(node.path() == null ? null : new Tooltip(node.path()));
+                    tooltip = (tooltip == null ? "" : tooltip + "\n") + "Desactualizado: hay cambios externos";
                 }
+                setTooltip(tooltip == null ? null : new Tooltip(tooltip));
             }
         });
         treeView.getSelectionModel().selectedItemProperty().addListener((observable, previous, selected) -> {
@@ -242,10 +472,11 @@ public final class App extends Application {
                 suppressSelection = false;
                 return;
             }
+            selectedNode = node;
             if (node == null) {
-                selectionInfo.setText("");
+                hideSelectionInfo();
             } else {
-                selectionInfo.setText(formatNode(node));
+                updateSelectionInfo(node);
             }
             onSelectNode(node);
         });
@@ -259,150 +490,72 @@ public final class App extends Application {
         staleWarning = new Label();
         staleWarning.getStyleClass().add("warning");
         staleWarning.setWrapText(true);
-        staleWarning.setManaged(false);
-        staleWarning.setVisible(false);
+
+        Button staleReload = new Button("Recargar ahora");
+        staleReload.getStyleClass().addAll("secondary", "small");
+        staleReload.setOnAction(event -> reloadWithGuard());
+
+        staleBanner = new HBox(8, staleWarning, staleReload);
+        staleBanner.setAlignment(Pos.CENTER_LEFT);
+        staleBanner.getStyleClass().add("stale-banner");
+        staleBanner.setManaged(false);
+        staleBanner.setVisible(false);
 
         selectionInfo = new Label();
         selectionInfo.getStyleClass().add("selection");
         selectionInfo.setWrapText(true);
+        selectionInfo.setManaged(false);
+        selectionInfo.setVisible(false);
 
-        VBox sidebar = new VBox(10, headingRow, treeView, treeWarnings, staleWarning, selectionInfo);
+        VBox sidebar = new VBox(10, headingRow, searchField, filterStatus, treeView,
+            treeWarnings, staleBanner, selectionInfo);
         VBox.setVgrow(treeView, Priority.ALWAYS);
         sidebar.getStyleClass().add("sidebar");
-        sidebar.setPadding(new Insets(12));
-        sidebar.setPrefWidth(330);
-        sidebar.setMinWidth(260);
+        sidebar.setPadding(new Insets(14));
+        sidebar.setPrefWidth(350);
+        sidebar.setMinWidth(280);
         return sidebar;
     }
 
-    private VBox projectCard() {
-        Label heading = new Label("Proyecto");
-        heading.getStyleClass().add("heading");
+    private HBox statusBar() {
+        busySpinner = new ProgressIndicator();
+        busySpinner.setPrefSize(14, 14);
+        busySpinner.setMinSize(14, 14);
+        busySpinner.setMaxSize(14, 14);
+        busySpinner.setManaged(false);
+        busySpinner.setVisible(false);
 
-        projectPath = new Label("Ningún proyecto seleccionado");
-        projectPath.getStyleClass().add("muted");
-        projectPath.setWrapText(true);
+        statusMessage = new Label("Listo");
+        statusMessage.getStyleClass().add("status-message");
 
-        projectState = new Label("Selecciona una carpeta para empezar");
-        projectState.getStyleClass().add("muted");
-        projectState.setWrapText(true);
+        dirtyStatus = new Label("● Cambios sin guardar");
+        dirtyStatus.getStyleClass().add("warning");
+        dirtyStatus.setManaged(false);
+        dirtyStatus.setVisible(false);
 
-        projectSummary = new Label();
-        projectSummary.getStyleClass().add("muted");
-        projectSummary.setWrapText(true);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        selectProjectButton = new Button("Seleccionar proyecto");
-        selectProjectButton.setOnAction(event -> chooseProject());
-
-        initProjectButton = new Button("Iniciar proyecto");
-        initProjectButton.setDisable(true);
-        initProjectButton.setOnAction(event -> initProject());
-
-        createModuleButton = new Button("Crear módulo");
-        createModuleButton.setDisable(true);
-        createModuleButton.setOnAction(event -> createModule());
-
-        addTechnicianButton = new Button("Añadir técnico");
-        addTechnicianButton.setDisable(true);
-        addTechnicianButton.setOnAction(event -> addTechnician());
-
-        createArtifactButton = new Button("Crear artefacto");
-        createArtifactButton.setDisable(true);
-        createArtifactButton.setOnAction(event -> createArtifact());
-
-        boolean missing = projectSession == null;
-        selectProjectButton.setDisable(missing);
-        if (missing) {
-            setProjectState(cliError == null ? "CLI no disponible" : cliError, "error");
+        autoRefreshCheck = new CheckBox("Auto-actualizar");
+        autoRefreshCheck.setTooltip(new Tooltip("Refresca el árbol cuando cambian ficheros externos"));
+        if (autoRefreshMenuItem != null) {
+            autoRefreshCheck.selectedProperty().bindBidirectional(autoRefreshMenuItem.selectedProperty());
         }
 
-        HBox row1 = new HBox(8, selectProjectButton, initProjectButton);
-        row1.setAlignment(Pos.CENTER_LEFT);
+        watcherStatus = new Label("Watcher inactivo");
+        watcherStatus.getStyleClass().add("status-meta");
 
-        HBox row2 = new HBox(8, createModuleButton, addTechnicianButton);
-        row2.setAlignment(Pos.CENTER_LEFT);
-
-        HBox row3 = new HBox(8, createArtifactButton);
-        row3.setAlignment(Pos.CENTER_LEFT);
-
-        VBox card = new VBox(10, heading, projectPath, projectState, projectSummary, row1, row2, row3);
-        card.getStyleClass().add("card");
-        card.setPadding(new Insets(20));
-        return card;
+        HBox bar = new HBox(10, busySpinner, statusMessage, dirtyStatus, spacer,
+            autoRefreshCheck, watcherStatus);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("status-bar");
+        bar.setPadding(new Insets(6, 14, 6, 14));
+        return bar;
     }
 
-    private VBox cliCard() {
-        Label heading = new Label("CLI");
-        heading.getStyleClass().add("heading");
-
-        Label path = new Label(cliCommand == null
-            ? "No se encontró el jar del CLI"
-            : "Jar: " + cliCommand.cliJar());
-        path.getStyleClass().add("muted");
-        path.setWrapText(true);
-
-        TextArea output = new TextArea();
-        output.setEditable(false);
-        output.setWrapText(false);
-        output.setPrefRowCount(12);
-        output.getStyleClass().add("console");
-
-        Label state = new Label(cliError == null ? "Listo" : cliError);
-        state.getStyleClass().add(cliError == null ? "muted" : "error");
-        state.setWrapText(true);
-
-        Button rawVersion = new Button("--version");
-        Button status = new Button("status");
-        Button clear = new Button("Limpiar");
-
-        rawVersion.setOnAction(event -> runRaw(List.of("--version"), output, state));
-        status.setOnAction(event -> runTyped("status",
-            () -> formatStatus(cliClient.status(currentProject())), output, state));
-        clear.setOnAction(event -> {
-            output.clear();
-            state.setText("Listo");
-        });
-
-        HBox primary = new HBox(8, rawVersion, status, clear);
-        primary.setAlignment(Pos.CENTER_LEFT);
-
-        boolean missing = cliClient == null;
-        rawVersion.setDisable(missing);
-        status.setDisable(missing);
-
-        VBox card = new VBox(10, heading, path, primary, state, output);
-        card.getStyleClass().add("card");
-        card.setPadding(new Insets(20));
-        return card;
-    }
-
-    /** Sección de la consola PTY con botón para iniciar. */
-    private VBox ptyConsoleSection() {
-        Label heading = new Label("Consola PTY");
-        heading.getStyleClass().add("heading");
-
-        Label description = new Label("Ejecuta el CLI interactivo en una terminal integrada.");
-        description.getStyleClass().add("muted");
-        description.setWrapText(true);
-
-        Button startButton = new Button("Iniciar consola");
-        startButton.setDisable(cliCommand == null);
-        startButton.setOnAction(event -> {
-            if (!ptyConsolePanel.isActive()) {
-                ptyConsolePanel.startSession();
-            }
-        });
-
-        HBox headerRow = new HBox(8, heading, startButton);
-        HBox.setHgrow(heading, Priority.ALWAYS);
-        headerRow.setAlignment(Pos.CENTER_LEFT);
-
-        VBox section = new VBox(8, headerRow, description, ptyConsolePanel);
-        section.getStyleClass().add("card");
-        section.setPadding(new Insets(16));
-        section.setMinHeight(200);
-        return section;
-    }
+    // ------------------------------------------------------------------
+    // Estado y navegación
+    // ------------------------------------------------------------------
 
     private void refreshTree() {
         if (cliClient == null) {
@@ -413,121 +566,150 @@ public final class App extends Application {
         treeWarnings.getStyleClass().add("muted");
         treeWarnings.setManaged(true);
         treeWarnings.setVisible(true);
+        beginBusy("Cargando árbol…");
 
         Thread.ofVirtual().start(() -> {
             try {
                 TreeData data = cliClient.tree(currentProject());
-                Platform.runLater(() -> updateTree(data));
+                Platform.runLater(() -> {
+                    updateTree(data);
+                    endBusy("Árbol actualizado");
+                });
             } catch (CliClientException exception) {
                 ErrorNotice notice = ErrorPresenter.present(exception);
-                Platform.runLater(() -> showTreeError(notice));
+                Platform.runLater(() -> {
+                    showTreeError(notice);
+                    endBusy("Error al cargar el árbol");
+                });
             } catch (RuntimeException exception) {
-                Platform.runLater(() -> showTreeError(new ErrorNotice(
-                    "client.unexpected", null, exception.getMessage(), "Reintentar.")));
+                Platform.runLater(() -> {
+                    showTreeError(new ErrorNotice(
+                        "client.unexpected", null, exception.getMessage(), "Reintentar."));
+                    endBusy("Error al cargar el árbol");
+                });
             }
         });
     }
 
     private void updateTree(TreeData data) {
-        treeRoot.getChildren().setAll(TreeModel.roots(data).stream().map(this::toItem).toList());
+        lastTreeData = data;
+        renderTree();
         String warnings = formatTreeWarnings(data);
         treeWarnings.setText(warnings);
         treeWarnings.setManaged(!warnings.isBlank());
         treeWarnings.setVisible(!warnings.isBlank());
         treeWarnings.getStyleClass().removeAll("muted", "warning", "error");
         treeWarnings.getStyleClass().add(warnings.isBlank() ? "muted" : "warning");
-        selectionInfo.setText("");
+        updateWatcherStatus();
+        updateMenuStates();
     }
 
     private void showTreeError(ErrorNotice notice) {
+        lastTreeData = null;
         treeRoot.getChildren().clear();
+        hideFilterStatus();
         treeWarnings.setText("Error " + notice.code() + ": " + notice.message() + " " + notice.action());
         treeWarnings.setManaged(true);
         treeWarnings.setVisible(true);
         treeWarnings.getStyleClass().removeAll("muted", "warning", "error");
         treeWarnings.getStyleClass().add("error");
+        updateMenuStates();
     }
 
-    /** Callback del watcher cuando se detectan cambios en el sistema de ficheros. */
-    private void onFileSystemChange(ChangeEvent event) {
-        Platform.runLater(() -> {
-            if (staleTracker != null) {
-                staleTracker.markStale(event.changedPaths());
-                updateStaleWarning();
-                // Refrescar las celdas para que se marque el estilo "tree-stale"
-                treeView.refresh();
-            }
-            // Invalidar la caché para que la próxima recarga traiga datos frescos
-            if (cacheStore != null) {
-                cacheStore.invalidateAll();
-            }
-        });
-    }
-
-    /** Actualiza la etiqueta de aviso de cambios externos. */
-    private void updateStaleWarning() {
-        if (staleTracker == null || staleWarning == null) {
+    private void applyTreeFilter() {
+        if (lastTreeData == null) {
+            hideFilterStatus();
             return;
         }
-        if (staleTracker.isAnyStale()) {
-            int count = staleTracker.size();
-            staleWarning.setText("Cambios externos detectados (" + count + " fichero"
-                + (count == 1 ? "" : "s") + "). Pulsa «Recargar» para actualizar.");
-            staleWarning.setManaged(true);
-            staleWarning.setVisible(true);
+        renderTree();
+    }
+
+    private void renderTree() {
+        if (lastTreeData == null) {
+            treeRoot.getChildren().clear();
+            return;
+        }
+        String query = searchField == null ? "" : searchField.getText();
+        List<TreeData.Node> roots = TreeFilter.filter(TreeModel.roots(lastTreeData), query);
+
+        suppressSelection = true;
+        treeRoot.getChildren().setAll(roots.stream().map(this::toItem).toList());
+        suppressSelection = false;
+
+        updateFilterStatus(query, roots);
+        restoreSelection();
+    }
+
+    private void updateFilterStatus(String query, List<TreeData.Node> roots) {
+        String normalized = query == null ? "" : query.trim();
+        if (normalized.isEmpty()) {
+            hideFilterStatus();
+            return;
+        }
+        int count = TreeFilter.countVisible(roots);
+        filterStatus.setText(count == 0
+            ? "Sin coincidencias para «" + normalized + "»"
+            : count + (count == 1 ? " coincidencia" : " coincidencias"));
+        filterStatus.getStyleClass().removeAll("muted", "warning");
+        filterStatus.getStyleClass().add(count == 0 ? "warning" : "muted");
+        filterStatus.setManaged(true);
+        filterStatus.setVisible(true);
+    }
+
+    private void hideFilterStatus() {
+        if (filterStatus == null) {
+            return;
+        }
+        filterStatus.setText("");
+        filterStatus.setManaged(false);
+        filterStatus.setVisible(false);
+    }
+
+    private void restoreSelection() {
+        if (selectedNode == null) {
+            return;
+        }
+        TreeItem<TreeData.Node> found = findItem(treeRoot, selectedNode);
+        suppressSelection = true;
+        if (found == null) {
+            treeView.getSelectionModel().clearSelection();
         } else {
-            staleWarning.setText("");
-            staleWarning.setManaged(false);
-            staleWarning.setVisible(false);
+            treeView.getSelectionModel().select(found);
+            expandParents(found);
+        }
+        suppressSelection = false;
+        if (found != null) {
+            updateSelectionInfo(selectedNode);
+        } else {
+            hideSelectionInfo();
         }
     }
 
-    /** Invalida la caché tras una operación de escritura. */
-    private void invalidateAfterWrite() {
-        if (cacheStore != null) {
-            cacheStore.invalidateAll();
+    private TreeItem<TreeData.Node> findItem(TreeItem<TreeData.Node> parent, TreeData.Node target) {
+        for (TreeItem<TreeData.Node> child : parent.getChildren()) {
+            TreeData.Node value = child.getValue();
+            if (value != null && sameNode(value, target)) {
+                return child;
+            }
+            TreeItem<TreeData.Node> nested = findItem(child, target);
+            if (nested != null) {
+                return nested;
+            }
         }
-        if (staleTracker != null) {
-            staleTracker.clear();
-            updateStaleWarning();
-        }
+        return null;
     }
 
-    /**
-     * Recarga el árbol y el estado, pidiendo confirmación si hay editores
-     * con cambios sin guardar. Invalida la caché antes de recargar.
-     */
-    private void reloadWithGuard() {
-        // Guardar/descartar editores sucios antes de recargar
-        EditorModel editor = previewPanel.editor();
-        if (editor != null && editor.isDirty()) {
-            if (!confirmSaveForAgent(editor)) {
-                return;
-            }
-        }
-        SkillEditorModel skillEditor = previewPanel.skillEditor();
-        if (skillEditor != null && skillEditor.isDirty()) {
-            if (!confirmSaveForSkill(skillEditor)) {
-                return;
-            }
-        }
+    private static boolean sameNode(TreeData.Node left, TreeData.Node right) {
+        return Objects.equals(left.path(), right.path())
+            && Objects.equals(left.type(), right.type())
+            && Objects.equals(left.name(), right.name());
+    }
 
-        // Invalidar caché y recargar
-        if (cacheStore != null) {
-            cacheStore.invalidateAll();
-        }
-        if (staleTracker != null) {
-            staleTracker.clear();
-            updateStaleWarning();
-        }
-        refreshTree();
-        // Volver a cargar el artefacto seleccionado si tiene ruta
-        TreeItem<TreeData.Node> selected = treeView.getSelectionModel().getSelectedItem();
-        if (selected != null && selected.getValue() != null) {
-            TreeData.Node node = selected.getValue();
-            if (node.path() != null && !node.type().equals("root")) {
-                loadArtifact(node);
-            }
+    private static void expandParents(TreeItem<TreeData.Node> item) {
+        TreeItem<TreeData.Node> parent = item.getParent();
+        while (parent != null) {
+            parent.setExpanded(true);
+            parent = parent.getParent();
         }
     }
 
@@ -536,18 +718,31 @@ public final class App extends Application {
         if (node.children() != null) {
             item.getChildren().setAll(node.children().stream().map(this::toItem).toList());
         }
-        item.setExpanded("root".equals(node.type()));
+        boolean filtering = searchField != null && !searchField.getText().isBlank();
+        item.setExpanded(filtering || TreeModel.ROOT.equals(node.type()));
         return item;
     }
 
     private void onSelectNode(TreeData.Node node) {
-        if (node == null || node.type() == null) {
-            previewPanel.showEmpty();
+        if (node == null || node.type() == null || TreeModel.ROOT.equals(node.type())) {
+            if (currentProject() == null) {
+                showWelcome();
+            } else {
+                showWorkspace();
+                previewPanel.showEmpty();
+            }
             return;
         }
+        showWorkspace();
         switch (node.type()) {
             case "agent", "skill", "profile" -> loadArtifact(node);
             case "sdd" -> loadSddDirectory(node);
+            case "module" -> previewPanel.showMessage(node.name(),
+                "Módulo del equipo. Selecciona una de sus skills o agentes para verlo y editarlo.");
+            case "technician" -> previewPanel.showMessage(node.name(),
+                "Técnico del equipo. Sus artefactos generados aparecen agrupados por proveedor y módulo.");
+            case "provider" -> previewPanel.showMessage(node.name(),
+                "Proveedor. Selecciona un agente, una skill o un perfil para previsualizarlo.");
             default -> previewPanel.showEmpty();
         }
     }
@@ -559,49 +754,61 @@ public final class App extends Application {
         }
         Path artifact = Path.of(node.path());
         previewPanel.showLoading(node.name());
+        beginBusy("Abriendo " + node.name() + "…");
         Thread.ofVirtual().start(() -> {
             try {
                 DescribeData data = cliClient.describe(artifact, currentProject());
-                
-                // Si es una skill, usar el editor de skills
+
                 if ("skill".equals(data.kind()) && data.files() != null && !data.files().isEmpty()) {
                     loadSkill(data);
                 } else {
                     EditorModel editor = EditorModel.of(data, currentProject());
-                    Platform.runLater(() -> previewPanel.showArtifact(ArtifactPreview.of(data), editor));
+                    Platform.runLater(() -> {
+                        previewPanel.showArtifact(ArtifactPreview.of(data), editor);
+                        endBusy("Listo");
+                    });
                 }
             } catch (CliClientException exception) {
                 ErrorNotice notice = ErrorPresenter.present(exception);
-                Platform.runLater(() -> previewPanel.showError(
-                    node.name(), notice.message() + " " + notice.action()));
+                Platform.runLater(() -> {
+                    previewPanel.showError(node.name(), notice.message() + " " + notice.action());
+                    endBusy("Error al abrir el artefacto");
+                });
             } catch (RuntimeException exception) {
-                Platform.runLater(() -> previewPanel.showError(
-                    node.name(), exception.getMessage() == null ? "Error inesperado." : exception.getMessage()));
+                Platform.runLater(() -> {
+                    previewPanel.showError(node.name(),
+                        exception.getMessage() == null ? "Error inesperado." : exception.getMessage());
+                    endBusy("Error al abrir el artefacto");
+                });
             }
         });
     }
 
     private void loadSkill(DescribeData data) {
         try {
-            // Cargar el contenido de todos los ficheros de la skill
             Map<String, String> contents = new HashMap<>();
             Path skillPath = Path.of(data.path());
-            
+
             for (String file : data.files()) {
                 Path filePath = skillPath.resolve(file);
                 try {
-                    String content = Files.readString(filePath);
-                    contents.put(file, content);
-                } catch (IOException e) {
-                    contents.put(file, ""); // Si no se puede leer, dejar vacío
+                    contents.put(file, Files.readString(filePath));
+                } catch (IOException exception) {
+                    contents.put(file, "");
                 }
             }
-            
+
             SkillEditorModel skillEditor = new SkillEditorModel(data, currentProject(), contents);
-            Platform.runLater(() -> previewPanel.showSkill(ArtifactPreview.of(data), skillEditor));
+            Platform.runLater(() -> {
+                previewPanel.showSkill(ArtifactPreview.of(data), skillEditor);
+                endBusy("Listo");
+            });
         } catch (RuntimeException exception) {
-            Platform.runLater(() -> previewPanel.showError(
-                data.name(), exception.getMessage() == null ? "Error inesperado." : exception.getMessage()));
+            Platform.runLater(() -> {
+                previewPanel.showError(data.name(),
+                    exception.getMessage() == null ? "Error inesperado." : exception.getMessage());
+                endBusy("Error al abrir la skill");
+            });
         }
     }
 
@@ -617,41 +824,442 @@ public final class App extends Application {
     private void loadSddFile(Path file) {
         Path sddDir = file.getParent();
         previewPanel.showLoading(file.getFileName().toString());
+        beginBusy("Leyendo " + file.getFileName() + "…");
         Thread.ofVirtual().start(() -> {
             try {
                 String content = SddFiles.read(sddDir, file);
-                Platform.runLater(() -> previewPanel.showSddFile(file.getFileName().toString(), content));
+                Platform.runLater(() -> {
+                    previewPanel.showSddFile(file.getFileName().toString(), content);
+                    endBusy("Listo");
+                });
             } catch (SddFiles.SddReadException exception) {
-                Platform.runLater(() -> previewPanel.showError(
-                    file.getFileName().toString(), exception.getMessage()));
+                Platform.runLater(() -> {
+                    previewPanel.showError(file.getFileName().toString(), exception.getMessage());
+                    endBusy("Error al leer el fichero");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    previewPanel.showError(file.getFileName().toString(),
+                        exception.getMessage() == null ? "Error inesperado." : exception.getMessage());
+                    endBusy("Error al leer el fichero");
+                });
             }
         });
     }
 
-    private boolean guardNavigation(TreeItem<TreeData.Node> previous, TreeData.Node node) {
-        // Verificar si hay cambios sin guardar en el editor de agentes
+    private void updateSelectionInfo(TreeData.Node node) {
+        selectionInfo.setText(formatNode(node));
+        selectionInfo.setManaged(true);
+        selectionInfo.setVisible(true);
+    }
+
+    private void hideSelectionInfo() {
+        selectionInfo.setText("");
+        selectionInfo.setManaged(false);
+        selectionInfo.setVisible(false);
+    }
+
+    // ------------------------------------------------------------------
+    // Watcher y refresco
+    // ------------------------------------------------------------------
+
+    private void onFileSystemChange(ChangeEvent event) {
+        Platform.runLater(() -> {
+            boolean auto = autoRefreshCheck != null && autoRefreshCheck.isSelected()
+                && previewPanel != null && !previewPanel.isDirty();
+            if (auto) {
+                setStatus("Cambios externos detectados; actualizando…");
+                autoRefreshDelay.playFromStart();
+            } else if (staleTracker != null) {
+                staleTracker.markStale(event.changedPaths());
+                updateStaleWarning();
+                if (treeView != null) {
+                    treeView.refresh();
+                }
+            }
+            if (cacheStore != null) {
+                cacheStore.invalidateAll();
+            }
+        });
+    }
+
+    private void autoRefresh() {
+        if (previewPanel != null && previewPanel.isDirty()) {
+            updateStaleWarning();
+            return;
+        }
+        if (staleTracker != null) {
+            staleTracker.clear();
+        }
+        updateStaleWarning();
+        refreshTree();
+        if (selectedNode != null && selectedNode.path() != null
+            && !TreeModel.ROOT.equals(selectedNode.type())
+            && previewPanel != null && !previewPanel.isDirty()) {
+            onSelectNode(selectedNode);
+        }
+    }
+
+    private void updateStaleWarning() {
+        if (staleTracker == null || staleBanner == null) {
+            return;
+        }
+        if (staleTracker.isAnyStale()) {
+            int count = staleTracker.size();
+            staleWarning.setText("Cambios externos detectados (" + count + " fichero"
+                + (count == 1 ? "" : "s") + ").");
+            staleBanner.setManaged(true);
+            staleBanner.setVisible(true);
+        } else {
+            staleWarning.setText("");
+            staleBanner.setManaged(false);
+            staleBanner.setVisible(false);
+        }
+    }
+
+    private void invalidateAfterWrite() {
+        if (cacheStore != null) {
+            cacheStore.invalidateAll();
+        }
+        if (staleTracker != null) {
+            staleTracker.clear();
+            updateStaleWarning();
+        }
+    }
+
+    private void reloadWithGuard() {
+        if (!confirmCloseEditors("Cambios sin guardar",
+            "Elige qué hacer antes de recargar el árbol.")) {
+            return;
+        }
+        if (cacheStore != null) {
+            cacheStore.invalidateAll();
+        }
+        if (staleTracker != null) {
+            staleTracker.clear();
+            updateStaleWarning();
+        }
+        refreshTree();
+        if (selectedNode != null && selectedNode.path() != null
+            && !TreeModel.ROOT.equals(selectedNode.type())) {
+            onSelectNode(selectedNode);
+        }
+        setStatus("Recargando…");
+    }
+
+    // ------------------------------------------------------------------
+    // Proyecto
+    // ------------------------------------------------------------------
+
+    private void chooseProject() {
+        if (projectSession == null) {
+            return;
+        }
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Seleccionar proyecto");
+        if (projectSession.path() != null) {
+            File current = projectSession.path().toFile();
+            if (current.isDirectory()) {
+                chooser.setInitialDirectory(current);
+            }
+        }
+        File selected = chooser.showDialog(stage);
+        if (selected == null) {
+            return;
+        }
+        if (!confirmCloseEditors("Cambiar de proyecto",
+            "Hay cambios sin guardar. ¿Qué quieres hacer antes de cambiar de proyecto?")) {
+            return;
+        }
+        loadProject(selected.toPath());
+    }
+
+    private void loadProject(Path path) {
+        projectPathLabel.setText(path.toString());
+        projectPathLabel.setTooltip(new Tooltip(path.toString()));
+        setProjectState("Validando…", "muted");
+        projectSummaryLabel.setText("");
+        projectSummaryLabel.setManaged(false);
+        projectSummaryLabel.setVisible(false);
+        openProjectButton.setDisable(true);
+        initProjectButton.setDisable(true);
+        beginBusy("Validando proyecto…");
+
+        Thread.ofVirtual().start(() -> {
+            try {
+                StatusData status = projectSession.select(path);
+                Platform.runLater(() -> {
+                    openProjectButton.setDisable(false);
+                    renderProject(status);
+                    endBusy("Proyecto cargado");
+                });
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    openProjectButton.setDisable(false);
+                    showProjectError(path, notice);
+                    endBusy("Error al validar el proyecto");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    openProjectButton.setDisable(false);
+                    showProjectError(path, new ErrorNotice(
+                        "client.unexpected", path.toString(), exception.getMessage(), "Reintentar."));
+                    endBusy("Error al validar el proyecto");
+                });
+            }
+        });
+    }
+
+    private void initProject() {
+        if (projectSession == null || projectSession.path() == null) {
+            return;
+        }
+        setProjectState("Iniciando…", "muted");
+        openProjectButton.setDisable(true);
+        initProjectButton.setDisable(true);
+        beginBusy("Iniciando proyecto…");
+
+        Thread.ofVirtual().start(() -> {
+            try {
+                InitData result = projectSession.init();
+                Platform.runLater(() -> {
+                    openProjectButton.setDisable(false);
+                    renderProject(projectSession.status());
+                    setProjectState(result.created() ? "Proyecto iniciado" : "Ya estaba configurado", "ok");
+                    endBusy(result.created() ? "Proyecto iniciado" : "El proyecto ya estaba configurado");
+                });
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    openProjectButton.setDisable(false);
+                    showProjectError(projectSession.path(), notice);
+                    endBusy("Error al iniciar el proyecto");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    openProjectButton.setDisable(false);
+                    showProjectError(projectSession.path(), new ErrorNotice(
+                        "client.unexpected", projectSession.path().toString(),
+                        exception.getMessage(), "Reintentar."));
+                    endBusy("Error al iniciar el proyecto");
+                });
+            }
+        });
+    }
+
+    private void renderProject(StatusData status) {
+        projectPathLabel.setText(projectSession.path().toString());
+        projectPathLabel.setTooltip(new Tooltip(projectSession.path().toString()));
+        boolean configured = projectSession.configured();
+        setProjectState(configured ? "Configurado" : "No configurado", configured ? "ok" : "warning");
+        String summary = formatProjectSummary(status);
+        projectSummaryLabel.setText(summary);
+        projectSummaryLabel.setManaged(!summary.isBlank());
+        projectSummaryLabel.setVisible(!summary.isBlank());
+        initProjectButton.setDisable(configured);
+        initProjectButton.setManaged(!configured);
+        initProjectButton.setVisible(!configured);
+        createMenuButton.setDisable(cliClient == null);
+        startWatcherForProject();
+        showWorkspace();
+        updateWelcomeState();
+        updateMenuStates();
+        updateWindowTitle();
+        refreshTree();
+    }
+
+    private void startWatcherForProject() {
+        if (projectWatcher == null || projectSession == null || projectSession.path() == null) {
+            return;
+        }
+        List<Path> directories = List.of(projectSession.path());
+        staleTracker.clear();
+        cacheStore.invalidateAll();
+        updateStaleWarning();
+        projectWatcher.start(directories);
+        updateWatcherStatus();
+    }
+
+    private void closeProject() {
+        if (!confirmCloseEditors("Cerrar proyecto",
+            "Hay cambios sin guardar. ¿Qué quieres hacer antes de cerrar el proyecto?")) {
+            return;
+        }
+        if (projectWatcher != null) {
+            projectWatcher.stop();
+        }
+        if (staleTracker != null) {
+            staleTracker.clear();
+            updateStaleWarning();
+        }
+        if (projectSession != null) {
+            projectSession.clear();
+        }
+        lastTreeData = null;
+        selectedNode = null;
+        treeRoot.getChildren().clear();
+        if (searchField != null) {
+            searchField.clear();
+        }
+        hideFilterStatus();
+        treeWarnings.setText("");
+        treeWarnings.setManaged(false);
+        treeWarnings.setVisible(false);
+        hideSelectionInfo();
+        projectPathLabel.setText("Ningún proyecto seleccionado");
+        projectPathLabel.setTooltip(null);
+        projectSummaryLabel.setText("");
+        projectSummaryLabel.setManaged(false);
+        projectSummaryLabel.setVisible(false);
+        setProjectState("Sin proyecto", "muted");
+        initProjectButton.setManaged(false);
+        initProjectButton.setVisible(false);
+        previewPanel.showEmpty();
+        showWelcome();
+        updateWelcomeState();
+        updateWatcherStatus();
+        updateMenuStates();
+        updateWindowTitle();
+        refreshTree();
+        setStatus("Proyecto cerrado");
+    }
+
+    private void showProjectError(Path path, ErrorNotice notice) {
+        projectPathLabel.setText(path == null ? "" : path.toString());
+        projectPathLabel.setTooltip(path == null ? null : new Tooltip(path.toString()));
+        setProjectState("Error " + notice.code(), "error");
+        projectSummaryLabel.setText("Mensaje: " + notice.message() + "\nAcción: " + notice.action());
+        projectSummaryLabel.setManaged(true);
+        projectSummaryLabel.setVisible(true);
+        initProjectButton.setDisable(true);
+        initProjectButton.setManaged(true);
+        initProjectButton.setVisible(true);
+        createMenuButton.setDisable(true);
+        showWelcome();
+        updateWelcomeState();
+        updateMenuStates();
+        updateWindowTitle();
+    }
+
+    private void setProjectState(String text, String style) {
+        projectStateChip.setText(text);
+        projectStateChip.getStyleClass().removeAll("muted", "ok", "error", "warning");
+        projectStateChip.getStyleClass().add(style);
+    }
+
+    private void updateWelcomeState() {
+        if (welcomePane == null) {
+            return;
+        }
+        welcomePane.setCli(cliClient != null, cliError);
+        Path path = projectSession == null ? null : projectSession.path();
+        boolean configured = projectSession != null && projectSession.configured();
+        welcomePane.setProject(path, configured);
+    }
+
+    private void showWelcome() {
+        if (welcomePane == null || workspaceTabs == null) {
+            return;
+        }
+        welcomePane.setManaged(true);
+        welcomePane.setVisible(true);
+        workspaceTabs.setManaged(false);
+        workspaceTabs.setVisible(false);
+    }
+
+    private void showWorkspace() {
+        if (welcomePane == null || workspaceTabs == null) {
+            return;
+        }
+        welcomePane.setManaged(false);
+        welcomePane.setVisible(false);
+        workspaceTabs.setManaged(true);
+        workspaceTabs.setVisible(true);
+    }
+
+    private void loadGlobalStatus() {
+        if (cliClient == null) {
+            return;
+        }
+        Thread.ofVirtual().start(() -> {
+            try {
+                StatusData status = cliClient.status(null);
+                Platform.runLater(() -> {
+                    globalStatus = status;
+                    updateMenuStates();
+                });
+            } catch (RuntimeException ignored) {
+                // Sin estado global: las acciones dependientes del proyecto siguen disponibles.
+            }
+        });
+    }
+
+    private List<String> providerIds() {
+        StatusData status = projectSession != null && projectSession.status() != null
+            ? projectSession.status()
+            : globalStatus;
+        if (status == null || status.providers() == null) {
+            return List.of();
+        }
+        return status.providers().stream()
+            .map(StatusData.Provider::id)
+            .toList();
+    }
+
+    // ------------------------------------------------------------------
+    // Edición y guardado
+    // ------------------------------------------------------------------
+
+    private void saveCurrent() {
+        if (previewPanel.isSkillMode()) {
+            SkillEditorModel skillEditor = previewPanel.skillEditor();
+            if (skillEditor != null && skillEditor.isDirty()) {
+                saveAllSkillFiles(skillEditor);
+            }
+            return;
+        }
         EditorModel editor = previewPanel.editor();
         if (editor != null && editor.isDirty()) {
-            return confirmSaveForAgent(editor);
+            if (!editor.headerDirty() && !editor.bodyDirty() && editor.sharedBodyDirty()) {
+                propagate(editor);
+            } else {
+                saveEditorAsync(editor);
+            }
         }
-        
-        // Verificar si hay cambios sin guardar en el editor de skills
+    }
+
+    private boolean guardNavigation(TreeItem<TreeData.Node> previous, TreeData.Node node) {
+        return confirmCloseEditors("Cambios sin guardar",
+            "Elige qué hacer antes de cambiar de selección.");
+    }
+
+    private boolean confirmCloseEditors(String title, String text) {
+        EditorModel editor = previewPanel.editor();
+        if (editor != null && editor.isDirty() && !confirmSaveForAgent(editor, title, text)) {
+            return false;
+        }
         SkillEditorModel skillEditor = previewPanel.skillEditor();
-        if (skillEditor != null && skillEditor.isDirty()) {
-            return confirmSaveForSkill(skillEditor);
+        if (skillEditor != null && skillEditor.isDirty() && !confirmSaveForSkill(skillEditor, title, text)) {
+            return false;
         }
-        
         return true;
     }
 
-    private boolean confirmSaveForAgent(EditorModel editor) {
+    private boolean confirmCloseApplication() {
+        return confirmCloseEditors("Cerrar la aplicación",
+            "Hay cambios sin guardar. ¿Qué quieres hacer antes de salir?");
+    }
+
+    private boolean confirmSaveForAgent(EditorModel editor, String title, String text) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.initOwner(stage);
-        alert.setTitle("Cambios sin guardar");
+        alert.setTitle(title);
         alert.setHeaderText("El artefacto tiene cambios sin guardar.");
-        alert.setContentText("Elige qué hacer antes de cambiar de selección.");
-        ButtonType saveButton = new ButtonType("Guardar");
-        ButtonType discardButton = new ButtonType("Descartar");
+        alert.setContentText(text);
+        Theme.apply(alert);
+        ButtonType saveButton = new ButtonType("Guardar", ButtonBar.ButtonData.YES);
+        ButtonType discardButton = new ButtonType("Descartar", ButtonBar.ButtonData.NO);
         ButtonType cancelButton = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         alert.getButtonTypes().setAll(saveButton, discardButton, cancelButton);
 
@@ -672,14 +1280,15 @@ public final class App extends Application {
         return true;
     }
 
-    private boolean confirmSaveForSkill(SkillEditorModel skillEditor) {
+    private boolean confirmSaveForSkill(SkillEditorModel skillEditor, String title, String text) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.initOwner(stage);
-        alert.setTitle("Cambios sin guardar");
+        alert.setTitle(title);
         alert.setHeaderText("La skill tiene ficheros con cambios sin guardar.");
-        alert.setContentText("¿Deseas guardar todos los ficheros modificados antes de cambiar?");
-        ButtonType saveButton = new ButtonType("Guardar todo");
-        ButtonType discardButton = new ButtonType("Descartar");
+        alert.setContentText(text);
+        Theme.apply(alert);
+        ButtonType saveButton = new ButtonType("Guardar todo", ButtonBar.ButtonData.YES);
+        ButtonType discardButton = new ButtonType("Descartar", ButtonBar.ButtonData.NO);
         ButtonType cancelButton = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         alert.getButtonTypes().setAll(saveButton, discardButton, cancelButton);
 
@@ -688,29 +1297,26 @@ public final class App extends Application {
             return false;
         }
         if (result.get() == saveButton) {
-            // Guardar todos los ficheros modificados
-            for (String file : skillEditor.files()) {
-                if (skillEditor.isDirty(file)) {
-                    try {
-                        String content = skillEditor.getContent(file);
-                        cliClient.saveBody(skillEditor.skillPath(), content, skillEditor.project(), file);
-                        skillEditor.markSaved(file);
-                    } catch (CliClientException exception) {
-                        ErrorNotice notice = ErrorPresenter.present(exception);
-                        previewPanel.showSaveStatus("Error al guardar " + file + ": " + notice.message(), true);
-                        return false;
-                    }
-                }
+            String error = saveAllSkillFilesNow(skillEditor);
+            if (error != null) {
+                previewPanel.showSaveStatus("Error al guardar: " + error, true);
+                return false;
             }
+            skillEditor.markAllSaved();
             previewPanel.showSaveStatus("Todos los ficheros guardados.", false);
+            invalidateAfterWrite();
         }
         return true;
     }
 
     private void saveEditorAsync(EditorModel editor) {
+        beginBusy("Guardando…");
         Thread.ofVirtual().start(() -> {
             SaveOutcome outcome = saveEditor(editor);
-            Platform.runLater(() -> applySaveOutcome(editor, outcome));
+            Platform.runLater(() -> {
+                applySaveOutcome(editor, outcome);
+                endBusy(outcome.ok() ? "Guardado" : "Error al guardar");
+            });
         });
     }
 
@@ -753,6 +1359,76 @@ public final class App extends Application {
         }
     }
 
+    private void saveSkillFile(SkillEditorModel skillEditor, String file) {
+        String content = skillEditor.getContent(file);
+        beginBusy("Guardando " + file + "…");
+        Thread.ofVirtual().start(() -> {
+            try {
+                cliClient.saveBody(skillEditor.skillPath(), content, skillEditor.project(), file);
+                Platform.runLater(() -> {
+                    skillEditor.markSaved(file);
+                    previewPanel.showSaveStatus("Fichero " + file + " guardado.", false);
+                    invalidateAfterWrite();
+                    endBusy("Guardado");
+                });
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    previewPanel.showSaveStatus("Error: " + notice.message() + " " + notice.action(), true);
+                    endBusy("Error al guardar");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    previewPanel.showSaveStatus("Error: "
+                        + (exception.getMessage() == null ? "inesperado" : exception.getMessage()), true);
+                    endBusy("Error al guardar");
+                });
+            }
+        });
+    }
+
+    private void saveAllSkillFiles(SkillEditorModel skillEditor) {
+        List<String> dirtyFiles = skillEditor.files().stream().filter(skillEditor::isDirty).toList();
+        if (dirtyFiles.isEmpty()) {
+            return;
+        }
+        beginBusy("Guardando " + dirtyFiles.size() + " fichero(s)…");
+        Thread.ofVirtual().start(() -> {
+            String error = saveAllSkillFilesNow(skillEditor, dirtyFiles);
+            Platform.runLater(() -> {
+                if (error == null) {
+                    dirtyFiles.forEach(skillEditor::markSaved);
+                    previewPanel.showSaveStatus("Todos los ficheros guardados.", false);
+                    invalidateAfterWrite();
+                    endBusy("Guardado");
+                } else {
+                    previewPanel.showSaveStatus("Error: " + error, true);
+                    endBusy("Error al guardar");
+                }
+            });
+        });
+    }
+
+    private String saveAllSkillFilesNow(SkillEditorModel skillEditor) {
+        List<String> dirtyFiles = skillEditor.files().stream().filter(skillEditor::isDirty).toList();
+        return saveAllSkillFilesNow(skillEditor, dirtyFiles);
+    }
+
+    private String saveAllSkillFilesNow(SkillEditorModel skillEditor, List<String> dirtyFiles) {
+        for (String file : dirtyFiles) {
+            try {
+                cliClient.saveBody(skillEditor.skillPath(), skillEditor.getContent(file),
+                    skillEditor.project(), file);
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                return notice.message() + " " + notice.action();
+            } catch (RuntimeException exception) {
+                return exception.getMessage() == null ? "Error inesperado." : exception.getMessage();
+            }
+        }
+        return null;
+    }
+
     /** Propaga el cuerpo compartido: simula, muestra el diff y, al confirmar, escribe. */
     private boolean propagate(EditorModel editor) {
         try {
@@ -785,7 +1461,7 @@ public final class App extends Application {
         }
     }
 
-    /** Vincula un artefacto legacy o desvinculado a su grupo: simula, muestra el diff y, al confirmar, aplica. */
+    /** Vincula un artefacto legacy o desvinculado a su grupo: simula, muestra el diff y lo aplica. */
     private void adopt(EditorModel editor) {
         try {
             AdoptData dryRun = cliClient.adopt(editor.path(), editor.project(), false);
@@ -815,67 +1491,75 @@ public final class App extends Application {
         }
     }
 
-    /** Vuelve a describir el artefacto seleccionado para reflejar el nuevo estado. */
     private void reloadSelectedArtifact() {
-        TreeItem<TreeData.Node> selected = treeView.getSelectionModel().getSelectedItem();
-        if (selected != null && selected.getValue() != null) {
-            loadArtifact(selected.getValue());
-        }
-    }
-
-    /** Guarda el contenido de un fichero específico de una skill. */
-    private void saveSkillFile(SkillEditorModel skillEditor, String file) {
-        try {
-            String content = skillEditor.getContent(file);
-            cliClient.saveBody(skillEditor.skillPath(), content, skillEditor.project(), file);
-            skillEditor.markSaved(file);
-            previewPanel.showSaveStatus("Fichero " + file + " guardado.", false);
-            invalidateAfterWrite();
-        } catch (CliClientException exception) {
-            ErrorNotice notice = ErrorPresenter.present(exception);
-            previewPanel.showSaveStatus("Error: " + notice.message() + " " + notice.action(), true);
-        } catch (RuntimeException exception) {
-            previewPanel.showSaveStatus(
-                "Error: " + (exception.getMessage() == null ? "inesperado" : exception.getMessage()), true);
+        if (selectedNode != null && !TreeModel.ROOT.equals(selectedNode.type())) {
+            onSelectNode(selectedNode);
         }
     }
 
     /** Propaga el contenido de un fichero de skill a otras instancias del mismo grupo. */
     private void propagateSkillFile(SkillEditorModel skillEditor, String file) {
+        String content = skillEditor.getContent(file);
+        beginBusy("Calculando cambios…");
+        Thread.ofVirtual().start(() -> {
+            try {
+                SaveData dryRun = cliClient.saveGroup(skillEditor.skillPath(), content, true,
+                    skillEditor.project(), file);
+                Platform.runLater(() -> {
+                    endBusy("Listo");
+                    if (!dryRun.written()) {
+                        previewPanel.showSaveStatus("Sin cambios que propagar.", false);
+                        return;
+                    }
+                    boolean confirmed = DiffReviewDialog.confirm(stage, "Propagar cambios",
+                        "Se actualizarán las siguientes copias de la skill:", DiffReview.summary(dryRun));
+                    if (!confirmed) {
+                        previewPanel.showSaveStatus("Propagación cancelada.", false);
+                        return;
+                    }
+                    beginBusy("Propagando…");
+                    Thread.ofVirtual().start(() -> executePropagateSkillFile(skillEditor, file, content));
+                });
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    previewPanel.showSaveStatus("Error: " + notice.message() + " " + notice.action(), true);
+                    endBusy("Error al propagar");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    previewPanel.showSaveStatus(
+                        "Error: " + (exception.getMessage() == null ? "inesperado" : exception.getMessage()), true);
+                    endBusy("Error al propagar");
+                });
+            }
+        });
+    }
+
+    private void executePropagateSkillFile(SkillEditorModel skillEditor, String file, String content) {
         try {
-            String content = skillEditor.getContent(file);
-            
-            // Primero hacer dry-run para ver qué cambiaría
-            SaveData dryRun = cliClient.saveGroup(skillEditor.skillPath(), content, true, 
+            SaveData result = cliClient.saveGroup(skillEditor.skillPath(), content, false,
                 skillEditor.project(), file);
-            
-            if (!dryRun.written()) {
-                previewPanel.showSaveStatus("Sin cambios que propagar.", false);
-                return;
-            }
-            
-            // Mostrar diff y pedir confirmación
-            boolean confirmed = DiffReviewDialog.confirm(stage, "Propagar cambios",
-                "Se actualizarán las siguientes copias de la skill:", DiffReview.summary(dryRun));
-            if (!confirmed) {
-                previewPanel.showSaveStatus("Propagación cancelada.", false);
-                return;
-            }
-            
-            // Ejecutar la propagación real
-            SaveData result = cliClient.saveGroup(skillEditor.skillPath(), content, false, 
-                skillEditor.project(), file);
-            skillEditor.markSaved(file);
-            previewPanel.showSaveStatus("Propagado a " + result.members().size() + " copias.", false);
-            invalidateAfterWrite();
-            refreshTree();
-            reloadSelectedArtifact();
+            Platform.runLater(() -> {
+                skillEditor.markSaved(file);
+                previewPanel.showSaveStatus("Propagado a " + result.members().size() + " copias.", false);
+                invalidateAfterWrite();
+                refreshTree();
+                reloadSelectedArtifact();
+                endBusy("Propagado");
+            });
         } catch (CliClientException exception) {
             ErrorNotice notice = ErrorPresenter.present(exception);
-            previewPanel.showSaveStatus("Error: " + notice.message() + " " + notice.action(), true);
+            Platform.runLater(() -> {
+                previewPanel.showSaveStatus("Error: " + notice.message() + " " + notice.action(), true);
+                endBusy("Error al propagar");
+            });
         } catch (RuntimeException exception) {
-            previewPanel.showSaveStatus(
-                "Error: " + (exception.getMessage() == null ? "inesperado" : exception.getMessage()), true);
+            Platform.runLater(() -> {
+                previewPanel.showSaveStatus(
+                    "Error: " + (exception.getMessage() == null ? "inesperado" : exception.getMessage()), true);
+                endBusy("Error al propagar");
+            });
         }
     }
 
@@ -893,146 +1577,54 @@ public final class App extends Application {
         }
     }
 
-    private void chooseProject() {
-        DirectoryChooser chooser = new DirectoryChooser();
-        chooser.setTitle("Seleccionar proyecto");
-        if (projectSession.path() != null) {
-            File current = projectSession.path().toFile();
-            if (current.isDirectory()) {
-                chooser.setInitialDirectory(current);
-            }
-        }
-        File selected = chooser.showDialog(stage);
-        if (selected != null) {
-            loadProject(selected.toPath());
-        }
-    }
+    // ------------------------------------------------------------------
+    // Creación
+    // ------------------------------------------------------------------
 
-    private void loadProject(Path path) {
-        projectPath.setText(path.toString());
-        setProjectState("Validando…", "muted");
-        projectSummary.setText("");
-        selectProjectButton.setDisable(true);
-        initProjectButton.setDisable(true);
-
-        Thread.ofVirtual().start(() -> {
-            try {
-                StatusData status = projectSession.select(path);
-                Platform.runLater(() -> {
-                    selectProjectButton.setDisable(false);
-                    renderProject(status);
-                });
-            } catch (CliClientException exception) {
-                ErrorNotice notice = ErrorPresenter.present(exception);
-                Platform.runLater(() -> {
-                    selectProjectButton.setDisable(false);
-                    showProjectError(path, notice);
-                });
-            } catch (RuntimeException exception) {
-                Platform.runLater(() -> {
-                    selectProjectButton.setDisable(false);
-                    showProjectError(path, new ErrorNotice(
-                        "client.unexpected", path.toString(), exception.getMessage(), "Reintentar."));
-                });
-            }
-        });
-    }
-
-    private void initProject() {
-        if (projectSession.path() == null) {
-            return;
-        }
-        setProjectState("Iniciando…", "muted");
-        selectProjectButton.setDisable(true);
-        initProjectButton.setDisable(true);
-
-        Thread.ofVirtual().start(() -> {
-            try {
-                InitData result = projectSession.init();
-                Platform.runLater(() -> {
-                    selectProjectButton.setDisable(false);
-                    renderProject(projectSession.status());
-                    setProjectState(result.created() ? "Proyecto iniciado" : "Ya estaba configurado", "ok");
-                });
-            } catch (CliClientException exception) {
-                ErrorNotice notice = ErrorPresenter.present(exception);
-                Platform.runLater(() -> {
-                    selectProjectButton.setDisable(false);
-                    showProjectError(projectSession.path(), notice);
-                });
-            } catch (RuntimeException exception) {
-                Platform.runLater(() -> {
-                    selectProjectButton.setDisable(false);
-                    showProjectError(projectSession.path(), new ErrorNotice(
-                        "client.unexpected", projectSession.path().toString(),
-                        exception.getMessage(), "Reintentar."));
-                });
-            }
-        });
-    }
-
-    private void renderProject(StatusData status) {
-        projectPath.setText(projectSession.path().toString());
-        boolean configured = projectSession.configured();
-        setProjectState(configured ? "Configurado" : "No configurado", configured ? "ok" : "warning");
-        projectSummary.setText(formatProjectSummary(status));
-        initProjectButton.setDisable(configured);
-        createModuleButton.setDisable(!configured);
-        addTechnicianButton.setDisable(!configured || !hasModules(status));
-        createArtifactButton.setDisable(providerIds().isEmpty());
-        startWatcherForProject();
-        refreshTree();
-    }
-
-    /** Arranca el watcher para el proyecto actual. */
-    private void startWatcherForProject() {
-        if (projectWatcher == null || projectSession == null || projectSession.path() == null) {
-            return;
-        }
-        List<Path> directories = List.of(projectSession.path());
-        staleTracker.clear();
-        cacheStore.invalidateAll();
-        updateStaleWarning();
-        projectWatcher.start(directories);
-    }
-
-    private boolean hasModules(StatusData status) {
-        return status != null
-            && status.project() != null
-            && status.project().modules() != null
-            && !status.project().modules().isEmpty();
-    }
-
-    /** Crea un módulo: pide datos, simula con dry-run, muestra preview y confirma. */
     private void createModule() {
-        if (!requireProject()) return;
+        if (!requireProject()) {
+            return;
+        }
 
         var result = CreateModuleDialog.show(stage, providerIds());
-        if (result.isEmpty()) return;
+        if (result.isEmpty()) {
+            return;
+        }
 
         CreateModuleDialog.Result params = result.get();
         if (params.name().isBlank() || params.technicians().isEmpty() || params.providers().isEmpty()) {
-            showError("Faltan datos", "Completa nombre, técnicos y proveedores.");
+            showErrorAlert("Faltan datos", null, "Completa nombre, técnicos y proveedores.");
             return;
         }
 
+        beginBusy("Simulando el módulo…");
         Thread.ofVirtual().start(() -> {
             try {
                 CreateModuleData dryRun = cliClient.createModule(
                     projectSession.path(), params.name(), params.technicians(), params.providers(), true);
 
                 Platform.runLater(() -> {
+                    endBusy("Listo");
                     boolean confirmed = CreationPreviewDialog.confirm(
                         stage, "Crear módulo", "Se registrará el módulo y se generarán sus artefactos.", dryRun);
-                    if (!confirmed) return;
-
+                    if (!confirmed) {
+                        return;
+                    }
+                    beginBusy("Creando el módulo…");
                     Thread.ofVirtual().start(() -> executeCreateModule(
                         params.name(), params.technicians(), params.providers()));
                 });
-            } catch (CliClientException ex) {
-                Platform.runLater(() -> showError("Error", ErrorPresenter.present(ex).message()));
-            } catch (Exception ex) {
-                Platform.runLater(() -> showError("Error", ex.getMessage()));
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    showErrorAlert("Error", null, notice.message());
+                    endBusy("Error al simular el módulo");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    showErrorAlert("Error", null, exception.getMessage());
+                    endBusy("Error al simular el módulo");
+                });
             }
         });
     }
@@ -1043,54 +1635,76 @@ public final class App extends Application {
                 projectSession.path(), name, technicians, providers, false);
 
             Platform.runLater(() -> {
-                showInfo("Módulo creado",
-                    "Se crearon " + result.created().size() + " artefactos.\n" +
-                    "Se omitieron " + result.skipped().size() + ".");
+                showInfoAlert("Módulo creado",
+                    "Se crearon " + result.created().size() + " artefactos.\n"
+                        + "Se omitieron " + result.skipped().size() + ".");
+                endBusy("Módulo creado");
                 refreshAll();
             });
-        } catch (CliClientException ex) {
-            Platform.runLater(() -> showError("Error", ErrorPresenter.present(ex).message()));
-        } catch (Exception ex) {
-            Platform.runLater(() -> showError("Error", ex.getMessage()));
+        } catch (CliClientException exception) {
+            ErrorNotice notice = ErrorPresenter.present(exception);
+            Platform.runLater(() -> {
+                showErrorAlert("Error", null, notice.message());
+                endBusy("Error al crear el módulo");
+            });
+        } catch (RuntimeException exception) {
+            Platform.runLater(() -> {
+                showErrorAlert("Error", null, exception.getMessage());
+                endBusy("Error al crear el módulo");
+            });
         }
     }
 
-    /** Añade técnicos a un módulo existente: pide módulo, técnicos y proveedores. */
     private void addTechnician() {
-        if (!requireProject()) return;
+        if (!requireProject()) {
+            return;
+        }
         if (projectSession.status().project().modules().isEmpty()) {
-            showError("Sin módulos", "No hay módulos registrados en el proyecto.");
+            showErrorAlert("Sin módulos", null, "No hay módulos registrados en el proyecto.");
             return;
         }
 
         String selectedModule = projectSession.status().project().modules().getFirst();
         var result = AddTechnicianDialog.show(stage, selectedModule, providerIds());
-        if (result.isEmpty()) return;
-
-        AddTechnicianDialog.Result params = result.get();
-        if (params.technicians().isEmpty() || params.providers().isEmpty()) {
-            showError("Faltan datos", "Selecciona técnicos y proveedores.");
+        if (result.isEmpty()) {
             return;
         }
 
+        AddTechnicianDialog.Result params = result.get();
+        if (params.technicians().isEmpty() || params.providers().isEmpty()) {
+            showErrorAlert("Faltan datos", null, "Selecciona técnicos y proveedores.");
+            return;
+        }
+
+        beginBusy("Simulando los técnicos…");
         Thread.ofVirtual().start(() -> {
             try {
                 CreateModuleData dryRun = cliClient.addTechnician(
                     projectSession.path(), selectedModule, params.technicians(), params.providers(), true);
 
                 Platform.runLater(() -> {
+                    endBusy("Listo");
                     boolean confirmed = CreationPreviewDialog.confirm(
                         stage, "Añadir técnicos",
                         "Se generarán los artefactos para los técnicos en «" + selectedModule + "».", dryRun);
-                    if (!confirmed) return;
-
+                    if (!confirmed) {
+                        return;
+                    }
+                    beginBusy("Añadiendo técnicos…");
                     Thread.ofVirtual().start(() -> executeAddTechnician(
                         selectedModule, params.technicians(), params.providers()));
                 });
-            } catch (CliClientException ex) {
-                Platform.runLater(() -> showError("Error", ErrorPresenter.present(ex).message()));
-            } catch (Exception ex) {
-                Platform.runLater(() -> showError("Error", ex.getMessage()));
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    showErrorAlert("Error", null, notice.message());
+                    endBusy("Error al simular los técnicos");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    showErrorAlert("Error", null, exception.getMessage());
+                    endBusy("Error al simular los técnicos");
+                });
             }
         });
     }
@@ -1101,58 +1715,71 @@ public final class App extends Application {
                 projectSession.path(), module, technicians, providers, false);
 
             Platform.runLater(() -> {
-                showInfo("Técnicos añadidos",
-                    "Se crearon " + result.created().size() + " artefactos.\n" +
-                    "Se omitieron " + result.skipped().size() + ".");
+                showInfoAlert("Técnicos añadidos",
+                    "Se crearon " + result.created().size() + " artefactos.\n"
+                        + "Se omitieron " + result.skipped().size() + ".");
+                endBusy("Técnicos añadidos");
                 refreshAll();
             });
-        } catch (CliClientException ex) {
-            Platform.runLater(() -> showError("Error", ErrorPresenter.present(ex).message()));
-        } catch (Exception ex) {
-            Platform.runLater(() -> showError("Error", ex.getMessage()));
+        } catch (CliClientException exception) {
+            ErrorNotice notice = ErrorPresenter.present(exception);
+            Platform.runLater(() -> {
+                showErrorAlert("Error", null, notice.message());
+                endBusy("Error al añadir técnicos");
+            });
+        } catch (RuntimeException exception) {
+            Platform.runLater(() -> {
+                showErrorAlert("Error", null, exception.getMessage());
+                endBusy("Error al añadir técnicos");
+            });
         }
     }
 
     private void createArtifact() {
-        // Verificar que hay un proyecto configurado o permitir global
         boolean hasProject = projectSession != null && projectSession.configured();
         List<String> providers = providerIds();
         if (providers.isEmpty()) {
-            showError("Sin proveedores", "No hay proveedores configurados.");
+            showErrorAlert("Sin proveedores", null, "No hay proveedores configurados.");
             return;
         }
 
-        // Paso 1: Selección inicial
         Optional<CreateArtifactDialog.Result> selectionOpt = CreateArtifactDialog.show(stage, providers, hasProject);
-        if (selectionOpt.isEmpty()) return;
+        if (selectionOpt.isEmpty()) {
+            return;
+        }
         CreateArtifactDialog.Result selection = selectionOpt.get();
 
-        // Validar que si es project, hay proyecto configurado
         if ("project".equals(selection.scope()) && !hasProject) {
-            showError("Proyecto requerido", "No hay proyecto configurado. Selecciona un proyecto o usa ámbito global.");
+            showErrorAlert("Proyecto requerido", null,
+                "No hay proyecto configurado. Selecciona un proyecto o usa ámbito global.");
             return;
         }
 
+        beginBusy("Consultando el catálogo…");
         Thread.ofVirtual().start(() -> {
             try {
-                // Paso 2: Obtener lista de nombres disponibles
                 CatalogData catalogList = cliClient.catalog(
                     selection.provider(), selection.scope(), selection.kind(), null,
                     "project".equals(selection.scope()) ? projectSession.path() : null);
 
                 if (catalogList.entries().isEmpty()) {
-                    Platform.runLater(() -> showError("Sin artefactos",
-                        "No hay artefactos disponibles en el catálogo para esta combinación."));
+                    Platform.runLater(() -> {
+                        showErrorAlert("Sin artefactos", null,
+                            "No hay artefactos disponibles en el catálogo para esta combinación.");
+                        endBusy("Sin resultados");
+                    });
                     return;
                 }
 
-                // Paso 3: Seleccionar nombre del catálogo
                 Platform.runLater(() -> {
+                    endBusy("Listo");
                     Optional<String> nameOpt = selectNameFromCatalog(catalogList);
-                    if (nameOpt.isEmpty()) return;
+                    if (nameOpt.isEmpty()) {
+                        return;
+                    }
                     String name = nameOpt.get();
+                    beginBusy("Cargando la plantilla…");
 
-                    // Paso 4: Obtener plantilla con --name
                     Thread.ofVirtual().start(() -> {
                         try {
                             CatalogData catalogWithTemplate = cliClient.catalog(
@@ -1160,35 +1787,51 @@ public final class App extends Application {
                                 "project".equals(selection.scope()) ? projectSession.path() : null);
 
                             if (catalogWithTemplate.entries().isEmpty()) {
-                                Platform.runLater(() -> showError("Error",
-                                    "No se encontró la plantilla para «" + name + "»."));
+                                Platform.runLater(() -> {
+                                    showErrorAlert("Error", null,
+                                        "No se encontró la plantilla para «" + name + "».");
+                                    endBusy("Sin plantilla");
+                                });
                                 return;
                             }
 
                             CatalogData.CatalogEntry entry = catalogWithTemplate.entries().getFirst();
-
-                            // Paso 5: Editar plantilla
                             Platform.runLater(() -> {
+                                endBusy("Listo");
                                 Optional<EditTemplateDialog.Result> editOpt = EditTemplateDialog.show(
                                     stage, name, entry.template(), entry.exists());
-                                if (editOpt.isEmpty()) return;
-                                EditTemplateDialog.Result edit = editOpt.get();
-
-                                // Paso 6: Crear artefacto
+                                if (editOpt.isEmpty()) {
+                                    return;
+                                }
+                                beginBusy("Creando el artefacto…");
                                 Thread.ofVirtual().start(() -> executeCreateArtifact(
-                                    selection, name, edit, entry));
+                                    selection, name, editOpt.get(), entry));
                             });
-                        } catch (CliClientException ex) {
-                            Platform.runLater(() -> showError("Error", ErrorPresenter.present(ex).message()));
-                        } catch (Exception ex) {
-                            Platform.runLater(() -> showError("Error", ex.getMessage()));
+                        } catch (CliClientException exception) {
+                            ErrorNotice notice = ErrorPresenter.present(exception);
+                            Platform.runLater(() -> {
+                                showErrorAlert("Error", null, notice.message());
+                                endBusy("Error al cargar la plantilla");
+                            });
+                        } catch (RuntimeException exception) {
+                            Platform.runLater(() -> {
+                                showErrorAlert("Error", null, exception.getMessage());
+                                endBusy("Error al cargar la plantilla");
+                            });
                         }
                     });
                 });
-            } catch (CliClientException ex) {
-                Platform.runLater(() -> showError("Error", ErrorPresenter.present(ex).message()));
-            } catch (Exception ex) {
-                Platform.runLater(() -> showError("Error", ex.getMessage()));
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    showErrorAlert("Error", null, notice.message());
+                    endBusy("Error al consultar el catálogo");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    showErrorAlert("Error", null, exception.getMessage());
+                    endBusy("Error al consultar el catálogo");
+                });
             }
         });
     }
@@ -1200,6 +1843,7 @@ public final class App extends Application {
         dialog.initOwner(stage);
         dialog.setTitle("Seleccionar artefacto");
         dialog.setHeaderText("Elige el artefacto que deseas crear:");
+        Theme.apply(dialog);
         return dialog.showAndWait();
     }
 
@@ -1213,136 +1857,296 @@ public final class App extends Application {
 
             Platform.runLater(() -> {
                 if (result.replaced()) {
-                    showInfo("Artefacto creado",
-                        "El artefacto «" + name + "» se creó sobrescribiendo el existente.\n" +
-                        "Ruta: " + result.path());
+                    showInfoAlert("Artefacto creado",
+                        "El artefacto «" + name + "» se creó sobrescribiendo el existente.\n"
+                            + "Ruta: " + result.path());
                 } else {
-                    showInfo("Artefacto creado",
-                        "El artefacto «" + name + "» se creó correctamente.\n" +
-                        "Ruta: " + result.path());
+                    showInfoAlert("Artefacto creado",
+                        "El artefacto «" + name + "» se creó correctamente.\n"
+                            + "Ruta: " + result.path());
                 }
+                endBusy("Artefacto creado");
                 refreshAll();
             });
-        } catch (CliClientException ex) {
-            Platform.runLater(() -> showError("Error", ErrorPresenter.present(ex).message()));
-        } catch (Exception ex) {
-            Platform.runLater(() -> showError("Error", ex.getMessage()));
+        } catch (CliClientException exception) {
+            ErrorNotice notice = ErrorPresenter.present(exception);
+            Platform.runLater(() -> {
+                showErrorAlert("Error", null, notice.message());
+                endBusy("Error al crear el artefacto");
+            });
+        } catch (RuntimeException exception) {
+            Platform.runLater(() -> {
+                showErrorAlert("Error", null, exception.getMessage());
+                endBusy("Error al crear el artefacto");
+            });
         }
     }
 
     private boolean requireProject() {
-        if (projectSession.path() == null) {
-            showError("Sin proyecto", "Selecciona un proyecto primero.");
+        if (projectSession == null || projectSession.path() == null) {
+            showErrorAlert("Sin proyecto", null, "Selecciona un proyecto primero.");
             return false;
         }
         if (!projectSession.configured()) {
-            showError("Proyecto no configurado", "Inicia el proyecto antes de crear módulos.");
+            showErrorAlert("Proyecto no configurado", null,
+                "Inicia el proyecto antes de crear módulos o técnicos.");
             return false;
         }
         return true;
-    }
-
-    private List<String> providerIds() {
-        if (projectSession.status() == null || projectSession.status().providers() == null) {
-            return List.of();
-        }
-        return projectSession.status().providers().stream()
-            .map(StatusData.Provider::id)
-            .toList();
     }
 
     private void refreshAll() {
         try {
             StatusData status = projectSession.select(projectSession.path());
             Platform.runLater(() -> renderProject(status));
-        } catch (CliClientException ex) {
-            Platform.runLater(() -> showError("Error al refrescar", ErrorPresenter.present(ex).message()));
-        } catch (Exception ex) {
-            Platform.runLater(() -> showError("Error al refrescar", ex.getMessage()));
+        } catch (CliClientException exception) {
+            ErrorNotice notice = ErrorPresenter.present(exception);
+            Platform.runLater(() -> showErrorAlert("Error al refrescar", null, notice.message()));
+        } catch (RuntimeException exception) {
+            Platform.runLater(() -> showErrorAlert("Error al refrescar", null, exception.getMessage()));
         }
     }
 
-    private void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.initOwner(stage);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+    // ------------------------------------------------------------------
+    // Acciones de interfaz
+    // ------------------------------------------------------------------
+
+    private void onEditorDirtyChanged() {
+        boolean dirty = previewPanel != null && previewPanel.isDirty();
+        if (dirtyStatus != null) {
+            dirtyStatus.setText(dirty ? "● Cambios sin guardar" : "");
+            dirtyStatus.setManaged(dirty);
+            dirtyStatus.setVisible(dirty);
+        }
+        if (treeView != null) {
+            treeView.refresh();
+        }
+        updateWindowTitle();
+        updateMenuStates();
     }
 
-    private void showInfo(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.initOwner(stage);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+    private void onConsoleStateChanged(boolean active) {
+        if (consoleTab != null) {
+            consoleTab.setText(active ? "Consola  ●" : "Consola");
+        }
     }
 
-    private void showProjectError(Path path, ErrorNotice notice) {
-        projectPath.setText(path == null ? "" : path.toString());
-        setProjectState("Error " + notice.code(), "error");
-        projectSummary.setText("Mensaje: " + notice.message()
-            + "\nAcción: " + notice.action());
-        initProjectButton.setDisable(true);
+    private void focusSearch() {
+        if (searchField == null) {
+            return;
+        }
+        searchField.requestFocus();
+        searchField.selectAll();
     }
 
-    private void setProjectState(String text, String style) {
-        projectState.setText(text);
-        projectState.getStyleClass().removeAll("muted", "ok", "error", "warning");
-        projectState.getStyleClass().add(style);
+    private void showConsole() {
+        if (workspaceTabs == null || consoleTab == null) {
+            return;
+        }
+        showWorkspace();
+        workspaceTabs.getSelectionModel().select(consoleTab);
+        if (ptyConsolePanel != null) {
+            ptyConsolePanel.focusInput();
+        }
+    }
+
+    private void updateMenuStates() {
+        boolean cli = cliClient != null;
+        boolean hasProject = projectSession != null && projectSession.path() != null;
+        boolean configured = projectSession != null && projectSession.configured();
+        boolean hasProviders = !providerIds().isEmpty();
+        boolean hasModules = hasProject && hasModules(projectSession.status());
+        boolean dirty = previewPanel != null && previewPanel.isDirty();
+
+        if (openProjectMenuItem != null) {
+            openProjectMenuItem.setDisable(!cli);
+        }
+        if (reloadMenuItem != null) {
+            reloadMenuItem.setDisable(!cli);
+        }
+        if (saveMenuItem != null) {
+            saveMenuItem.setDisable(!dirty);
+        }
+        if (closeProjectMenuItem != null) {
+            closeProjectMenuItem.setDisable(!hasProject);
+        }
+        if (initProjectMenuItem != null) {
+            initProjectMenuItem.setDisable(!cli || !hasProject || configured);
+        }
+        setDisabled(createModuleItems, !cli || !configured);
+        setDisabled(addTechnicianItems, !cli || !hasModules);
+        setDisabled(createArtifactItems, !cli || !hasProviders);
+        if (searchMenuItem != null) {
+            searchMenuItem.setDisable(lastTreeData == null);
+        }
+        if (consoleMenuItem != null) {
+            consoleMenuItem.setDisable(ptyConsolePanel == null);
+        }
+        if (openProjectButton != null) {
+            openProjectButton.setDisable(!cli);
+        }
+        if (createMenuButton != null) {
+            createMenuButton.setDisable(!cli || !hasProviders);
+        }
+        if (sidebarRefreshButton != null) {
+            sidebarRefreshButton.setDisable(!cli);
+        }
+        if (searchField != null) {
+            searchField.setDisable(!cli);
+        }
+        if (initProjectButton != null) {
+            boolean showInit = hasProject && !configured;
+            initProjectButton.setManaged(showInit);
+            initProjectButton.setVisible(showInit);
+            initProjectButton.setDisable(!cli || configured);
+        }
+        if (welcomePane != null) {
+            welcomePane.setProvidersAvailable(hasProviders);
+        }
+    }
+
+    private static void setDisabled(List<MenuItem> items, boolean disabled) {
+        for (MenuItem item : items) {
+            item.setDisable(disabled);
+        }
+    }
+
+    private void updateWatcherStatus() {
+        if (watcherStatus == null) {
+            return;
+        }
+        boolean running = projectWatcher != null && projectWatcher.isRunning();
+        watcherStatus.setText(running ? "Vigilando cambios" : "Watcher inactivo");
+        watcherStatus.getStyleClass().removeAll("ok", "muted");
+        watcherStatus.getStyleClass().add(running ? "ok" : "muted");
+    }
+
+    private void updateWindowTitle() {
+        if (stage == null) {
+            return;
+        }
+        String project = "";
+        if (projectSession != null && projectSession.path() != null) {
+            Path fileName = projectSession.path().getFileName();
+            project = " — " + (fileName == null ? projectSession.path() : fileName);
+        }
+        String dirty = previewPanel != null && previewPanel.isDirty() ? " •" : "";
+        stage.setTitle("Agentic Viewer" + project + dirty);
+    }
+
+    private void setStatus(String message) {
+        if (statusMessage != null && busyCount == 0) {
+            statusMessage.setText(message);
+        }
+    }
+
+    private void beginBusy(String message) {
+        busyCount++;
+        if (busySpinner != null) {
+            busySpinner.setManaged(true);
+            busySpinner.setVisible(true);
+        }
+        if (statusMessage != null) {
+            statusMessage.setText(message);
+        }
+    }
+
+    private void endBusy(String message) {
+        busyCount = Math.max(0, busyCount - 1);
+        if (busyCount == 0) {
+            if (busySpinner != null) {
+                busySpinner.setManaged(false);
+                busySpinner.setVisible(false);
+            }
+            if (statusMessage != null) {
+                statusMessage.setText(message == null ? "Listo" : message);
+            }
+        }
+    }
+
+    private void requestExit() {
+        stage.fireEvent(new WindowEvent(stage, WindowEvent.WINDOW_CLOSE_REQUEST));
+    }
+
+    private void closeResources() {
+        if (projectWatcher != null) {
+            projectWatcher.close();
+        }
+        if (ptyConsolePanel != null) {
+            ptyConsolePanel.shutdown();
+        }
+    }
+
+    private boolean hasModules(StatusData status) {
+        return status != null
+            && status.project() != null
+            && status.project().modules() != null
+            && !status.project().modules().isEmpty();
     }
 
     private Path currentProject() {
         return projectSession == null ? null : projectSession.path();
     }
 
-    private void runRaw(List<String> args, TextArea output, Label state) {
-        state.setText("Ejecutando…");
-        output.clear();
+    // ------------------------------------------------------------------
+    // Diálogos de información y formato
+    // ------------------------------------------------------------------
 
-        Thread.ofVirtual().start(() -> {
-            try {
-                CliResult result = new CliProcess(cliCommand).run(args);
-                String text = formatResult(result);
-                Platform.runLater(() -> {
-                    output.setText(text);
-                    state.setText(result.timedOut() ? "Timeout" : "Código " + result.exitCode());
-                });
-            } catch (RuntimeException exception) {
-                Platform.runLater(() -> {
-                    output.setText(exception.getMessage());
-                    state.setText("Error");
-                });
-            }
-        });
+    private void showShortcuts() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.initOwner(stage);
+        alert.setTitle("Atajos de teclado");
+        alert.setHeaderText("Trabaja sin soltar el teclado");
+        Theme.apply(alert);
+        alert.setContentText("""
+            Ctrl+O        Abrir proyecto
+            F5            Recargar el árbol
+            Ctrl+S        Guardar (en skills, todos los ficheros)
+            Ctrl+F        Buscar artefactos
+            F6            Ir a la consola
+            Ctrl+M        Crear módulo
+            Ctrl+Shift+T  Añadir técnico
+            Ctrl+N        Crear artefacto
+            Ctrl+Q        Salir
+            """);
+        alert.showAndWait();
     }
 
-    private void runTyped(String label, Callable<String> action, TextArea output, Label state) {
-        state.setText("Ejecutando…");
-        output.clear();
+    private void showAbout() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.initOwner(stage);
+        alert.setTitle("Acerca de Agentic Viewer");
+        alert.setHeaderText("Agentic Viewer");
+        Theme.apply(alert);
+        alert.setContentText("""
+            Visor de escritorio para el entorno agéntico de desarrollo.
 
-        Thread.ofVirtual().start(() -> {
-            try {
-                String text = action.call();
-                Platform.runLater(() -> {
-                    output.setText(text);
-                    state.setText(label + " OK");
-                });
-            } catch (CliClientException exception) {
-                ErrorNotice notice = ErrorPresenter.present(exception);
-                Platform.runLater(() -> {
-                    output.setText(formatNotice(notice));
-                    state.setText("Error " + notice.code());
-                });
-            } catch (Exception exception) {
-                Platform.runLater(() -> {
-                    output.setText(exception.getMessage());
-                    state.setText("Error");
-                });
-            }
-        });
+            JavaFX 21 · Consume el CLI mediante el contrato cli-json v1.
+            Todo se ejecuta en tu equipo; no requiere conexión a internet.
+            """);
+        alert.showAndWait();
+    }
+
+    private void showErrorAlert(String title, String header, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.initOwner(stage);
+        alert.setTitle(title);
+        alert.setHeaderText(header);
+        alert.setContentText(message);
+        alert.setResizable(true);
+        Theme.apply(alert);
+        alert.showAndWait();
+    }
+
+    private void showInfoAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.initOwner(stage);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.setResizable(true);
+        Theme.apply(alert);
+        alert.showAndWait();
     }
 
     private static String formatProjectSummary(StatusData status) {
@@ -1350,23 +2154,19 @@ public final class App extends Application {
         if (status.providers() != null && !status.providers().isEmpty()) {
             text.append("Proveedores: ")
                 .append(status.providers().stream()
-                    .map(provider -> provider.name() + "=" + provider.state())
+                    .map(provider -> provider.name() + " = " + provider.state())
                     .collect(Collectors.joining(" · ")));
         }
         if (status.project() != null) {
             if (!text.isEmpty()) {
-                text.append('\n');
+                text.append("   ·   ");
             }
-            text.append("Proyecto: ")
-                .append(status.project().initialized() ? "con .sdd" : "sin .sdd");
+            text.append(status.project().initialized() ? "Proyecto con .sdd" : "Proyecto sin .sdd");
             int modules = status.project().modules() == null ? 0 : status.project().modules().size();
             text.append(" · módulos: ").append(modules);
             if (status.project().warnings() != null && !status.project().warnings().isEmpty()) {
                 text.append(" · avisos: ").append(status.project().warnings().size());
             }
-        }
-        if (text.isEmpty()) {
-            text.append("Sin datos del proyecto.");
         }
         return text.toString();
     }
@@ -1390,70 +2190,37 @@ public final class App extends Application {
 
     private static String formatNode(TreeData.Node node) {
         StringBuilder text = new StringBuilder();
-        text.append("Tipo: ").append(node.type()).append('\n');
-        text.append("Nombre: ").append(node.name()).append('\n');
+        text.append(kindLabel(node.type())).append(" · ").append(node.name());
         if (node.provider() != null) {
-            text.append("Proveedor: ").append(node.provider()).append('\n');
+            text.append("\nProveedor: ").append(node.provider());
         }
         if (node.status() != null) {
-            text.append("Estado: ").append(node.status()).append('\n');
+            text.append(" · Estado: ").append(node.status());
         }
         if (node.pending()) {
-            text.append("Pendiente: sí\n");
+            text.append(" · Pendiente");
         }
         if (node.path() != null) {
-            text.append("Ruta: ").append(node.path()).append('\n');
-        }
-        return text.toString().trim();
-    }
-
-    private static String formatResult(CliResult result) {
-        StringBuilder text = new StringBuilder();
-        text.append("exit: ").append(result.exitCode())
-            .append(" · ").append(result.durationMillis()).append(" ms");
-        if (result.timedOut()) {
-            text.append(" · TIMEOUT");
-        }
-        text.append("\n\n=== stdout ===\n").append(result.stdout());
-        if (!result.stderr().isBlank()) {
-            text.append("\n=== stderr ===\n").append(result.stderr());
+            text.append('\n').append(node.path());
         }
         return text.toString();
     }
 
-    private static String formatStatus(StatusData data) {
-        StringBuilder text = new StringBuilder("Proveedores:\n");
-        if (data.providers() != null) {
-            for (StatusData.Provider provider : data.providers()) {
-                text.append("  ").append(provider.name())
-                    .append(" (").append(provider.id()).append("): ")
-                    .append(provider.state());
-                if (provider.missing() != null && !provider.missing().isEmpty()) {
-                    text.append(" · faltan ").append(provider.missing().size());
-                }
-                text.append('\n');
-            }
+    private static String kindLabel(String type) {
+        if (type == null) {
+            return "Nodo";
         }
-
-        if (data.project() == null) {
-            text.append("Proyecto: (sin proyecto)");
-        } else {
-            text.append("Proyecto: ").append(data.project().path()).append('\n');
-            text.append("  inicializado: ").append(data.project().initialized()).append('\n');
-            int modules = data.project().modules() == null ? 0 : data.project().modules().size();
-            text.append("  módulos: ").append(modules);
-            if (data.project().warnings() != null && !data.project().warnings().isEmpty()) {
-                text.append(" · avisos: ").append(data.project().warnings().size());
-            }
-        }
-        return text.toString();
-    }
-
-    private static String formatNotice(ErrorNotice notice) {
-        return "ERROR " + notice.code()
-            + "\nRuta: " + (notice.path() == null ? "-" : notice.path())
-            + "\nMensaje: " + notice.message()
-            + "\nAcción: " + notice.action();
+        return switch (type) {
+            case "agent" -> "Agente";
+            case "skill" -> "Skill";
+            case "profile" -> "Perfil";
+            case "module" -> "Módulo";
+            case "technician" -> "Técnico";
+            case "sdd" -> "Directorio .sdd";
+            case "provider" -> "Proveedor";
+            case "root" -> "Raíz";
+            default -> type;
+        };
     }
 
     public static void main(String[] args) {

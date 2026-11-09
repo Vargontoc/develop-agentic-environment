@@ -3,13 +3,14 @@ package es.vargontoc.agentic.viewer.creation;
 import java.util.Optional;
 
 import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
+import es.vargontoc.agentic.viewer.ui.Theme;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
@@ -32,26 +33,27 @@ public final class CreationPreviewDialog {
         dialog.initOwner(owner);
         dialog.setTitle(title);
         dialog.setHeaderText(header);
+        dialog.setResizable(true);
+        Theme.apply(dialog);
 
-        ButtonType confirm = new ButtonType("Confirmar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType confirm = new ButtonType("Confirmar y crear", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(confirm, cancel);
 
         VBox content = new VBox(10);
-        content.setPadding(new Insets(10));
+        content.setPadding(new Insets(8));
+        content.setPrefSize(680, 440);
 
-        content.getChildren().add(new Label("Módulo: " + data.module()));
+        Label module = new Label("Módulo: " + data.module());
+        module.getStyleClass().add("form-label");
 
         TextArea preview = new TextArea(formatPreview(data));
         preview.setEditable(false);
         preview.setWrapText(false);
         preview.getStyleClass().add("console");
-        preview.setPrefSize(600, 360);
+        VBox.setVgrow(preview, Priority.ALWAYS);
 
-        ScrollPane scroll = new ScrollPane(preview);
-        scroll.setFitToWidth(true);
-        scroll.setPrefViewportHeight(360);
-        content.getChildren().add(scroll);
+        content.getChildren().addAll(module, preview);
 
         if (data.warnings() != null && !data.warnings().isEmpty()) {
             Label warnings = new Label("Avisos: " + String.join(", ", data.warnings()));

@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import es.vargontoc.agentic.viewer.ui.Theme;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -38,21 +40,23 @@ public final class CreateModuleDialog {
         Dialog<Result> dialog = new Dialog<>();
         dialog.initOwner(owner);
         dialog.setTitle("Crear módulo");
-        dialog.setHeaderText("Registrar un módulo nuevo en .sdd/team.md y generar sus agentes y skills.");
+        dialog.setHeaderText("Registra un módulo en .sdd/team.md y genera sus agentes y skills.");
+        Theme.apply(dialog);
 
-        ButtonType create = new ButtonType("Crear", ButtonBar.ButtonData.OK_DONE);
+        ButtonType create = new ButtonType("Crear módulo", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(create, cancel);
 
-        VBox content = new VBox(10);
-        content.setPadding(new Insets(10));
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(8));
+        content.setPrefWidth(420);
 
-        Label nameLabel = new Label("Nombre del módulo:");
+        Label nameLabel = formLabel("Nombre del módulo");
         TextField nameField = new TextField();
-        nameField.setPromptText("Ej: auth, billing, notifications (mínimo 3 caracteres)");
-        nameField.setPrefWidth(300);
+        nameField.setPromptText("Ej.: auth, billing, notifications (mínimo 3 caracteres)");
+        nameField.setMaxWidth(Double.MAX_VALUE);
 
-        Label techLabel = new Label("Técnicos:");
+        Label techLabel = formLabel("Técnicos");
         Map<String, CheckBox> techChecks = new LinkedHashMap<>();
         for (String tech : TECHNICIANS) {
             CheckBox cb = new CheckBox(tech);
@@ -60,7 +64,7 @@ public final class CreateModuleDialog {
             techChecks.put(tech, cb);
         }
 
-        Label provLabel = new Label("Proveedores:");
+        Label provLabel = formLabel("Proveedores");
         Map<String, CheckBox> provChecks = new LinkedHashMap<>();
         for (String prov : providerIds) {
             CheckBox cb = new CheckBox(prov);
@@ -68,42 +72,90 @@ public final class CreateModuleDialog {
             provChecks.put(prov, cb);
         }
 
-        VBox techBox = new VBox(4);
-        for (CheckBox cb : techChecks.values()) {
-            techBox.getChildren().add(cb);
-        }
-
-        VBox provBox = new VBox(4);
-        for (CheckBox cb : provChecks.values()) {
-            provBox.getChildren().add(cb);
-        }
+        VBox techBox = checkBoxGroup(techChecks);
+        VBox provBox = checkBoxGroup(provChecks);
         if (provChecks.isEmpty()) {
-            provBox.getChildren().add(new Label("(sin proveedores configurados)"));
+            Label empty = new Label("No hay proveedores configurados.");
+            empty.getStyleClass().add("warning");
+            provBox.getChildren().add(empty);
         }
 
-        content.getChildren().addAll(nameLabel, nameField, techLabel, techBox, provLabel, provBox);
+        Label errorLabel = new Label();
+        errorLabel.getStyleClass().add("error");
+        errorLabel.setWrapText(true);
+        errorLabel.setManaged(false);
+        errorLabel.setVisible(false);
+
+        content.getChildren().addAll(nameLabel, nameField, techLabel, techBox, provLabel, provBox, errorLabel);
         dialog.getDialogPane().setContent(content);
 
-        dialog.setResultConverter(buttonType -> {
-            if (buttonType == create) {
-                String name = nameField.getText().trim();
-                List<String> technicians = new ArrayList<>();
-                for (var entry : techChecks.entrySet()) {
-                    if (entry.getValue().isSelected()) {
-                        technicians.add(entry.getKey());
-                    }
-                }
-                List<String> providers = new ArrayList<>();
-                for (var entry : provChecks.entrySet()) {
-                    if (entry.getValue().isSelected()) {
-                        providers.add(entry.getKey());
-                    }
-                }
-                return new Result(name, technicians, providers);
+        var createButton = dialog.getDialogPane().lookupButton(create);
+        Runnable validate = () -> {
+            String name = nameField.getText() == null ? "" : nameField.getText().trim();
+            boolean hasTechnicians = techChecks.values().stream().anyMatch(CheckBox::isSelected);
+            boolean hasProviders = provChecks.values().stream().anyMatch(CheckBox::isSelected);
+            boolean nameOk = name.length() >= 3;
+            createButton.setDisable(!(nameOk && hasTechnicians && hasProviders));
+            if (!name.isBlank() && !nameOk) {
+                showError(errorLabel, "El nombre debe tener al menos 3 caracteres.");
+            } else if (!hasTechnicians && !techChecks.isEmpty()) {
+                showError(errorLabel, "Selecciona al menos un técnico.");
+            } else if (!hasProviders && !provChecks.isEmpty()) {
+                showError(errorLabel, "Selecciona al menos un proveedor.");
+            } else {
+                hide(errorLabel);
             }
-            return null;
+        };
+        nameField.textProperty().addListener((observable, previous, current) -> validate.run());
+        techChecks.values().forEach(check -> check.selectedProperty().addListener((o, p, c) -> validate.run()));
+        provChecks.values().forEach(check -> check.selectedProperty().addListener((o, p, c) -> validate.run()));
+        validate.run();
+        Platform.runLater(nameField::requestFocus);
+
+        dialog.setResultConverter(buttonType -> {
+            if (buttonType != create) {
+                return null;
+            }
+            String name = nameField.getText().trim();
+            return new Result(name, selected(techChecks), selected(provChecks));
         });
 
         return dialog.showAndWait();
+    }
+
+    private static VBox checkBoxGroup(Map<String, CheckBox> checks) {
+        VBox box = new VBox(6);
+        for (CheckBox check : checks.values()) {
+            box.getChildren().add(check);
+        }
+        return box;
+    }
+
+    private static List<String> selected(Map<String, CheckBox> checks) {
+        List<String> result = new ArrayList<>();
+        for (var entry : checks.entrySet()) {
+            if (entry.getValue().isSelected()) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    private static Label formLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("form-label");
+        return label;
+    }
+
+    private static void showError(Label label, String text) {
+        label.setText(text);
+        label.setManaged(true);
+        label.setVisible(true);
+    }
+
+    private static void hide(Label label) {
+        label.setText("");
+        label.setManaged(false);
+        label.setVisible(false);
     }
 }
