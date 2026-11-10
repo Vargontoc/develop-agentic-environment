@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
+import es.vargontoc.agentic.viewer.tree.TreeGroups;
 import javafx.scene.Node;
 
 /**
@@ -25,6 +26,7 @@ public final class TreePresentation {
             case "module" -> Icons.Icon.MODULE;
             case "technician" -> Icons.Icon.TECHNICIAN;
             case "sdd" -> Icons.Icon.SDD;
+            case "group" -> Icons.Icon.FOLDER;
             case "root" -> "Global".equals(node.name()) ? Icons.Icon.GLOBE : Icons.Icon.FOLDER;
             default -> Icons.Icon.FOLDER;
         };
@@ -56,6 +58,7 @@ public final class TreePresentation {
             case "technician" -> "Técnico";
             case "sdd" -> "Directorio .sdd";
             case "provider" -> "Proveedor";
+            case "group" -> "Carpeta";
             case "root" -> "Raíz";
             default -> type;
         };
@@ -74,6 +77,10 @@ public final class TreePresentation {
     }
 
     public static String tooltip(TreeData.Node node, boolean dirty, boolean stale) {
+        if (TreeGroups.GROUP.equals(node.type())) {
+            int count = node.children() == null ? 0 : node.children().size();
+            return node.name() + " · " + count + (count == 1 ? " elemento" : " elementos");
+        }
         StringBuilder text = new StringBuilder(kindLabel(node.type()));
         if (node.status() != null) {
             text.append(" · ").append(statusLabel(node.status()));

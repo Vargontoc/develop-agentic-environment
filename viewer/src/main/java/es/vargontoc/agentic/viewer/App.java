@@ -48,6 +48,7 @@ import es.vargontoc.agentic.viewer.runtime.ViewerLog;
 import es.vargontoc.agentic.viewer.runtime.WatcherPaths;
 import es.vargontoc.agentic.viewer.terminal.PtyConsolePanel;
 import es.vargontoc.agentic.viewer.tree.TreeFilter;
+import es.vargontoc.agentic.viewer.tree.TreeGroups;
 import es.vargontoc.agentic.viewer.tree.TreeLabels;
 import es.vargontoc.agentic.viewer.tree.TreeModel;
 import es.vargontoc.agentic.viewer.ui.Icons;
@@ -510,6 +511,9 @@ public final class App extends Application {
                 return;
             }
             selectedNode = node;
+            if (node != null && TreeGroups.GROUP.equals(node.type()) && selected != null) {
+                selected.setExpanded(!selected.isExpanded());
+            }
             if (node == null) {
                 hideSelectionInfo();
             } else {
@@ -639,7 +643,8 @@ public final class App extends Application {
             return;
         }
         String query = searchField == null ? "" : searchField.getText();
-        List<TreeData.Node> roots = TreeFilter.filter(TreeModel.roots(lastTreeData), query);
+        List<TreeData.Node> grouped = TreeGroups.group(TreeModel.roots(lastTreeData));
+        List<TreeData.Node> roots = TreeFilter.filter(grouped, query);
 
         suppressSelection = true;
         treeRoot.getChildren().setAll(roots.stream().map(this::toItem).toList());
@@ -752,6 +757,12 @@ public final class App extends Application {
                 "Técnico del equipo. Sus artefactos generados aparecen agrupados por proveedor y módulo.");
             case "provider" -> previewPanel.showMessage(node.name(),
                 "Proveedor. Selecciona un agente, una skill o un perfil para previsualizarlo.");
+            case "group" -> {
+                int count = node.children() == null ? 0 : node.children().size();
+                previewPanel.showMessage(node.name(), count == 1
+                    ? "1 artefacto. Selecciónalo para verlo."
+                    : count + " artefactos. Selecciona uno para verlo.");
+            }
             default -> previewPanel.showEmpty();
         }
     }
@@ -2479,6 +2490,11 @@ public final class App extends Application {
     private static String formatNode(TreeData.Node node) {
         StringBuilder text = new StringBuilder();
         text.append(TreePresentation.kindLabel(node.type())).append(" · ").append(node.name());
+        if (TreeGroups.GROUP.equals(node.type())) {
+            int count = node.children() == null ? 0 : node.children().size();
+            text.append('\n').append(count).append(count == 1 ? " elemento" : " elementos");
+            return text.toString();
+        }
         if (node.provider() != null) {
             text.append("\nProveedor: ").append(node.provider());
         }

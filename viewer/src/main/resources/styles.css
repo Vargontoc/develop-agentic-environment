@@ -521,6 +521,11 @@
     -fx-font-weight: bold;
 }
 
+.tree-group {
+    -fx-text-fill: #b9c2cd;
+    -fx-font-weight: bold;
+}
+
 .tree-pending {
     -fx-text-fill: #fbbf24;
     -fx-font-style: italic;
@@ -1133,6 +1138,10 @@
 
 .tree-icon.icon-sdd {
     -fx-stroke: #f3f5f7;
+}
+
+.tree-icon.icon-group {
+    -fx-stroke: #9aa4b1;
 }
 
 .tree-icon.icon-pending {

@@ -158,7 +158,8 @@ cuerpo compartido, **Propagar** revisa antes las diferencias y los miembros afec
 ## La ventana en un vistazo
 
 - **Menú superior:** abrir y recargar proyectos, crear artefactos, ajustes de vista y ayuda.
-- **Barra lateral:** buscador, árbol de artefactos globales y del proyecto, avisos y resumen de la
+- **Barra lateral:** buscador y árbol de artefactos globales y del proyecto, agrupados en
+  **Agentes**, **Skills**, **Perfiles** y **Hooks** cuando hay varios. Incluye avisos y resumen de la
   selección.
 - **Zona central:** pestañas **Artefacto** y **Consola**. La vista de artefacto incluye metadatos,
   cabecera, cuerpo, ficheros de skill y acciones de guardado.
