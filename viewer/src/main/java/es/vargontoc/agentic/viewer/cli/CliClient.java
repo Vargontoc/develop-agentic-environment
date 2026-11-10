@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -22,6 +23,7 @@ import es.vargontoc.agentic.viewer.cli.model.InitData;
 import es.vargontoc.agentic.viewer.cli.model.SaveData;
 import es.vargontoc.agentic.viewer.cli.model.StatusData;
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
+import es.vargontoc.agentic.viewer.watcher.CacheStore;
 
 /**
  * Cliente tipado del contrato {@code cli-json}. Valida el envelope, la versión
@@ -33,17 +35,26 @@ public final class CliClient {
 
     private final CliRunner runner;
     private final ObjectMapper mapper;
+    private final CacheStore cache;
 
     public CliClient(CliRunner runner, ObjectMapper mapper) {
+        this(runner, mapper, null);
+    }
+
+    public CliClient(CliRunner runner, ObjectMapper mapper, CacheStore cache) {
         this.runner = runner;
+        this.cache = cache;
         this.mapper = mapper.copy()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     public StatusData status(Path project) {
-        List<String> args = new ArrayList<>(List.of("status"));
-        addProject(args, project);
-        return execute(args, StatusData.class);
+        String key = CacheStore.statusKey(projectKey(project));
+        return cached(key, () -> {
+            List<String> args = new ArrayList<>(List.of("status"));
+            addProject(args, project);
+            return execute(args, StatusData.class);
+        });
     }
 
     public InitData init(Path project) {
@@ -52,16 +63,22 @@ public final class CliClient {
     }
 
     public TreeData tree(Path project) {
-        List<String> args = new ArrayList<>(List.of("tree"));
-        addProject(args, project);
-        return execute(args, TreeData.class);
+        String key = CacheStore.treeKey(projectKey(project));
+        return cached(key, () -> {
+            List<String> args = new ArrayList<>(List.of("tree"));
+            addProject(args, project);
+            return execute(args, TreeData.class);
+        });
     }
 
     public DescribeData describe(Path artifact, Path project) {
         Objects.requireNonNull(artifact, "artifact");
-        List<String> args = new ArrayList<>(List.of("describe", "--path", artifact.toString()));
-        addProject(args, project);
-        return execute(args, DescribeData.class);
+        String key = CacheStore.describeKey(artifact.toString(), projectKey(project));
+        return cached(key, () -> {
+            List<String> args = new ArrayList<>(List.of("describe", "--path", artifact.toString()));
+            addProject(args, project);
+            return execute(args, DescribeData.class);
+        });
     }
 
     /** Guarda el cuerpo de una instancia con {@code save --stdin}. */
@@ -212,6 +229,14 @@ public final class CliClient {
             args.add("--project");
             args.add(project.toString());
         }
+    }
+
+    private <T> T cached(String key, Supplier<T> loader) {
+        return cache == null ? loader.get() : cache.getOrLoad(key, loader);
+    }
+
+    private static String projectKey(Path project) {
+        return project == null ? null : project.toString();
     }
 
     private <T> T execute(List<String> args, Class<T> type) {

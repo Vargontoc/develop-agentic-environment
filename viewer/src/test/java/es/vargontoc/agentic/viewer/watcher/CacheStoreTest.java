@@ -77,4 +77,33 @@ class CacheStoreTest {
         assertTrue(status.startsWith("status:"));
         assertTrue(tree.startsWith("tree:"));
     }
+
+    @Test
+    void invalidateProjectSoloAfectaASusClaves() {
+        CacheStore store = new CacheStore();
+        store.getOrLoad(CacheStore.statusKey("/a"), () -> "status-a");
+        store.getOrLoad(CacheStore.treeKey("/a"), () -> "tree-a");
+        store.getOrLoad(CacheStore.describeKey("/a/x", "/a"), () -> "describe-a");
+        store.getOrLoad(CacheStore.describeKey("/a/x", "/b"), () -> "describe-b");
+        store.getOrLoad(CacheStore.treeKey("/b"), () -> "tree-b");
+
+        store.invalidateProject("/a");
+
+        assertEquals(2, store.size());
+        assertEquals("describe-b", store.getOrLoad(CacheStore.describeKey("/a/x", "/b"), () -> "fallback"));
+        assertEquals("tree-b", store.getOrLoad(CacheStore.treeKey("/b"), () -> "fallback"));
+    }
+
+    @Test
+    void invalidateArtifactConservaOtrasDescripciones() {
+        CacheStore store = new CacheStore();
+        store.getOrLoad(CacheStore.describeKey("/a/x", "/a"), () -> "x");
+        store.getOrLoad(CacheStore.describeKey("/a/y", "/a"), () -> "y");
+        store.getOrLoad(CacheStore.treeKey("/a"), () -> "tree");
+
+        store.invalidateArtifact("/a/x", "/a");
+
+        assertEquals(1, store.size());
+        assertEquals("y", store.getOrLoad(CacheStore.describeKey("/a/y", "/a"), () -> "fallback"));
+    }
 }

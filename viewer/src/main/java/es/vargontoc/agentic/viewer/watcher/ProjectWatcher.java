@@ -19,6 +19,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import es.vargontoc.agentic.viewer.runtime.WatcherPaths;
+
 import static java.nio.file.FileVisitOption.FOLLOW_LINKS;
 
 /**
@@ -54,7 +56,7 @@ public final class ProjectWatcher implements AutoCloseable {
      * Inicia la vigilancia de los directorios dados (y sus subdirectorios).
      * Si ya está iniciado, primero se detiene.
      */
-    public void start(List<Path> directories) {
+    public synchronized void start(List<Path> directories) {
         stop();
         if (directories == null || directories.isEmpty()) {
             return;
@@ -89,7 +91,7 @@ public final class ProjectWatcher implements AutoCloseable {
     /**
      * Detiene la vigilancia.
      */
-    public void stop() {
+    public synchronized void stop() {
         running.set(false);
         if (watchService != null) {
             try {
@@ -116,10 +118,16 @@ public final class ProjectWatcher implements AutoCloseable {
     }
 
     private void registerRecursive(Path root) {
+        if (root == null || WatcherPaths.isIgnored(root)) {
+            return;
+        }
         try {
             Files.walkFileTree(root, Set.of(FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    if (!dir.equals(root) && WatcherPaths.isIgnored(dir)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
                     register(dir);
                     return FileVisitResult.CONTINUE;
                 }

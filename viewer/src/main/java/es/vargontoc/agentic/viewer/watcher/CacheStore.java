@@ -44,6 +44,24 @@ public final class CacheStore {
         cache.clear();
     }
 
+    /**
+     * Invalida solo lo que puede haber cambiado tras una escritura en un
+     * proyecto: su estado, su árbol y las descripciones de sus artefactos.
+     */
+    public void invalidateProject(String projectPath) {
+        invalidate(statusKey(projectPath));
+        invalidate(treeKey(projectPath));
+        String project = projectPath == null ? "global" : projectPath;
+        invalidatePrefix(DESCRIBE + ":" + project + ":");
+    }
+
+    /** Invalida un artefacto concreto y los datos de árbol y estado del proyecto. */
+    public void invalidateArtifact(String artifactPath, String projectPath) {
+        invalidate(describeKey(artifactPath, projectPath));
+        invalidate(treeKey(projectPath));
+        invalidate(statusKey(projectPath));
+    }
+
     /** Número de entradas actualmente cacheadas. */
     public int size() {
         return cache.size();

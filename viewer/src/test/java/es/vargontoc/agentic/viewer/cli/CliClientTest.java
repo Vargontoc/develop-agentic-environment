@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +21,7 @@ import es.vargontoc.agentic.viewer.cli.model.DescribeData;
 import es.vargontoc.agentic.viewer.cli.model.SaveData;
 import es.vargontoc.agentic.viewer.cli.model.StatusData;
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
+import es.vargontoc.agentic.viewer.watcher.CacheStore;
 
 class CliClientTest {
 
@@ -311,6 +313,25 @@ class CliClientTest {
             org.junit.jupiter.api.Assumptions.assumeTrue(false, "CLI no construido: " + exception.getMessage());
             return null;
         }
+    }
+
+    @Test
+    void reutilizaLaCacheHastaInvalidarla() {
+        AtomicInteger calls = new AtomicInteger();
+        CacheStore cache = new CacheStore();
+        CliClient client = new CliClient(
+            (args, stdin, timeout) -> {
+                calls.incrementAndGet();
+                return new CliResult(0, statusJson(), "", false, 1);
+            }, mapper, cache);
+
+        client.status(null);
+        client.status(null);
+        assertEquals(1, calls.get());
+
+        cache.invalidateProject(null);
+        client.status(null);
+        assertEquals(2, calls.get());
     }
 
     private CliClient client(String stdout) {

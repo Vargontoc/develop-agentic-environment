@@ -337,6 +337,10 @@ plataforma.
 - **Estado de la aplicación** (metadatos y copias de seguridad): `%LOCALAPPDATA%\agentic-develop`
   en Windows y `$XDG_STATE_HOME/agentic-develop` (o `~/.local/state/agentic-develop`) en Linux.
   No se mezcla con los ficheros del proyecto.
+- **Estado del visor:** dentro de la carpeta anterior, en `viewer/`:
+  - `viewer.log`: diagnóstico y errores. Se abre desde **Ayuda → Abrir carpeta de logs**.
+  - `drafts.json`: borradores de cambios sin guardar. Se aplican al volver a abrir el artefacto
+    y se pueden descartar desde **Archivo → Descartar borradores**.
 - **Menú en Windows:** si ves caracteres extraños (acentos), ejecuta antes `chcp 65001` o usa
   `java -Dfile.encoding=UTF-8 -jar ...`.
 

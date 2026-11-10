@@ -9,7 +9,6 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
-import javafx.scene.control.TextArea;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
@@ -44,10 +43,7 @@ public final class DiffReviewDialog {
         Label label = new Label("Cambios previstos");
         label.getStyleClass().add("form-label");
 
-        TextArea text = new TextArea(body);
-        text.setEditable(false);
-        text.setWrapText(false);
-        text.getStyleClass().add("console");
+        DiffPane text = new DiffPane(body);
         VBox.setVgrow(text, Priority.ALWAYS);
 
         content.getChildren().addAll(label, text);

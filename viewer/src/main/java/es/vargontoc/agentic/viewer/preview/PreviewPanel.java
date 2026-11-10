@@ -76,6 +76,7 @@ public final class PreviewPanel extends VBox {
     private PropagateSkillFileListener onPropagateSkillFile = (editor, file) -> { };
     private SaveAllSkillFilesListener onSaveAllSkillFiles = editor -> { };
     private Runnable onDirtyChanged = () -> { };
+    private Runnable onContentChanged = () -> { };
 
     // Estado para agentes
     private EditorModel editor;
@@ -170,6 +171,7 @@ public final class PreviewPanel extends VBox {
             if (editor != null && !updatingFromModel) {
                 editor.setHeader(current);
                 updateDirty();
+                onContentChanged.run();
             }
         });
     }
@@ -194,6 +196,7 @@ public final class PreviewPanel extends VBox {
                 skillFileEdit.setText(skillEditor.getContent(newVal));
                 updatingFromModel = false;
                 updateDirty();
+                onContentChanged.run();
             }
         });
 
@@ -203,6 +206,7 @@ public final class PreviewPanel extends VBox {
                 if (selected != null) {
                     skillEditor.setContent(selected, current);
                     updateDirty();
+                    onContentChanged.run();
                 }
             }
         });
@@ -260,6 +264,7 @@ public final class PreviewPanel extends VBox {
             if (editor != null && !updatingFromModel) {
                 editor.setSharedBody(current);
                 updateDirty();
+                onContentChanged.run();
             }
         });
     }
@@ -289,6 +294,7 @@ public final class PreviewPanel extends VBox {
             if (editor != null && !updatingFromModel) {
                 editor.setBody(current);
                 updateDirty();
+                onContentChanged.run();
             }
         });
     }
@@ -401,6 +407,11 @@ public final class PreviewPanel extends VBox {
     /** Se invoca solo cuando el panel pasa de limpio a sucio (o al contrario). */
     public void setOnDirtyChanged(Runnable listener) {
         this.onDirtyChanged = listener == null ? () -> { } : listener;
+    }
+
+    /** Se invoca en cada cambio de contenido, para guardar borradores. */
+    public void setOnContentChanged(Runnable listener) {
+        this.onContentChanged = listener == null ? () -> { } : listener;
     }
 
     public EditorModel editor() {

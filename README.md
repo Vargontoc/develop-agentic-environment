@@ -1,4 +1,4 @@
-# Agentic Develop Kit
+# Agentic Develop Kit v1.0
 
 > Un entorno de desarrollo con agentes de IA que trabajan con especificaciones aprobadas por personas.
 
@@ -88,13 +88,15 @@ de una skill.
 
 Ver el contenido de un agente, una skill o un fichero `.sdd` sin salir de la aplicación. Al guardar,
 la CLI comprueba si el fichero cambió por fuera y evita pisar cambios ajenos. Si hay cambios sin
-guardar, la aplicación te avisa antes de cambiar de artefacto o cerrar.
+guardar, la aplicación te avisa antes de cambiar de artefacto o cerrar, y conserva una copia local
+que se recupera al volver a abrir el artefacto.
 
 ### Mantener todo sincronizado
 
 Propagar un cuerpo compartido al resto del grupo viendo antes las diferencias y los miembros
 afectados. Volver a vincular un artefacto personalizado o desvinculado. La aplicación vigila los
-cambios externos y puede refrescar el árbol automáticamente.
+cambios externos del proyecto y de los proveedores globales, y puede refrescar solo el árbol o
+también el artefacto abierto.
 
 ### Trabajar desde la misma ventana
 
