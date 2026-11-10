@@ -83,6 +83,16 @@ if (-not $mvnPath) {
 }
 
 # Verificar CLI jar
+$CliSource = Join-Path (Join-Path $RootDir "cli") "target/agentic-develop.jar"
+if (Test-Path $CliSource) {
+    $needsCopy = (-not (Test-Path $CliJar)) -or
+        ((Get-Item $CliSource).LastWriteTime -gt (Get-Item $CliJar).LastWriteTime)
+    if ($needsCopy) {
+        New-Item -ItemType Directory -Force (Split-Path $CliJar) | Out-Null
+        Copy-Item $CliSource $CliJar -Force
+        Write-Host "✓ CLI sincronizado desde cli/target/agentic-develop.jar" -ForegroundColor Green
+    }
+}
 if (-not (Test-Path $CliJar)) {
     Write-Error "El jar del CLI no existe en $CliJar. Compílalo primero con: cd cli; mvn package"
     exit 1

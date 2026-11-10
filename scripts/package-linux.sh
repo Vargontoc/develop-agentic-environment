@@ -97,6 +97,14 @@ if ! command -v mvn &> /dev/null; then
 fi
 
 # Verificar CLI jar
+CLI_SOURCE="$ROOT_DIR/cli/target/agentic-develop.jar"
+if [ -f "$CLI_SOURCE" ]; then
+    if [ ! -f "$CLI_JAR" ] || [ "$CLI_SOURCE" -nt "$CLI_JAR" ]; then
+        mkdir -p "$(dirname "$CLI_JAR")"
+        cp "$CLI_SOURCE" "$CLI_JAR"
+        log_success "CLI sincronizado desde cli/target/agentic-develop.jar"
+    fi
+fi
 if [ ! -f "$CLI_JAR" ]; then
     echo "Error: El jar del CLI no existe en $CLI_JAR. Compílalo primero con: cd cli && mvn package"
     exit 1

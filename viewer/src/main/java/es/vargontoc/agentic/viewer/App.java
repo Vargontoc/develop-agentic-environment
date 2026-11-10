@@ -266,6 +266,7 @@ public final class App extends Application {
     private void initServices() {
         try {
             cliCommand = CliLocator.resolve(Path.of("").toAbsolutePath());
+            ViewerLog.info("CLI en uso: " + cliCommand.cliJar());
             cacheStore = new CacheStore();
             cliClient = new CliClient(new CliProcess(cliCommand), new ObjectMapper(), cacheStore);
             projectSession = new ProjectSession(cliClient);
