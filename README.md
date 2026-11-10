@@ -1,413 +1,243 @@
 # develop-agentic-environment
-Pequeña aplicación para la instalación de un entorno agéntico de desarrollo (Human-In-The-Loop).
 
-Instala y mantiene los agentes y skills de **Spec-Driven Development** (requisitos, diseño y tareas) en los
-proveedores que tengas (Claude, Codex, Gemini, OpenCode), prepara proyectos con la estructura `.sdd` y genera los
-agentes de cada módulo y técnico de un proyecto (analista, desarrollador y documentador), con sus skills y, en Codex,
-sus perfiles de permisos.
+> Un entorno de desarrollo con agentes de IA que trabajan con especificaciones aprobadas por personas.
 
-## Estado
-La CLI (`cli/`) está completa según su especificación (`specs/cli/`): menú interactivo, comandos no interactivos con
-salida JSON y contratos documentados. La salida JSON está pensada para que la consuma un visor externo.
+**develop-agentic-environment** instala y mantiene los agentes y skills de Spec-Driven Development en
+Claude, Codex, Gemini y OpenCode, prepara proyectos con la estructura `.sdd` y genera los agentes de
+cada módulo y técnico. Incluye una herramienta de línea de comandos (CLI) y un visor de escritorio
+para revisar, editar y mantener todo sin memorizar comandos.
 
-El viewer (`viewer/`) está en construcción con JavaFX 21. Incluye la selección de proyecto, el árbol global y de
-proyecto, la previsualización y edición de artefactos (agentes, skills) y de los ficheros `.sdd` en solo lectura;
-la creación de módulos y técnicos; la creación de agentes y skills desde plantilla; la edición de skills con
-múltiples ficheros; la consola PTY integrada con pty4j para ejecutar el CLI interactivo; el watcher de cambios
-externos con marcado de nodos obsoletos y recarga con guarda de editores sucios; la propagación de cambios
-a grupos de artefactos; y los scripts de empaquetado con jlink/jpackage para generar una app-image que funciona
-sin Java del sistema. Consume el CLI mediante el contrato `cli-json` v1.
+Todo se ejecuta en tu equipo. No hay servicio remoto ni conexión a internet obligatoria.
 
-**Nota:** Corregido bug en la navegación del árbol donde seleccionar un artefacto sin editarlo marcaba incorrectamente el estado como "sin guardar".
+## Índice
+
+- [Qué es](#qué-es)
+- [Qué problema resuelve](#qué-problema-resuelve)
+- [Para quién es](#para-quién-es)
+- [Qué puedes hacer hoy](#qué-puedes-hacer-hoy)
+- [Cómo empezar](#cómo-empezar)
+- [La ventana en un vistazo](#la-ventana-en-un-vistazo)
+- [Atajos del visor](#atajos-del-visor)
+- [Si prefieres la terminal](#si-prefieres-la-terminal)
+- [Qué no es](#qué-no-es)
+- [Cómo está organizado](#cómo-está-organizado)
+- [Requisitos](#requisitos)
+- [Documentación](#documentación)
+- [Estado y colaboración](#estado-y-colaboración)
+
+## Qué es
+
+Es una herramienta para personas que trabajan con agentes de IA y quieren que esos agentes sigan un
+método claro: primero se escriben y aprueban los requisitos, después el diseño y por último las
+tareas. Solo entonces se implementa.
+
+La aplicación se encarga de la parte repetitiva: instalar los agentes y skills en cada proveedor,
+crear la estructura del proyecto, organizar los módulos y técnicos del equipo y mantener los
+artefactos sincronizados cuando cambian.
+
+## Qué problema resuelve
+
+- **Cada proveedor guarda los agentes a su manera.** La aplicación conoce la estructura de Claude,
+  Codex, Gemini y OpenCode y coloca cada cosa donde corresponde.
+- **Los agentes se desactualizan.** Cuando cambias una convención compartida, la aplicación puede
+  propagar el cambio al resto de copias del mismo grupo.
+- **Es fácil perder de vista qué hay instalado.** El visor muestra un árbol con todo lo global, lo
+  del proyecto y lo que pertenece a cada módulo.
+- **Editar a mano es arriesgado.** Los cambios se guardan a través de la CLI, que detecta conflictos
+  y pide confirmación antes de sobrescribir.
+- **El método se olvida.** Los agentes y skills incluyen las reglas de Spec-Driven Development y el
+  flujo de trabajo con aprobación humana entre fases.
+
+## Para quién es
+
+Para desarrolladores y equipos pequeños que ya usan o quieren usar agentes de IA para planificar e
+implementar software, y que prefieren revisar y aprobar las especificaciones antes de que el agente
+escriba código.
+
+No hace falta saber programar la herramienta: el visor está pensado para trabajar con el ratón y con
+atajos de teclado. La CLI queda disponible para quien prefiera la terminal o quiera automatizar.
+
+## Qué puedes hacer hoy
+
+### Preparar tu entorno
+
+Instalar los agentes, skills y perfiles globales en los proveedores que uses. La aplicación no pisa
+lo que ya existe sin permiso y guarda una copia del contenido anterior cuando sobrescribe.
+
+### Preparar un proyecto
+
+Abrir una carpeta, validar su estado y crear la estructura `.sdd` si todavía no existe. A partir de
+ahí, el proyecto tiene su propio equipo, sus convenciones y su mapa de arquitectura.
+
+### Organizar el equipo
+
+Registrar módulos y asignarles técnicos (analista, desarrollador, documentador). Cada combinación
+genera sus propios agentes y skills, con nombres consistentes y, cuando el proveedor lo permite,
+perfiles de permisos.
+
+### Crear y ajustar artefactos
+
+Crear agentes y skills desde las plantillas del catálogo, revisar la plantilla antes de crearla y
+personalizarla. También puedes editar la cabecera y el cuerpo de un agente, o los distintos ficheros
+de una skill.
+
+### Revisar y editar con seguridad
+
+Ver el contenido de un agente, una skill o un fichero `.sdd` sin salir de la aplicación. Al guardar,
+la CLI comprueba si el fichero cambió por fuera y evita pisar cambios ajenos. Si hay cambios sin
+guardar, la aplicación te avisa antes de cambiar de artefacto o cerrar.
+
+### Mantener todo sincronizado
+
+Propagar un cuerpo compartido al resto del grupo viendo antes las diferencias y los miembros
+afectados. Volver a vincular un artefacto personalizado o desvinculado. La aplicación vigila los
+cambios externos y puede refrescar el árbol automáticamente.
+
+### Trabajar desde la misma ventana
+
+Buscar artefactos en el árbol, abrir una consola integrada con el CLI interactivo y cambiar entre la
+vista del artefacto y la consola sin perder el contexto. La barra inferior indica el estado del
+proyecto, los cambios sin guardar y si la vigilancia de ficheros está activa.
+
+### Sin conexión
+
+Todo funciona en local. No hay cuentas, telemetría ni servicios en la nube.
+
+## Cómo empezar
+
+### 1. Consigue la aplicación
+
+Si ya tienes una **versión empaquetada**, ábrela: incluye su propio Java y el CLI que necesita el
+visor, así que no tienes que instalar nada más. Salta al paso 2.
+
+Si no la tienes, puedes generarla tú mismo o ejecutarla desde el código. Para eso necesitas JDK 21 y
+Maven. Los comandos, las dependencias y el empaquetado están en la
+[guía de desarrollo](docs/guia-desarrollo.md).
+
+### 2. Configura al menos un proveedor
+
+La primera vez necesitas instalar los agentes y skills globales en al menos un proveedor. El visor
+trabaja con los proveedores que ya estén configurados; si no aparece ninguno, abre una terminal,
+ejecuta el menú interactivo de la CLI y elige **Configuración entorno**. Los pasos y la ruta del CLI
+en la versión empaquetada están en la
+[guía de desarrollo](docs/guia-desarrollo.md#uso-de-la-cli).
+
+### 3. Abre tu proyecto
+
+Pulsa **Abrir proyecto** y elige la carpeta donde trabajas. La aplicación valida la carpeta con la
+CLI y muestra su estado en la cabecera.
+
+### 4. Prepara el proyecto
+
+Si el proyecto todavía no tiene `.sdd`, aparecerá el botón **Iniciar proyecto**. Al pulsarlo se crea
+la estructura de especificaciones y el proyecto queda listo para organizar el equipo.
+
+### 5. Crea tu equipo
+
+Abre **Crear → Módulo**, ponle un nombre y elige los técnicos y proveedores. La aplicación muestra
+primero una simulación de lo que va a crear y solo escribe cuando confirmas.
+
+Para añadir técnicos a un módulo que ya existe, usa **Crear → Añadir técnico**.
+
+### 6. Crea agentes y skills
+
+Usa **Crear → Artefacto**, elige proveedor, ámbito y tipo, selecciona un nombre del catálogo y revisa
+la plantilla. Puedes editarla antes de crear el artefacto.
+
+### 7. Revisa, edita y guarda
+
+Selecciona cualquier agente, skill o fichero `.sdd` en el árbol. El panel central muestra su
+contenido y, si es editable, permite cambiarlo. Usa **Guardar** o `Ctrl+S`; si el artefacto tiene un
+cuerpo compartido, **Propagar** revisa antes las diferencias y los miembros afectados.
+
+## La ventana en un vistazo
+
+- **Menú superior:** abrir y recargar proyectos, crear artefactos, ajustes de vista y ayuda.
+- **Barra lateral:** buscador, árbol de artefactos globales y del proyecto, avisos y resumen de la
+  selección.
+- **Zona central:** pestañas **Artefacto** y **Consola**. La vista de artefacto incluye metadatos,
+  cabecera, cuerpo, ficheros de skill y acciones de guardado.
+- **Barra inferior:** progreso, mensajes, cambios sin guardar, actualización automática y estado de
+  la vigilancia de ficheros.
+
+## Atajos del visor
+
+| Atajo | Acción |
+|---|---|
+| `Ctrl+O` | Abrir proyecto |
+| `F5` | Recargar el árbol |
+| `Ctrl+S` | Guardar (en skills, todos los ficheros modificados) |
+| `Ctrl+F` | Buscar artefactos |
+| `Esc` | Limpiar la búsqueda |
+| `F6` | Ir a la consola |
+| `Ctrl+M` | Crear módulo |
+| `Ctrl+Shift+T` | Añadir técnico |
+| `Ctrl+N` | Crear artefacto |
+| `Ctrl+Q` | Salir |
+
+## Si prefieres la terminal
+
+La CLI cubre el mismo flujo y devuelve JSON para poder integrarla en scripts:
+
+```powershell
+java -jar cli/target/agentic-develop.jar              # menú interactivo
+java -jar cli/target/agentic-develop.jar status
+java -jar cli/target/agentic-develop.jar init --project C:\mi-proyecto
+```
+
+La referencia completa de comandos, opciones, ejemplos y reglas de seguridad está en la
+[guía de desarrollo](docs/guia-desarrollo.md). El contrato de datos está en
+[docs/contracts/cli-json](docs/contracts/cli-json/cli-json.md).
+
+## Qué no es
+
+- **No escribe el código de tus proyectos.** Los agentes de Spec-Driven Development producen
+  especificaciones; la implementación la haces tú o tus agentes de desarrollo.
+- **No es un servicio remoto ni multiusuario.** Todo se ejecuta en tu equipo.
+- **No gestiona los permisos de cada herramienta.** Esa configuración se hace manualmente en cada
+  proveedor.
+
+## Cómo está organizado
+
+- **`cli/`**: la aplicación de línea de comandos. Hace el trabajo real sobre los ficheros y expone
+  el resultado en JSON.
+- **`viewer/`**: el visor de escritorio. Consume la CLI y ofrece árbol, previsualización, edición,
+  consola y creación guiada.
+- **`docs/contracts/`**: los contratos que describen el formato de los datos, las rutas y la
+  organización del equipo.
+- **`specs/`**: las especificaciones del propio proyecto (requisitos, diseño y tareas).
+- **`scripts/`**: los scripts de empaquetado y verificación.
 
 ## Requisitos
-- JDK 21
-- Maven 3.9+
 
-## Dependencias externas
-La CLI usa `framework-core` y `framework-json` de `vargontoc-framework`. Los artefactos están en
-`cli/external-libs/vargontoc-framework/` y hay que instalarlos una vez en el repositorio Maven local (`~/.m2`), desde `cli/`:
-
-```powershell
-# POM padre
-mvn install:install-file "-Dfile=external-libs/vargontoc-framework/pom.xml" "-DpomFile=external-libs/vargontoc-framework/pom.xml" "-Dpackaging=pom"
-
-# framework-core
-mvn install:install-file "-Dfile=external-libs/vargontoc-framework/framework-core/0.1.0-SNAPSHOT/framework-core-0.1.0-SNAPSHOT.jar" "-DpomFile=external-libs/vargontoc-framework/framework-core/0.1.0-SNAPSHOT/framework-core-0.1.0-SNAPSHOT.pom"
-
-# framework-json
-mvn install:install-file "-Dfile=external-libs/vargontoc-framework/framework-json/0.1.0-SNAPSHOT/framework-json-0.1.0-SNAPSHOT.jar" "-DpomFile=external-libs/vargontoc-framework/framework-json/0.1.0-SNAPSHOT/framework-json-0.1.0-SNAPSHOT.pom"
-```
-
-## Compilar, probar y empaquetar
-### CLI
-Desde `cli/`:
-
-```powershell
-mvn clean test       # compila y ejecuta las pruebas
-mvn clean package    # además genera el jar ejecutable: cli/target/agentic-develop.jar
-```
-
-El jar incluye todas las dependencias: no hace falta nada más que un JDK 21 para ejecutarlo.
-
-### Viewer
-Desde `viewer/`:
-
-```powershell
-mvn test             # pruebas de la lógica
-mvn javafx:run       # abre la ventana
-mvn clean package    # genera el JAR del viewer
-```
-
-### Empaquetado (app-image)
-
-Para generar una imagen de la aplicación que funcione **sin Java instalado** y **sin conexión a internet**:
-
-#### Requisitos previos
-
-**Windows:**
-- JDK 21 o superior (con `jlink` y `jpackage` en el PATH)
-- Maven 3.9+
-- PowerShell 5.1 o superior
-
-**Linux:**
-- JDK 21 o superior (con `jlink` y `jpackage` en el PATH)
-- Maven 3.9+
-- Bash
-- Dependencias de desktop (para el launcher nativo):
-  - **Ubuntu/Debian:** `sudo apt-get install -y libxtst-dev libxrender-dev libxxf86vm-dev`
-  - **Fedora/RHEL:** `sudo dnf install -y libXtst-devel libXrender-devel libXxf86vm-devel`
-  - **Arch:** `sudo pacman -S libxtst libxrender libxxf86vm`
-
-#### Paso 1: Compilar la CLI
-
-Desde la raíz del proyecto:
-
-**Windows:**
-```powershell
-cd cli
-mvn clean package -DskipTests
-```
-
-**Linux:**
-```bash
-cd cli
-mvn clean package -DskipTests
-```
-
-Esto genera `cli/target/agentic-develop.jar`.
-
-#### Paso 2: Copiar el JAR de la CLI
-
-**Windows:**
-```powershell
-cd ..
-New-Item -ItemType Directory -Force viewer/cli | Out-Null
-Copy-Item cli/target/agentic-develop.jar viewer/cli/
-```
-
-**Linux:**
-```bash
-cd ..
-mkdir -p viewer/cli
-cp cli/target/agentic-develop.jar viewer/cli/
-```
-
-#### Paso 3: Empaquetar el Viewer
-
-**Windows:**
-```powershell
-cd viewer
-..\scripts\package-windows.ps1
-```
-
-**Linux:**
-```bash
-cd viewer
-../scripts/package-linux.sh
-```
-
-**Opciones:**
-- `--skip-tests`: Omite las pruebas de Maven (más rápido)
-- `--verbose`: Muestra detalles adicionales del proceso
-- `--installer` (Windows: `-Installer`): además de la app-image, genera un instalador para distribuir. En Linux un
-  `.deb` (requiere `dpkg-dev` y `fakeroot`; se instala con `sudo apt install ./<fichero>.deb`) y en Windows un `.msi`
-  (requiere WiX Toolset 3.x en el PATH). Queda en `viewer/target/dist/installer/`.
-
-#### Paso 4: Verificar el empaquetado
-
-**Windows:**
-```powershell
-cd viewer
-..\scripts\verify-package.ps1
-```
-
-**Linux:**
-```bash
-cd viewer
-../scripts/verify-package-linux.sh
-```
-
-Esto comprueba:
-- Que el runtime Java personalizado está incluido
-- Que el JAR del viewer está empaquetado
-- Que el JAR de la CLI está en la ubicación correcta
-- Que la aplicación puede iniciar sin Java del sistema
-
-#### Paso 5: Ejecutar la aplicación empaquetada
-
-**Windows:**
-```powershell
-cd viewer
-.\target\dist\windows\AgenticViewer\AgenticViewer.exe
-```
-
-**Linux:**
-```bash
-cd viewer
-./target/dist/linux/AgenticViewer/bin/AgenticViewer
-```
-
-La aplicación empaquetada:
-- ✅ Funciona sin Java instalado en el sistema
-- ✅ Funciona sin conexión a internet
-- ✅ Incluye todas las dependencias (JavaFX, Jackson, Pty4J, etc.)
-- ✅ Incluye el JAR de la CLI en la ubicación esperada
-- ✅ Tamaño total: ~150-200 MB (runtime Java + viewer + CLI)
-
-#### Estructura generada
-
-**Windows:**
-```
-viewer/target/dist/windows/AgenticViewer/
-├── AgenticViewer.exe          # Ejecutable nativo
-├── runtime/                   # Runtime Java personalizado
-│   ├── bin/
-│   │   ├── java.exe
-│   │   └── jlink.exe
-│   └── lib/
-├── app/
-│   ├── viewer.jar            # JAR del viewer
-│   └── cli/
-│       └── agentic-develop.jar  # JAR de la CLI
-└── ...
-```
-
-**Linux:**
-```
-viewer/target/dist/linux/AgenticViewer/
-├── bin/
-│   └── AgenticViewer          # Script launcher nativo
-├── runtime/                   # Runtime Java personalizado
-│   ├── bin/
-│   │   ├── java
-│   │   └── jlink
-│   └── lib/
-├── lib/
-│   ├── app/
-│   │   ├── viewer.jar        # JAR del viewer
-│   │   └── cli/
-│   │       └── agentic-develop.jar  # JAR de la CLI
-│   └── ...
-└── ...
-```
-
-#### Resolución de problemas
-
-**Error: "jlink no encontrado"**
-- Asegúrate de tener JDK 21+ instalado
-- Verifica que `jlink` esté en el PATH: `where jlink` (Windows) o `which jlink` (Linux)
-
-**Error: "jpackage no encontrado"**
-- Igual que arriba, `jpackage` viene con JDK 14+
-
-**Error: "CLI jar not found"**
-- Ejecuta el Paso 1 y Paso 2 antes de empaquetar
-- Verifica que `viewer/cli/agentic-develop.jar` exista
-
-**Error en Linux: "libXtst.so not found"**
-- Instala las dependencias de desktop (ver Requisitos previos)
-
-**La aplicación no inicia**
-- Ejecuta el script de verificación para diagnosticar el problema
-- Revisa los logs en `viewer/target/package/logs/` (si existen)
-
-## Uso
-### Menú interactivo
-Sin argumentos se abre el menú:
-
-```powershell
-java -jar cli/target/agentic-develop.jar
-```
-
-1. **Configuración entorno**: instala los agentes y skills globales en los proveedores que elijas.
-2. **Iniciar proyecto**: crea la estructura `.sdd` en la ruta indicada.
-3. **Crear módulo**: registra un módulo en `.sdd/team.md` y genera los agentes de sus técnicos.
-4. **Salir**.
-
-### Comandos
-Con argumentos se ejecuta un comando sin menús ni preguntas. La salida estándar es **un único documento JSON** y los
-logs van a la salida de error. El código de salida es `0` si todo fue bien, `1` por un error esperado (validación, no
-encontrado, conflicto), `2` por un uso incorrecto y `3` por un error interno.
-
-```powershell
-java -jar cli/target/agentic-develop.jar <comando> [opciones]
-java -jar cli/target/agentic-develop.jar --help
-```
-
-| Comando | Para qué sirve | Opciones principales |
-|---|---|---|
-| `status` | Estado de los proveedores y del proyecto. Solo lee. | `--project` |
-| `tree` | Árbol de artefactos globales y de proyecto. Solo lee. | `--project` |
-| `describe` | Cabecera, cuerpo, hash y estado de un agente o skill. Solo lee. | `--path`, `--project` |
-| `init` | Crea `.sdd` en un proyecto. | `--project` |
-| `configure-provider` | Instala agentes y skills globales en un proveedor. | `--provider` |
-| `create-module` | Registra un módulo y genera sus agentes y skills. | `--project`, `--module`, `--technicians`, `--providers`, `--dry-run` |
-| `add-technician` | Añade técnicos a un módulo existente. | `--project`, `--module`, `--technicians`, `--providers`, `--dry-run` |
-| `catalog` | Lista lo que se puede crear y devuelve su plantilla compuesta. Solo lee. | `--provider`, `--scope`, `--kind`, `--name` |
-| `create-artifact` | Crea un agente o skill desde su plantilla. | `--provider`, `--scope`, `--kind`, `--name`, `--content-file`/`--stdin`, `--overwrite` |
-| `save` | Guarda el contenido (o la cabecera) de un artefacto o lo propaga a su grupo. | `--path`, `--content-file`/`--stdin`, `--header-file`/`--header-stdin`, `--mode`, `--overwrite`, `--dry-run` |
-| `adopt` | Vuelve a vincular a su grupo un artefacto legacy o desvinculado. | `--path`, `--group`, `--confirm`, `--dry-run` |
-
-Ejemplos:
-
-```powershell
-# Instalar los agentes y skills de Claude y revisar el estado
-java -jar cli/target/agentic-develop.jar configure-provider --provider claude
-java -jar cli/target/agentic-develop.jar status
-
-# Preparar un proyecto y crear un módulo (primero en simulación, sin escribir nada)
-java -jar cli/target/agentic-develop.jar init --project C:\proyectos\mi-app
-java -jar cli/target/agentic-develop.jar create-module --project C:\proyectos\mi-app --module facturacion --technicians analista,desarrollador --providers claude --dry-run
-java -jar cli/target/agentic-develop.jar create-module --project C:\proyectos\mi-app --module facturacion --technicians analista,desarrollador --providers claude
-
-# Cambiar el cuerpo compartido de un especialista y propagarlo a todos los módulos (primero viendo el diff)
-java -jar cli/target/agentic-develop.jar save --path C:\proyectos\mi-app\.claude\agents\analista-facturacion.md --project C:\proyectos\mi-app --mode group --content-file cuerpo.md --dry-run
-java -jar cli/target/agentic-develop.jar save --path C:\proyectos\mi-app\.claude\agents\analista-facturacion.md --project C:\proyectos\mi-app --mode group --content-file cuerpo.md
-
-# Ver la plantilla de un agente antes de crearlo, y devolver un agente personalizado a su grupo
-java -jar cli/target/agentic-develop.jar catalog --provider claude --scope global --kind agent --name sdd-design
-java -jar cli/target/agentic-develop.jar adopt --path C:\proyectos\mi-app\.claude\agents\analista-otro.md --project C:\proyectos\mi-app --confirm
-```
-
-Normas que conviene conocer:
-- **Nada se sobrescribe por sorpresa.** Instalar, crear módulos o artefactos y repetir un comando deja intacto lo que ya existe.
-  Sobrescribir exige `--overwrite` y deja una copia del contenido anterior.
-- **Conflictos.** Si editas un agente por fuera de la aplicación, `save` lo detecta (hash distinto) y no lo pisa sin confirmación.
-- **Simulación.** `save --dry-run` y `create-module --dry-run` devuelven lo previsto (diff, conflictos, ficheros) sin escribir.
-  `adopt` sin `--confirm` también solo muestra el diff.
-- **Propagación.** `save --mode group` actualiza solo los artefactos que ya existen del mismo grupo y ámbito; nunca crea nuevos.
-  Los agentes generados antes de que existieran los metadatos cuentan como personalizados y no se tocan.
-- **Cabeceras por sistema.** Las cabeceras de los agentes se generan para el sistema operativo en el que se ejecuta el CLI
-  (PowerShell en Windows, bash en Linux). `configure-provider` instala además el hook `sdd-specs-only` en la carpeta
-  global del proveedor (`hooks/sdd-specs-only.bat` o `.sh`) y no pisa uno que hayas modificado; los demás scripts de
-  `hooks/` son tuyos.
-- **Todos los proveedores admiten proyecto.** `create-module --providers claude,codex,gemini,opencode` genera cada uno en
-  su estructura (ver «Capa técnica por proveedor»). Si Codex y Gemini comparten `.agents/skills/`, se reutilizan.
-
-### Flujo de trabajo
-1. **Especificación (SDD).** `sdd-agent` lleva una feature por requisitos, diseño y tareas (`specs/<feature>/`), con
-   aprobación entre fases. No escribe código ni README.
-2. **Capa técnica.** Con los módulos registrados en `.sdd/team.md` (`<modulo> | <id del mapa> | <rutas>`), tres routers
-   delegan en un especialista por módulo (`<rol>-<modulo>`):
-   - `analista-router`: convierte las tareas aprobadas en sprints por módulo (`docs/sprints/<modulo>/`).
-   - `desarrollador-router`: implementa las tareas del sprint, comprueba antes la rama según `git-policy` y no hace
-     operaciones de git que modifiquen nada.
-   - `documentador-router`: redacta los contratos (`docs/contracts/`), mantiene el mapa `.sdd/architecture.md` y el
-     `README.md` (este último, el módulo indicado en `readme-owner`).
-3. **Opciones** en la sección `## Opciones` de `.sdd/team.md`: `sprints` (si/no), `git-policy` (`balanced`/`strict`),
-   `contract-strategy` (`implementation-first`/`contract-first`) y `readme-owner`.
-
-Los permisos por rol los exige el texto de los prompts y, donde el proveedor lo permite, su configuración (OpenCode,
-perfiles de Codex, hook global); no hay un aislamiento garantizado por la plataforma.
-
-### Viewer (en construcción)
-El viewer espera el jar ejecutable en `viewer/cli/agentic-develop.jar`. Si falta, muestra un error de aplicación.
-La ventana permite seleccionar un proyecto, validarlo con el CLI e iniciarlo si falta `.sdd`.
-El panel lateral muestra el árbol Global y Project, y se refresca al seleccionar o iniciar un proyecto.
-Al elegir un agente o una skill se previsualiza (cabecera aparte, cuerpo en texto o renderizado); `.sdd` se muestra en solo lectura.
-Los agentes y perfiles se pueden editar: cabecera y cuerpo por separado, con guardado mediante `save` y aviso antes de perder cambios.
-El cuerpo compartido de un especialista se puede propagar al grupo, revisando antes los miembros y diffs que devuelve el CLI.
-Un artefacto legacy o desvinculado ofrece «Volver al grupo» (adoptar), con diff previo y confirmación.
-Desde la raíz, tras construir el CLI:
-
-```powershell
-New-Item -ItemType Directory -Force viewer/cli
-Copy-Item cli/target/agentic-develop.jar viewer/cli/
-```
-
-Después, desde `viewer/`:
-
-```powershell
-mvn test        # pruebas de la lógica
-mvn javafx:run  # abre la ventana
-```
-
-### Capa técnica por proveedor (proyecto)
-
-Los routers (`analista-router`, `desarrollador-router`, `documentador-router`) y los especialistas por módulo
-(`<rol>-<modulo>`) se instalan en el proyecto. Cada proveedor usa su propia estructura:
-
-| Proveedor | Skills | Agentes | Perfiles |
-|---|---|---|---|
-| Claude | `.claude/skills/<skill>/SKILL.md` | `.claude/agents/<rol>-<modulo>.md` | — |
-| OpenCode | `.opencode/skills/<skill>/SKILL.md` | `.opencode/agents/<rol>-<modulo>.md` | — |
-| Codex | `.agents/skills/<skill>/SKILL.md` (cada una con `agents/openai.yaml`) | `.codex/agents/<rol>_<modulo>.toml` | `.codex/profiles/<rol>-<modulo>.toml` |
-| Gemini / Antigravity | `.agents/skills/<skill>/SKILL.md` | `.agents/agents/<rol>-<modulo>/agent.md` | — |
-
-```
-<proyecto>/
-├── .agents/                           # Codex y Gemini / Antigravity
-│   ├── skills/
-│   │   ├── team-conventions/          # la misma skill para los dos proveedores
-│   │   │   ├── SKILL.md
-│   │   │   └── agents/openai.yaml     # solo lo añade Codex
-│   │   └── analista-router/           # solo Codex: su router es una skill
-│   │       ├── SKILL.md
-│   │       └── agents/openai.yaml
-│   └── agents/                        # solo Gemini / Antigravity
-│       ├── analista-router/agent.md
-│       └── analista-<modulo>/agent.md
-└── .codex/                            # solo Codex
-    ├── agents/
-    │   └── analista_<modulo>.toml
-    └── profiles/
-        └── analista-<modulo>.toml     # un perfil de permisos por agente y módulo
-```
-
-Codex y Gemini comparten `.agents/skills/`: las skills son idénticas en formato y contenido, y Codex añade a cada una su
-`agents/openai.yaml`. Si instalas los dos proveedores, la segunda instalación reutiliza las skills que ya están. El router
-de Codex es una skill (se invoca con `$analista-router`); en el resto de proveedores es un agente. Los perfiles de Codex
-son ficheros independientes: el CLI no los incorpora a `config.toml`.
-
-En el ámbito global es lo mismo con `~` (Codex: `~/.agents/skills` y `~/.codex/agents|profiles`; Gemini: `~/.gemini/skills`
-y `~/.gemini/config/agents/<agente>/agent.md`). El contrato completo está en
-[docs/contracts/provider-layout](docs/contracts/provider-layout/provider-layout.md).
-
-### Dónde guarda cosas
-- **Proveedores (global):** `.claude`, `.codex`, `.agents` (skills de Codex), `.gemini` y `.config/opencode` bajo tu carpeta de usuario.
-- **Proveedores (proyecto):** `.claude`, `.opencode`, `.agents` (Codex y Gemini) y `.codex` (Codex) dentro del proyecto. Ver «Capa técnica por proveedor» más arriba.
-- **Estado de la aplicación** (metadatos y copias de seguridad): `%LOCALAPPDATA%\agentic-develop` en Windows y
-  `$XDG_STATE_HOME/agentic-develop` (o `~/.local/state/agentic-develop`) en Linux. No se mezcla con los ficheros del proyecto.
-- **Menú en Windows:** si ves caracteres extraños (acentos), ejecuta antes `chcp 65001` o usa `java -Dfile.encoding=UTF-8 -jar ...`.
+- **Aplicación empaquetada:** ninguno. Incluye su propio runtime de Java.
+- **Ejecutar desde el código:** JDK 21 y Maven 3.9 o superior.
+- **Sistemas:** Windows y Linux.
 
 ## Documentación
-- Especificación de la CLI: `specs/cli/` (requisitos, diseño y tareas).
-- Contratos: `docs/contracts/`
-  - `cli-json/`: envelope JSON, comandos, opciones y códigos de error y de salida.
-  - `artifact-metadata/`: almacén de agrupación, cuerpos compartidos y hashes.
-  - `provider-layout/`: rutas, formatos y cabeceras por proveedor y sistema operativo.
-  - `sdd-team/`: lectura y escritura de módulos y técnicos en `.sdd/team.md`.
-- Rendimiento: `docs/performance/cli-nfr-002.md` (todos los comandos tardan muy por debajo de 1 s con 200 artefactos).
 
-Las pruebas comprueban que estos contratos dicen lo mismo que el código.
+- [Guía de desarrollo](docs/guia-desarrollo.md): compilar, probar, empaquetar y usar la CLI.
+- [Especificación del visor](specs/viewer/): requisitos, diseño y tareas.
+- [Especificación de la CLI](specs/cli/): requisitos, diseño y tareas.
+- [Contratos](docs/contracts/): formato de datos, metadatos, rutas por proveedor y equipo.
+- [Guía de pruebas en Linux/WSL](docs/guia-pruebas-linux-wsl.md).
+- [Plan de release](docs/plan-release-1.0.md).
 
-## Estructura
-- `cli/`: aplicación de línea de comandos (Java 21, Maven).
-  - `domain/`, `application/`, `infrastructure/`: reglas, servicios y acceso a disco.
-  - `command/`: adaptador no interactivo (JSON). `ui/`: adaptador del menú interactivo.
-  - `src/main/resources/`: agentes, skills, cabeceras y plantillas que se instalan.
-- `cli/external-libs/`: artefactos de `vargontoc-framework` usados por la CLI.
-- `docs/`: contratos e informes.
-- `specs/`: especificaciones SDD.
-- `viewer/`: aplicación de escritorio JavaFX 21 (en construcción; incluye selección de proyecto, árbol, previsualización, edición, propagación, adopción, creación desde plantilla, edición de skills como directorio, consola PTY, watcher de cambios y empaquetado).
+## Estado y colaboración
+
+El proyecto está en desarrollo activo. La CLI y el visor cubren el flujo descrito en este README; las
+especificaciones y los contratos se actualizan junto con el código.
+
+Si quieres proponer una mejora o reportar un problema, abre un issue o un pull request. Antes de
+enviar un cambio, ejecuta las pruebas de la parte que hayas tocado:
+
+```powershell
+cd cli
+mvn test
+
+cd ../viewer
+mvn test
+```
+
+Las decisiones de producto y de arquitectura se documentan en `specs/` y `docs/contracts/` para que
+el cambio quede claro y revisable.
