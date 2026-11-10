@@ -9,7 +9,7 @@ para revisar, editar y mantener todo sin memorizar comandos.
 
 Todo se ejecuta en tu equipo. No hay servicio remoto ni conexión a internet obligatoria.
 
-[Agentic Develop Kit](docs/images/agentic-viewer.png)
+![Agentic Develop Kit](docs/images/agentic-viewer.png)
 
 
 ## Índice
