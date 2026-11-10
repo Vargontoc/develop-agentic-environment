@@ -25,7 +25,7 @@ public final class WelcomePane extends VBox {
 
     private final Button openButton = new Button("Abrir proyecto");
     private final Button initButton = new Button("Iniciar proyecto");
-    private final Button createButton = new Button("Crear artefacto");
+    private final Button createButton = new Button("Aplicar artefactos");
     private final Label cliStatus = new Label();
     private final Label projectStatus = new Label("Aún no has abierto ningún proyecto.");
 
@@ -67,15 +67,15 @@ public final class WelcomePane extends VBox {
         createButton.setMaxWidth(Double.MAX_VALUE);
         openButton.setAccessibleText("Abrir un proyecto del equipo");
         initButton.setAccessibleText("Iniciar la estructura .sdd del proyecto");
-        createButton.setAccessibleText("Crear un agente o una skill");
+        createButton.setAccessibleText("Aplicar los artefactos de los proveedores seleccionados");
 
         HBox steps = new HBox(16,
             step("1", Icons.Icon.FOLDER_OPEN, "Elige tu proyecto",
                 "Abre la carpeta donde trabajas y valida su estado con el CLI.", openButton),
             step("2", Icons.Icon.PLAY, "Prepáralo",
                 "Crea la estructura .sdd y registra el equipo si aún no existe.", initButton),
-            step("3", Icons.Icon.PLUS, "Crea artefactos",
-                "Añade agentes y skills desde las plantillas del catálogo.", createButton));
+            step("3", Icons.Icon.PLUS, "Aplica artefactos",
+                "Instala agentes, skills y perfiles en los proveedores que elijas.", createButton));
         steps.setAlignment(Pos.CENTER);
         steps.setFillHeight(true);
 
@@ -157,8 +157,8 @@ public final class WelcomePane extends VBox {
         initButton.setText(configured ? "Proyecto iniciado" : "Iniciar proyecto");
         createButton.setDisable(!cliAvailable || !providersAvailable);
         createButton.setTooltip(providersAvailable
-            ? new javafx.scene.control.Tooltip("Crear un agente o una skill")
-            : new javafx.scene.control.Tooltip("Configura al menos un proveedor para crear artefactos"));
+            ? new javafx.scene.control.Tooltip("Aplicar los artefactos de los proveedores seleccionados")
+            : new javafx.scene.control.Tooltip("Configura al menos un proveedor para aplicar artefactos"));
     }
 
     private static VBox step(String number, Icons.Icon icon, String title, String text, Button action) {

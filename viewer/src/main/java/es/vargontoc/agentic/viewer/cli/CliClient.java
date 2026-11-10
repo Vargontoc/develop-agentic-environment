@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.vargontoc.agentic.viewer.cli.model.AdoptData;
 import es.vargontoc.agentic.viewer.cli.model.CatalogData;
 import es.vargontoc.agentic.viewer.cli.model.CliError;
+import es.vargontoc.agentic.viewer.cli.model.ConfigureProviderData;
 import es.vargontoc.agentic.viewer.cli.model.CreateArtifactData;
 import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
 import es.vargontoc.agentic.viewer.cli.model.DescribeData;
@@ -174,6 +175,12 @@ public final class CliClient {
             args.add("--dry-run");
         }
         return execute(args, CreateModuleData.class);
+    }
+
+    /** Aplica el catálogo global de un proveedor; lo existente se omite. */
+    public ConfigureProviderData configureProvider(String provider) {
+        Objects.requireNonNull(provider, "provider");
+        return execute(List.of("configure-provider", "--provider", provider), ConfigureProviderData.class);
     }
 
     /**

@@ -144,10 +144,11 @@ primero una simulación de lo que va a crear y solo escribe cuando confirmas.
 
 Para añadir técnicos a un módulo que ya existe, usa **Crear → Añadir técnico**.
 
-### 6. Crea agentes y skills
+### 6. Aplica agentes y skills
 
-Usa **Crear → Artefacto**, elige proveedor, ámbito y tipo, selecciona un nombre del catálogo y revisa
-la plantilla. Puedes editarla antes de crear el artefacto.
+Usa **Crear → Artefactos**, marca uno o varios proveedores y elige el ámbito (global o proyecto). La
+aplicación crea los agentes, skills y perfiles relacionados que falten en cada proveedor. Lo que ya
+existe no se modifica: puedes cambiar el contenido después desde el árbol.
 
 ### 7. Revisa, edita y guarda
 
@@ -178,7 +179,7 @@ cuerpo compartido, **Propagar** revisa antes las diferencias y los miembros afec
 | `F6` | Ir a la consola |
 | `Ctrl+M` | Crear módulo |
 | `Ctrl+Shift+T` | Añadir técnico |
-| `Ctrl+N` | Crear artefacto |
+| `Ctrl+N` | Aplicar artefactos |
 | `Ctrl+Q` | Salir |
 
 ## Si prefieres la terminal

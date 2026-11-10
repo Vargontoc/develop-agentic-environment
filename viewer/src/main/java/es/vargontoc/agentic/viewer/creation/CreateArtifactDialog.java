@@ -1,6 +1,9 @@
 package es.vargontoc.agentic.viewer.creation;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import es.vargontoc.agentic.viewer.ui.Icons;
@@ -8,94 +11,119 @@ import es.vargontoc.agentic.viewer.ui.Theme;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
-import javafx.scene.layout.GridPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
 /**
- * Diálogo para seleccionar proveedor, ámbito y tipo al crear un artefacto. El
- * nombre se elige después, a partir del catálogo del proveedor.
+ * Diálogo para aplicar los artefactos de uno o varios proveedores en un ámbito.
+ * Solo pide proveedores y ámbito: el catálogo relacionado de cada proveedor se
+ * aplica después, omitiendo lo que ya exista.
  */
 public final class CreateArtifactDialog {
 
     private CreateArtifactDialog() {}
 
-    public record Result(String provider, String scope, String kind) {}
+    public record Result(List<String> providers, String scope) {}
+
+    private record Scope(String id, String label) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
 
     /**
-     * Muestra el diálogo de selección inicial.
+     * Muestra el diálogo de selección.
      *
      * @param owner       ventana propietaria
      * @param providers   lista de proveedores disponibles
      * @param hasProject  true si hay un proyecto configurado (para permitir ámbito "project")
-     * @return resultado con proveedor, ámbito y tipo; vacío si se cancela
+     * @return resultado con proveedores y ámbito; vacío si se cancela
      */
     public static Optional<Result> show(Window owner, List<String> providers, boolean hasProject) {
         Dialog<Result> dialog = new Dialog<>();
         dialog.initOwner(owner);
-        dialog.setTitle("Crear artefacto");
-        dialog.setHeaderText("Elige el proveedor, el ámbito y el tipo del artefacto.");
+        dialog.setTitle("Aplicar artefactos");
+        dialog.setHeaderText("Elige los proveedores y el ámbito. Se aplicarán los artefactos de su catálogo.");
         Theme.apply(dialog);
 
-        ButtonType next = new ButtonType("Siguiente", ButtonBar.ButtonData.OK_DONE);
+        ButtonType apply = new ButtonType("Aplicar", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().addAll(next, cancel);
-        var nextButton = dialog.getDialogPane().lookupButton(next);
-        nextButton.setDisable(providers.isEmpty());
-        if (nextButton instanceof javafx.scene.control.Button button) {
-            button.setGraphic(Icons.of(Icons.Icon.CHEVRON_RIGHT, 15, "button-icon"));
+        dialog.getDialogPane().getButtonTypes().addAll(apply, cancel);
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(8));
+        content.setPrefWidth(420);
+
+        Label providerLabel = formLabel("Proveedores");
+        Map<String, CheckBox> providerChecks = new LinkedHashMap<>();
+        for (String provider : providers) {
+            CheckBox check = new CheckBox(provider);
+            check.setSelected(true);
+            providerChecks.put(provider, check);
         }
 
-        GridPane grid = new GridPane();
-        grid.setHgap(12);
-        grid.setVgap(12);
-        grid.setPadding(new Insets(8));
-
-        ChoiceBox<String> providerChoice = new ChoiceBox<>();
-        providerChoice.getItems().addAll(providers);
-        if (!providers.isEmpty()) {
-            providerChoice.getSelectionModel().selectFirst();
+        VBox providerBox = new VBox(6);
+        providerBox.getChildren().addAll(providerChecks.values());
+        if (providerChecks.isEmpty()) {
+            Label empty = new Label("No hay proveedores configurados.");
+            empty.getStyleClass().add("warning");
+            providerBox.getChildren().add(empty);
         }
 
-        ChoiceBox<String> scopeChoice = new ChoiceBox<>();
-        scopeChoice.getItems().add("global");
+        Label scopeLabel = formLabel("Ámbito");
+        ChoiceBox<Scope> scopeChoice = new ChoiceBox<>();
+        scopeChoice.getItems().add(new Scope("global", "Global"));
         if (hasProject) {
-            scopeChoice.getItems().add("project");
+            scopeChoice.getItems().add(new Scope("project", "Proyecto actual"));
         }
         scopeChoice.getSelectionModel().selectFirst();
+        scopeChoice.setMaxWidth(Double.MAX_VALUE);
 
-        ChoiceBox<String> kindChoice = new ChoiceBox<>();
-        kindChoice.getItems().addAll("agent", "skill");
-        kindChoice.getSelectionModel().selectFirst();
-
-        grid.add(new Label("Proveedor"), 0, 0);
-        grid.add(providerChoice, 1, 0);
-        grid.add(new Label("Ámbito"), 0, 1);
-        grid.add(scopeChoice, 1, 1);
-        grid.add(new Label("Tipo"), 0, 2);
-        grid.add(kindChoice, 1, 2);
-
-        Label hint = new Label("El nombre y la plantilla se eligen en el paso siguiente.");
+        Label hint = new Label("Se crearán los artefactos que falten. Lo que ya exista no se modifica.");
         hint.getStyleClass().add("muted");
-        grid.add(hint, 0, 3, 2, 1);
+        hint.setWrapText(true);
 
-        dialog.getDialogPane().setContent(grid);
+        content.getChildren().addAll(providerLabel, providerBox, scopeLabel, scopeChoice, hint);
+        dialog.getDialogPane().setContent(content);
+
+        var applyButton = dialog.getDialogPane().lookupButton(apply);
+        if (applyButton instanceof javafx.scene.control.Button button) {
+            button.setGraphic(Icons.of(Icons.Icon.CHECK, 15, "button-icon"));
+        }
+        Runnable validate = () -> applyButton.setDisable(
+            providerChecks.values().stream().noneMatch(CheckBox::isSelected));
+        providerChecks.values().forEach(check -> check.selectedProperty().addListener((o, p, c) -> validate.run()));
+        validate.run();
 
         dialog.setResultConverter(buttonType -> {
-            if (buttonType != next) {
+            if (buttonType != apply) {
                 return null;
             }
-            String provider = providerChoice.getValue();
-            String scope = scopeChoice.getValue();
-            String kind = kindChoice.getValue();
-            if (provider == null || scope == null || kind == null) {
-                return null;
-            }
-            return new Result(provider, scope, kind);
+            Scope scope = scopeChoice.getValue();
+            return scope == null ? null : new Result(selected(providerChecks), scope.id());
         });
 
         return dialog.showAndWait();
+    }
+
+    private static List<String> selected(Map<String, CheckBox> checks) {
+        List<String> result = new ArrayList<>();
+        for (var entry : checks.entrySet()) {
+            if (entry.getValue().isSelected()) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    private static Label formLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("form-label");
+        return label;
     }
 }

@@ -23,7 +23,7 @@ import es.vargontoc.agentic.viewer.cli.ErrorPresenter;
 import es.vargontoc.agentic.viewer.cli.ErrorPresenter.ErrorNotice;
 import es.vargontoc.agentic.viewer.cli.model.AdoptData;
 import es.vargontoc.agentic.viewer.cli.model.CatalogData;
-import es.vargontoc.agentic.viewer.cli.model.CreateArtifactData;
+import es.vargontoc.agentic.viewer.cli.model.ConfigureProviderData;
 import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
 import es.vargontoc.agentic.viewer.cli.model.DescribeData;
 import es.vargontoc.agentic.viewer.cli.model.InitData;
@@ -34,7 +34,6 @@ import es.vargontoc.agentic.viewer.creation.AddTechnicianDialog;
 import es.vargontoc.agentic.viewer.creation.CreateArtifactDialog;
 import es.vargontoc.agentic.viewer.creation.CreateModuleDialog;
 import es.vargontoc.agentic.viewer.creation.CreationPreviewDialog;
-import es.vargontoc.agentic.viewer.creation.EditTemplateDialog;
 import es.vargontoc.agentic.viewer.diff.DiffReview;
 import es.vargontoc.agentic.viewer.diff.DiffReviewDialog;
 import es.vargontoc.agentic.viewer.draft.DraftStore;
@@ -306,7 +305,7 @@ public final class App extends Application {
         initProjectMenuItem = menuItem("Iniciar proyecto", null, Icons.Icon.PLAY, this::initProject);
         MenuItem createModule = menuItem("Crear módulo…", "Shortcut+M", Icons.Icon.MODULE, this::createModule);
         MenuItem addTechnician = menuItem("Añadir técnico…", "Shortcut+Shift+T", Icons.Icon.TECHNICIAN, this::addTechnician);
-        MenuItem createArtifact = menuItem("Crear artefacto…", "Shortcut+N", Icons.Icon.PLUS, this::createArtifact);
+        MenuItem createArtifact = menuItem("Aplicar artefactos…", "Shortcut+N", Icons.Icon.PLUS, this::createArtifact);
         createModuleItems.add(createModule);
         addTechnicianItems.add(addTechnician);
         createArtifactItems.add(createArtifact);
@@ -384,7 +383,7 @@ public final class App extends Application {
         MenuItem quickTechnician = new MenuItem("Añadir técnico…");
         quickTechnician.setGraphic(Icons.of(Icons.Icon.TECHNICIAN, 14, "menu-icon"));
         quickTechnician.setOnAction(event -> addTechnician());
-        MenuItem quickArtifact = new MenuItem("Artefacto…");
+        MenuItem quickArtifact = new MenuItem("Artefactos…");
         quickArtifact.setGraphic(Icons.of(Icons.Icon.FILE_PLUS, 14, "menu-icon"));
         quickArtifact.setOnAction(event -> createArtifact());
         createModuleItems.add(quickModule);
@@ -1948,131 +1947,81 @@ public final class App extends Application {
             return;
         }
 
-        beginBusy("Consultando el catálogo…");
+        Path project = "project".equals(selection.scope()) ? projectSession.path() : null;
+        beginBusy("Aplicando artefactos…");
         Thread.ofVirtual().start(() -> {
-            try {
-                CatalogData catalogList = cliClient.catalog(
-                    selection.provider(), selection.scope(), selection.kind(), null,
-                    "project".equals(selection.scope()) ? projectSession.path() : null);
-
-                if (catalogList.entries().isEmpty()) {
-                    Platform.runLater(() -> {
-                        showErrorAlert("Sin artefactos", null,
-                            "No hay artefactos disponibles en el catálogo para esta combinación.");
-                        endBusy("Sin resultados");
-                    });
-                    return;
-                }
-
-                Platform.runLater(() -> {
-                    endBusy("Listo");
-                    Optional<String> nameOpt = selectNameFromCatalog(catalogList);
-                    if (nameOpt.isEmpty()) {
-                        return;
-                    }
-                    String name = nameOpt.get();
-                    beginBusy("Cargando la plantilla…");
-
-                    Thread.ofVirtual().start(() -> {
-                        try {
-                            CatalogData catalogWithTemplate = cliClient.catalog(
-                                selection.provider(), selection.scope(), selection.kind(), name,
-                                "project".equals(selection.scope()) ? projectSession.path() : null);
-
-                            if (catalogWithTemplate.entries().isEmpty()) {
-                                Platform.runLater(() -> {
-                                    showErrorAlert("Error", null,
-                                        "No se encontró la plantilla para «" + name + "».");
-                                    endBusy("Sin plantilla");
-                                });
-                                return;
+            List<String> summary = new ArrayList<>();
+            List<String> problems = new ArrayList<>();
+            for (String provider : selection.providers()) {
+                try {
+                    if (project == null) {
+                        ConfigureProviderData data = cliClient.configureProvider(provider);
+                        summary.add(provider + ": " + count(size(data.created()), "creado") + ", "
+                            + count(size(data.skipped()), "omitido"));
+                        if (data.warnings() != null) {
+                            for (String warning : data.warnings()) {
+                                problems.add(provider + ": " + warning);
                             }
-
-                            CatalogData.CatalogEntry entry = catalogWithTemplate.entries().getFirst();
-                            Platform.runLater(() -> {
-                                endBusy("Listo");
-                                Optional<EditTemplateDialog.Result> editOpt = EditTemplateDialog.show(
-                                    stage, name, entry.template(), entry.exists());
-                                if (editOpt.isEmpty()) {
-                                    return;
-                                }
-                                beginBusy("Creando el artefacto…");
-                                Thread.ofVirtual().start(() -> executeCreateArtifact(
-                                    selection, name, editOpt.get(), entry));
-                            });
-                        } catch (CliClientException exception) {
-                            ErrorNotice notice = ErrorPresenter.present(exception);
-                            Platform.runLater(() -> {
-                                showErrorAlert("Error", null, notice.message());
-                                endBusy("Error al cargar la plantilla");
-                            });
-                        } catch (RuntimeException exception) {
-                            Platform.runLater(() -> {
-                                showErrorAlert("Error", null, exception.getMessage());
-                                endBusy("Error al cargar la plantilla");
-                            });
                         }
-                    });
-                });
-            } catch (CliClientException exception) {
-                ErrorNotice notice = ErrorPresenter.present(exception);
-                Platform.runLater(() -> {
-                    showErrorAlert("Error", null, notice.message());
-                    endBusy("Error al consultar el catálogo");
-                });
-            } catch (RuntimeException exception) {
-                Platform.runLater(() -> {
-                    showErrorAlert("Error", null, exception.getMessage());
-                    endBusy("Error al consultar el catálogo");
-                });
+                    } else {
+                        summary.add(applyProjectProvider(provider, project));
+                    }
+                } catch (CliClientException exception) {
+                    ErrorNotice notice = ErrorPresenter.present(exception);
+                    problems.add(provider + ": " + notice.message());
+                } catch (RuntimeException exception) {
+                    problems.add(provider + ": " + exception.getMessage());
+                }
             }
+
+            Platform.runLater(() -> {
+                endBusy("Artefactos aplicados");
+                cacheStore.invalidateAll();
+                refreshAll();
+                showInfoAlert("Artefactos aplicados",
+                    summaryMessage(selection.scope(), summary, problems));
+            });
         });
     }
 
-    private Optional<String> selectNameFromCatalog(CatalogData catalogList) {
-        javafx.scene.control.ChoiceDialog<String> dialog = new javafx.scene.control.ChoiceDialog<>(
-            catalogList.entries().getFirst().name(),
-            catalogList.entries().stream().map(CatalogData.CatalogEntry::name).toList());
-        dialog.initOwner(stage);
-        dialog.setTitle("Seleccionar artefacto");
-        dialog.setHeaderText("Elige el artefacto que deseas crear:");
-        Theme.apply(dialog);
-        return dialog.showAndWait();
+    private String applyProjectProvider(String provider, Path project) {
+        int created = 0;
+        int skipped = 0;
+        for (String kind : List.of("agent", "skill")) {
+            CatalogData catalog = cliClient.catalog(provider, "project", kind, null, project);
+            for (CatalogData.CatalogEntry entry : catalog.entries()) {
+                if (entry.exists()) {
+                    skipped++;
+                    continue;
+                }
+                cliClient.createArtifact(provider, "project", kind, entry.name(), project, null, false);
+                created++;
+            }
+        }
+        return provider + ": " + count(created, "creado") + ", " + count(skipped, "omitido");
     }
 
-    private void executeCreateArtifact(CreateArtifactDialog.Result selection, String name,
-                                       EditTemplateDialog.Result edit, CatalogData.CatalogEntry entry) {
-        try {
-            Path project = "project".equals(selection.scope()) ? projectSession.path() : null;
-            CreateArtifactData result = cliClient.createArtifact(
-                selection.provider(), selection.scope(), selection.kind(), name,
-                project, edit.content(), edit.overwrite());
+    private static int size(List<String> values) {
+        return values == null ? 0 : values.size();
+    }
 
-            Platform.runLater(() -> {
-                if (result.replaced()) {
-                    showInfoAlert("Artefacto creado",
-                        "El artefacto «" + name + "» se creó sobrescribiendo el existente.\n"
-                            + "Ruta: " + result.path());
-                } else {
-                    showInfoAlert("Artefacto creado",
-                        "El artefacto «" + name + "» se creó correctamente.\n"
-                            + "Ruta: " + result.path());
-                }
-                endBusy("Artefacto creado");
-                refreshAll();
-            });
-        } catch (CliClientException exception) {
-            ErrorNotice notice = ErrorPresenter.present(exception);
-            Platform.runLater(() -> {
-                showErrorAlert("Error", null, notice.message());
-                endBusy("Error al crear el artefacto");
-            });
-        } catch (RuntimeException exception) {
-            Platform.runLater(() -> {
-                showErrorAlert("Error", null, exception.getMessage());
-                endBusy("Error al crear el artefacto");
-            });
+    private static String count(int value, String singular) {
+        return value + " " + (value == 1 ? singular : singular + "s");
+    }
+
+    private static String summaryMessage(String scope, List<String> summary, List<String> problems) {
+        StringBuilder text = new StringBuilder();
+        text.append("Ámbito: ").append("global".equals(scope) ? "global" : "proyecto").append("\n\n");
+        if (summary.isEmpty()) {
+            text.append("No se aplicó ningún proveedor.\n");
+        } else {
+            text.append(String.join("\n", summary));
         }
+        if (!problems.isEmpty()) {
+            text.append("\n\nIncidencias:\n").append(String.join("\n", problems));
+        }
+        text.append("\n\nLos artefactos existentes no se han modificado.");
+        return text.toString();
     }
 
     private boolean requireProject() {
@@ -2092,8 +2041,15 @@ public final class App extends Application {
         if (cacheStore != null) {
             cacheStore.invalidateAll();
         }
+        Path project = projectSession == null ? null : projectSession.path();
+        if (project == null) {
+            // Sin proyecto solo existe el ámbito global: se refrescan el árbol y el estado de proveedores.
+            refreshTree();
+            loadGlobalStatus();
+            return;
+        }
         try {
-            StatusData status = projectSession.select(projectSession.path());
+            StatusData status = projectSession.select(project);
             Platform.runLater(() -> renderProject(status));
         } catch (CliClientException exception) {
             ErrorNotice notice = ErrorPresenter.present(exception);
@@ -2392,7 +2348,7 @@ public final class App extends Application {
             F6            Ir a la consola
             Ctrl+M        Crear módulo
             Ctrl+Shift+T  Añadir técnico
-            Ctrl+N        Crear artefacto
+            Ctrl+N        Aplicar artefactos
             Ctrl+Q        Salir
             """);
         alert.showAndWait();

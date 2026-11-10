@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import es.vargontoc.agentic.viewer.cli.CliProcess.CliResult;
 import es.vargontoc.agentic.viewer.cli.model.AdoptData;
+import es.vargontoc.agentic.viewer.cli.model.ConfigureProviderData;
 import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
 import es.vargontoc.agentic.viewer.cli.model.DescribeData;
 import es.vargontoc.agentic.viewer.cli.model.SaveData;
@@ -236,6 +237,23 @@ class CliClientTest {
     }
 
     @Test
+    void aplicaElCatalogoGlobalDeUnProveedor() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, configureProviderJson(), "", false, 1);
+        }, mapper);
+
+        ConfigureProviderData data = client.configureProvider("claude");
+
+        assertEquals(List.of("configure-provider", "--provider", "claude"), seen.get());
+        assertEquals("claude", data.provider());
+        assertEquals(2, data.created().size());
+        assertEquals(1, data.skipped().size());
+        assertTrue(data.warnings().isEmpty());
+    }
+
+    @Test
     void creaUnModuloConDryRun() {
         AtomicReference<List<String>> seen = new AtomicReference<>();
         CliClient client = new CliClient((args, stdin, timeout) -> {
@@ -410,6 +428,15 @@ class CliClientTest {
             {"schemaVersion":1,"command":"adopt","ok":true,"data":{
               "path":"/home/.claude/agents/docs-readme.md","groupId":"global/agent/docs-readme",
               "dryRun":true,"applied":false,"diff":"-a\\n+b","backup":null},"errors":[]}
+            """;
+    }
+
+    private static String configureProviderJson() {
+        return """
+            {"schemaVersion":1,"command":"configure-provider","ok":true,"data":{
+              "provider":"claude","path":"/home/.claude",
+              "created":["agents/sdd-agent.md","skills/sdd-design"],
+              "skipped":["agents/sdd-design.md"],"warnings":[]},"errors":[]}
             """;
     }
 
