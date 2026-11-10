@@ -4,6 +4,7 @@ import java.nio.file.Path;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
@@ -43,8 +44,7 @@ public final class WelcomePane extends VBox {
         setPadding(new Insets(32));
         setSpacing(22);
 
-        Label mark = new Label("◈");
-        mark.getStyleClass().add("brand-mark");
+        Node mark = Icons.of(Icons.Icon.AGENT, 44, "welcome-mark");
 
         Label title = new Label("Agentic Viewer");
         title.getStyleClass().add("welcome-title");
@@ -59,6 +59,9 @@ public final class WelcomePane extends VBox {
         openButton.getStyleClass().add("primary");
         initButton.getStyleClass().add("secondary");
         createButton.getStyleClass().add("secondary");
+        openButton.setGraphic(Icons.of(Icons.Icon.FOLDER_OPEN, 15, "button-icon"));
+        initButton.setGraphic(Icons.of(Icons.Icon.PLAY, 15, "button-icon"));
+        createButton.setGraphic(Icons.of(Icons.Icon.PLUS, 15, "button-icon"));
         openButton.setMaxWidth(Double.MAX_VALUE);
         initButton.setMaxWidth(Double.MAX_VALUE);
         createButton.setMaxWidth(Double.MAX_VALUE);
@@ -67,9 +70,12 @@ public final class WelcomePane extends VBox {
         createButton.setAccessibleText("Crear un agente o una skill");
 
         HBox steps = new HBox(16,
-            step("1", "Elige tu proyecto", "Abre la carpeta donde trabajas y valida su estado con el CLI.", openButton),
-            step("2", "Prepáralo", "Crea la estructura .sdd y registra el equipo si aún no existe.", initButton),
-            step("3", "Crea artefactos", "Añade agentes y skills desde las plantillas del catálogo.", createButton));
+            step("1", Icons.Icon.FOLDER_OPEN, "Elige tu proyecto",
+                "Abre la carpeta donde trabajas y valida su estado con el CLI.", openButton),
+            step("2", Icons.Icon.PLAY, "Prepáralo",
+                "Crea la estructura .sdd y registra el equipo si aún no existe.", initButton),
+            step("3", Icons.Icon.PLUS, "Crea artefactos",
+                "Añade agentes y skills desde las plantillas del catálogo.", createButton));
         steps.setAlignment(Pos.CENTER);
         steps.setFillHeight(true);
 
@@ -155,9 +161,13 @@ public final class WelcomePane extends VBox {
             : new javafx.scene.control.Tooltip("Configura al menos un proveedor para crear artefactos"));
     }
 
-    private static VBox step(String number, String title, String text, Button action) {
+    private static VBox step(String number, Icons.Icon icon, String title, String text, Button action) {
         Label numberLabel = new Label(number);
         numberLabel.getStyleClass().add("step-number");
+
+        Node iconNode = Icons.of(icon, 16, "step-icon");
+        HBox top = new HBox(8, numberLabel, iconNode);
+        top.setAlignment(Pos.CENTER_LEFT);
 
         Label titleLabel = new Label(title);
         titleLabel.getStyleClass().add("step-title");
@@ -166,7 +176,7 @@ public final class WelcomePane extends VBox {
         textLabel.getStyleClass().add("step-text");
         textLabel.setWrapText(true);
 
-        VBox box = new VBox(8, numberLabel, titleLabel, textLabel, action);
+        VBox box = new VBox(8, top, titleLabel, textLabel, action);
         box.getStyleClass().add("step-card");
         box.setPadding(new Insets(18));
         box.setPrefWidth(220);

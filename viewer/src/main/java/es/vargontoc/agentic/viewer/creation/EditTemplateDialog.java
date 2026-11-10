@@ -3,6 +3,7 @@ package es.vargontoc.agentic.viewer.creation;
 import java.util.Optional;
 
 import es.vargontoc.agentic.viewer.cli.model.CatalogData;
+import es.vargontoc.agentic.viewer.ui.Icons;
 import es.vargontoc.agentic.viewer.ui.Theme;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
@@ -43,6 +44,9 @@ public final class EditTemplateDialog {
         ButtonType create = new ButtonType(exists ? "Sobrescribir" : "Crear", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(create, cancel);
+        if (dialog.getDialogPane().lookupButton(create) instanceof javafx.scene.control.Button button) {
+            button.setGraphic(Icons.of(Icons.Icon.CHECK, 15, "button-icon"));
+        }
 
         VBox content = new VBox(10);
         content.setPadding(new Insets(8));

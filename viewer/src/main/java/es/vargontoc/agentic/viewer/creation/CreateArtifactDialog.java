@@ -3,6 +3,7 @@ package es.vargontoc.agentic.viewer.creation;
 import java.util.List;
 import java.util.Optional;
 
+import es.vargontoc.agentic.viewer.ui.Icons;
 import es.vargontoc.agentic.viewer.ui.Theme;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
@@ -41,7 +42,11 @@ public final class CreateArtifactDialog {
         ButtonType next = new ButtonType("Siguiente", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(next, cancel);
-        dialog.getDialogPane().lookupButton(next).setDisable(providers.isEmpty());
+        var nextButton = dialog.getDialogPane().lookupButton(next);
+        nextButton.setDisable(providers.isEmpty());
+        if (nextButton instanceof javafx.scene.control.Button button) {
+            button.setGraphic(Icons.of(Icons.Icon.CHEVRON_RIGHT, 15, "button-icon"));
+        }
 
         GridPane grid = new GridPane();
         grid.setHgap(12);

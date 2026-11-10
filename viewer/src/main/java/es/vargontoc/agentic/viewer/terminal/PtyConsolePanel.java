@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import es.vargontoc.agentic.viewer.cli.CliCommand;
+import es.vargontoc.agentic.viewer.ui.Icons;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -71,6 +72,13 @@ public final class PtyConsolePanel extends VBox {
         restartButton.getStyleClass().add("secondary");
         closeButton.getStyleClass().add("secondary");
         clearButton.getStyleClass().add("ghost");
+
+        startButton.setGraphic(Icons.of(Icons.Icon.PLAY, 14, "button-icon"));
+        sendButton.setGraphic(Icons.of(Icons.Icon.CHEVRON_RIGHT, 14, "button-icon"));
+        interruptButton.setGraphic(Icons.of(Icons.Icon.STOP, 14, "button-icon"));
+        restartButton.setGraphic(Icons.of(Icons.Icon.REFRESH, 14, "button-icon"));
+        closeButton.setGraphic(Icons.of(Icons.Icon.CLOSE, 14, "button-icon"));
+        clearButton.setGraphic(Icons.of(Icons.Icon.TRASH, 14, "button-icon"));
 
         startButton.setTooltip(new Tooltip("Inicia el CLI interactivo en el proyecto actual"));
         interruptButton.setTooltip(new Tooltip("Envía Ctrl+C al proceso"));

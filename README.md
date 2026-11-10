@@ -1,13 +1,16 @@
-# develop-agentic-environment
+# Agentic Develop Kit
 
 > Un entorno de desarrollo con agentes de IA que trabajan con especificaciones aprobadas por personas.
 
-**develop-agentic-environment** instala y mantiene los agentes y skills de Spec-Driven Development en
+**Agentic Develop Kit** instala y mantiene los agentes y skills de Spec-Driven Development en
 Claude, Codex, Gemini y OpenCode, prepara proyectos con la estructura `.sdd` y genera los agentes de
 cada módulo y técnico. Incluye una herramienta de línea de comandos (CLI) y un visor de escritorio
 para revisar, editar y mantener todo sin memorizar comandos.
 
 Todo se ejecuta en tu equipo. No hay servicio remoto ni conexión a internet obligatoria.
+
+[Agentic Develop Kit](docs/images/agentic-viewer.png)
+
 
 ## Índice
 
@@ -222,6 +225,7 @@ La referencia completa de comandos, opciones, ejemplos y reglas de seguridad est
 - [Contratos](docs/contracts/): formato de datos, metadatos, rutas por proveedor y equipo.
 - [Guía de pruebas en Linux/WSL](docs/guia-pruebas-linux-wsl.md).
 - [Plan de release](docs/plan-release-1.0.md).
+- [Licencia de los iconos (Lucide)](docs/third-party/lucide.txt).
 
 ## Estado y colaboración
 

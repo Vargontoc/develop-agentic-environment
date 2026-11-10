@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 import es.vargontoc.agentic.viewer.editor.EditorModel;
 import es.vargontoc.agentic.viewer.editor.SharedBody;
 import es.vargontoc.agentic.viewer.editor.SkillEditorModel;
+import es.vargontoc.agentic.viewer.ui.Icons;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -207,6 +208,7 @@ public final class PreviewPanel extends VBox {
         });
 
         saveSkillFileButton.getStyleClass().add("primary");
+        saveSkillFileButton.setGraphic(Icons.of(Icons.Icon.SAVE, 14, "button-icon"));
         saveSkillFileButton.setTooltip(new Tooltip("Guarda el fichero seleccionado"));
         saveSkillFileButton.setOnAction(event -> {
             if (skillEditor != null) {
@@ -218,6 +220,7 @@ public final class PreviewPanel extends VBox {
         });
 
         propagateSkillFileButton.getStyleClass().add("secondary");
+        propagateSkillFileButton.setGraphic(Icons.of(Icons.Icon.REFRESH, 14, "button-icon"));
         propagateSkillFileButton.setTooltip(new Tooltip("Propaga este fichero al resto de copias del grupo"));
         propagateSkillFileButton.setOnAction(event -> {
             if (skillEditor != null) {
@@ -246,6 +249,7 @@ public final class PreviewPanel extends VBox {
         sharedResolved.selectedProperty().addListener((observable, previous, selected) -> applySharedView());
 
         propagateButton.getStyleClass().add("secondary");
+        propagateButton.setGraphic(Icons.of(Icons.Icon.REFRESH, 14, "button-icon"));
         HBox sharedActions = new HBox(8, propagateButton, sharedResolved);
         sharedActions.setAlignment(Pos.CENTER_LEFT);
         StackPane sharedStack = new StackPane(sharedEdit, sharedView);
@@ -330,6 +334,7 @@ public final class PreviewPanel extends VBox {
         });
 
         adoptButton.getStyleClass().add("secondary");
+        adoptButton.setGraphic(Icons.of(Icons.Icon.LINK, 14, "button-icon"));
         adoptButton.setOnAction(event -> {
             if (editor != null) {
                 onAdopt.onAdopt(editor);
@@ -339,6 +344,7 @@ public final class PreviewPanel extends VBox {
         adoptButton.setVisible(false);
 
         saveButton.getStyleClass().add("primary");
+        saveButton.setGraphic(Icons.of(Icons.Icon.SAVE, 14, "button-icon"));
         saveButton.setTooltip(new Tooltip("Guardar (Ctrl+S)"));
         saveButton.setOnAction(event -> {
             if (isSkillMode) {
@@ -452,6 +458,7 @@ public final class PreviewPanel extends VBox {
         skillEditor = null;
         isSkillMode = false;
         title.setText("Nada seleccionado");
+        setTitleIcon(Icons.Icon.SEARCH, "icon-search");
         hideNotice();
         setMetaMode(true);
         metaBox.getChildren().setAll(emptyState());
@@ -469,6 +476,7 @@ public final class PreviewPanel extends VBox {
         skillEditor = null;
         isSkillMode = false;
         title.setText(name);
+        setTitleIcon(Icons.Icon.CLOCK, "icon-clock");
         hideNotice();
         setMetaMode(false);
         ProgressIndicator spinner = new ProgressIndicator();
@@ -497,6 +505,14 @@ public final class PreviewPanel extends VBox {
         this.bodyLanguage = preview.bodyLanguage();
 
         title.setText(preview.name());
+        String kind = preview.kind() == null ? "" : preview.kind();
+        Icons.Icon titleIcon = switch (kind) {
+            case "agent" -> Icons.Icon.AGENT;
+            case "skill" -> Icons.Icon.SKILL;
+            case "profile" -> Icons.Icon.PROFILE;
+            default -> Icons.Icon.FILE_TEXT;
+        };
+        setTitleIcon(titleIcon, "icon-" + kind);
         hideNotice();
         setMetaMode(false);
         showMeta(preview);
@@ -523,6 +539,7 @@ public final class PreviewPanel extends VBox {
         this.status = preview.status() == null ? "" : preview.status();
 
         title.setText(preview.name() + " · skill");
+        setTitleIcon(Icons.Icon.SKILL, "icon-skill");
         hideNotice();
         setMetaMode(false);
         showMeta(preview);
@@ -570,6 +587,7 @@ public final class PreviewPanel extends VBox {
         skillEditor = null;
         isSkillMode = false;
         title.setText(".sdd");
+        setTitleIcon(Icons.Icon.SDD, "icon-sdd");
         hideNotice();
         setMetaMode(false);
         hide(headerSection);
@@ -589,6 +607,7 @@ public final class PreviewPanel extends VBox {
             for (Path file : files) {
                 Hyperlink link = new Hyperlink(file.getFileName().toString());
                 link.getStyleClass().add("file-link");
+                link.setGraphic(Icons.of(Icons.Icon.FILE_TEXT, 14, "file-icon"));
                 link.setTooltip(new Tooltip(file.toString()));
                 link.setOnAction(event -> onSddFileSelected.accept(file));
                 sddList.getChildren().add(link);
@@ -605,6 +624,7 @@ public final class PreviewPanel extends VBox {
         skillEditor = null;
         isSkillMode = false;
         title.setText(name);
+        setTitleIcon(Icons.Icon.FILE_TEXT, "icon-sdd");
         showNotice("Solo lectura · fichero de .sdd", false);
         setMetaMode(false);
         metaBox.getChildren().clear();
@@ -622,6 +642,7 @@ public final class PreviewPanel extends VBox {
         skillEditor = null;
         isSkillMode = false;
         title.setText(heading);
+        setTitleIcon(Icons.Icon.ALERT, "icon-error");
         showNotice("No se pudo previsualizar: " + message, true);
         setMetaMode(false);
         metaBox.getChildren().clear();
@@ -640,6 +661,7 @@ public final class PreviewPanel extends VBox {
         skillEditor = null;
         isSkillMode = false;
         title.setText(heading);
+        setTitleIcon(Icons.Icon.INFO, "icon-info");
         hideNotice();
         setMetaMode(true);
         Label text = new Label(message);
@@ -881,11 +903,17 @@ public final class PreviewPanel extends VBox {
         keys.getStyleClass().add("key-hint");
         keys.setWrapText(true);
 
-        VBox box = new VBox(8, heading, text, keys);
+        VBox box = new VBox(8, Icons.of(Icons.Icon.SEARCH, 28, "empty-icon"), heading, text, keys);
         box.getStyleClass().add("empty-state");
         box.setPadding(new Insets(24));
         VBox.setVgrow(box, Priority.ALWAYS);
         return box;
+    }
+
+    private void setTitleIcon(Icons.Icon icon, String colorClass) {
+        title.setGraphic(icon == null
+            ? null
+            : Icons.of(icon, 22, "panel-title-icon", colorClass));
     }
 
     private static Node hint(String text) {

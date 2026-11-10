@@ -3,6 +3,7 @@ package es.vargontoc.agentic.viewer.creation;
 import java.util.Optional;
 
 import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
+import es.vargontoc.agentic.viewer.ui.Icons;
 import es.vargontoc.agentic.viewer.ui.Theme;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
@@ -39,6 +40,9 @@ public final class CreationPreviewDialog {
         ButtonType confirm = new ButtonType("Confirmar y crear", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(confirm, cancel);
+        if (dialog.getDialogPane().lookupButton(confirm) instanceof javafx.scene.control.Button button) {
+            button.setGraphic(Icons.of(Icons.Icon.CHECK, 15, "button-icon"));
+        }
 
         VBox content = new VBox(10);
         content.setPadding(new Insets(8));

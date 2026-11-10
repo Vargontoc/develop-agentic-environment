@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import es.vargontoc.agentic.viewer.ui.Icons;
 import es.vargontoc.agentic.viewer.ui.Theme;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -90,6 +91,9 @@ public final class CreateModuleDialog {
         dialog.getDialogPane().setContent(content);
 
         var createButton = dialog.getDialogPane().lookupButton(create);
+        if (createButton instanceof javafx.scene.control.Button button) {
+            button.setGraphic(Icons.of(Icons.Icon.PLUS, 15, "button-icon"));
+        }
         Runnable validate = () -> {
             String name = nameField.getText() == null ? "" : nameField.getText().trim();
             boolean hasTechnicians = techChecks.values().stream().anyMatch(CheckBox::isSelected);

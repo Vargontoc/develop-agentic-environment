@@ -984,3 +984,166 @@
     -fx-background-color: #2e343d;
     -fx-padding: 0 1;
 }
+
+/* ------------------------------------------------------------------ */
+/* Iconos SVGPath                                                      */
+/* ------------------------------------------------------------------ */
+
+.icon {
+    -fx-fill: transparent;
+    -fx-stroke: #9aa4b1;
+}
+
+.icon-box {
+    -fx-cursor: inherit;
+}
+
+.menu-icon {
+    -fx-stroke: #9aa4b1;
+}
+
+.menu-item:focused .menu-icon {
+    -fx-stroke: #ffffff;
+}
+
+.button-icon {
+    -fx-stroke: #dfe3e8;
+}
+
+.button.primary .button-icon,
+.button:default .button-icon {
+    -fx-stroke: #081020;
+}
+
+.button.danger .button-icon {
+    -fx-stroke: #f79a9a;
+}
+
+.button.ghost .button-icon {
+    -fx-stroke: #b9c2cd;
+}
+
+.menu-button.create-menu .icon {
+    -fx-stroke: #081020;
+}
+
+.tab-icon {
+    -fx-stroke: #98a2af;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-icon {
+    -fx-stroke: #f3f5f7;
+}
+
+.search-icon {
+    -fx-stroke: #8b95a2;
+}
+
+.brand-icon {
+    -fx-stroke: #4f8cff;
+}
+
+.welcome-mark {
+    -fx-stroke: #4f8cff;
+}
+
+.step-icon {
+    -fx-stroke: #4f8cff;
+}
+
+.empty-icon {
+    -fx-stroke: #4f8cff;
+}
+
+.panel-title-icon {
+    -fx-stroke: #8ab4ff;
+}
+
+.panel-title-icon.icon-agent {
+    -fx-stroke: #6ee7b7;
+}
+
+.panel-title-icon.icon-skill {
+    -fx-stroke: #fde68a;
+}
+
+.panel-title-icon.icon-profile {
+    -fx-stroke: #fca5a5;
+}
+
+.panel-title-icon.icon-sdd {
+    -fx-stroke: #f3f5f7;
+}
+
+.panel-title-icon.icon-error {
+    -fx-stroke: #f79a9a;
+}
+
+.file-icon {
+    -fx-stroke: #8ab4ff;
+}
+
+.status-icon {
+    -fx-stroke: #9aa4b1;
+}
+
+.status-meta.ok .status-icon {
+    -fx-stroke: #62d99a;
+}
+
+.status-meta.muted .status-icon {
+    -fx-stroke: #9aa4b1;
+}
+
+.status-bar .warning .status-icon {
+    -fx-stroke: #f5c451;
+}
+
+.tree-icon {
+    -fx-stroke: #9aa4b1;
+}
+
+.tree-icon.icon-agent {
+    -fx-stroke: #6ee7b7;
+}
+
+.tree-icon.icon-skill {
+    -fx-stroke: #fde68a;
+}
+
+.tree-icon.icon-hook {
+    -fx-stroke: #f5c451;
+}
+
+.tree-icon.icon-profile {
+    -fx-stroke: #fca5a5;
+}
+
+.tree-icon.icon-provider {
+    -fx-stroke: #8ab4ff;
+}
+
+.tree-icon.icon-module {
+    -fx-stroke: #c4b5fd;
+}
+
+.tree-icon.icon-technician {
+    -fx-stroke: #d5dbe3;
+}
+
+.tree-icon.icon-sdd {
+    -fx-stroke: #f3f5f7;
+}
+
+.tree-icon.icon-pending {
+    -fx-stroke: #fbbf24;
+}
+
+.tree-icon.icon-legacy,
+.tree-icon.icon-detached {
+    -fx-stroke: #fca5a5;
+}
+
+.tree-cell:selected .tree-icon {
+    -fx-stroke: #ffffff;
+}

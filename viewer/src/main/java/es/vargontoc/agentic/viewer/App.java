@@ -46,6 +46,7 @@ import es.vargontoc.agentic.viewer.terminal.PtyConsolePanel;
 import es.vargontoc.agentic.viewer.tree.TreeFilter;
 import es.vargontoc.agentic.viewer.tree.TreeLabels;
 import es.vargontoc.agentic.viewer.tree.TreeModel;
+import es.vargontoc.agentic.viewer.ui.Icons;
 import es.vargontoc.agentic.viewer.ui.Theme;
 import es.vargontoc.agentic.viewer.ui.WelcomePane;
 import es.vargontoc.agentic.viewer.watcher.CacheStore;
@@ -191,8 +192,10 @@ public final class App extends Application {
         workspaceTabs.getStyleClass().add("workspace-tabs");
         Tab artifactTab = new Tab("Artefacto", previewPanel);
         artifactTab.setClosable(false);
+        artifactTab.setGraphic(Icons.of(Icons.Icon.FILE_TEXT, 14, "tab-icon"));
         consoleTab = new Tab("Consola", consoleContent());
         consoleTab.setClosable(false);
+        consoleTab.setGraphic(Icons.of(Icons.Icon.TERMINAL, 14, "tab-icon"));
         workspaceTabs.getTabs().addAll(artifactTab, consoleTab);
 
         centerHost = new StackPane(welcomePane, workspaceTabs);
@@ -272,19 +275,19 @@ public final class App extends Application {
 
     private MenuBar menuBar() {
         Menu file = new Menu("Archivo");
-        openProjectMenuItem = menuItem("Abrir proyecto…", "Shortcut+O", this::chooseProject);
-        reloadMenuItem = menuItem("Recargar", "F5", this::reloadWithGuard);
-        saveMenuItem = menuItem("Guardar", "Shortcut+S", this::saveCurrent);
-        closeProjectMenuItem = menuItem("Cerrar proyecto", null, this::closeProject);
-        MenuItem exit = menuItem("Salir", "Shortcut+Q", this::requestExit);
+        openProjectMenuItem = menuItem("Abrir proyecto…", "Shortcut+O", Icons.Icon.FOLDER_OPEN, this::chooseProject);
+        reloadMenuItem = menuItem("Recargar", "F5", Icons.Icon.REFRESH, this::reloadWithGuard);
+        saveMenuItem = menuItem("Guardar", "Shortcut+S", Icons.Icon.SAVE, this::saveCurrent);
+        closeProjectMenuItem = menuItem("Cerrar proyecto", null, Icons.Icon.CLOSE, this::closeProject);
+        MenuItem exit = menuItem("Salir", "Shortcut+Q", Icons.Icon.LOG_OUT, this::requestExit);
         file.getItems().addAll(openProjectMenuItem, reloadMenuItem, saveMenuItem,
             new SeparatorMenuItem(), closeProjectMenuItem, new SeparatorMenuItem(), exit);
 
         Menu project = new Menu("Proyecto");
-        initProjectMenuItem = menuItem("Iniciar proyecto", null, this::initProject);
-        MenuItem createModule = menuItem("Crear módulo…", "Shortcut+M", this::createModule);
-        MenuItem addTechnician = menuItem("Añadir técnico…", "Shortcut+Shift+T", this::addTechnician);
-        MenuItem createArtifact = menuItem("Crear artefacto…", "Shortcut+N", this::createArtifact);
+        initProjectMenuItem = menuItem("Iniciar proyecto", null, Icons.Icon.PLAY, this::initProject);
+        MenuItem createModule = menuItem("Crear módulo…", "Shortcut+M", Icons.Icon.MODULE, this::createModule);
+        MenuItem addTechnician = menuItem("Añadir técnico…", "Shortcut+Shift+T", Icons.Icon.TECHNICIAN, this::addTechnician);
+        MenuItem createArtifact = menuItem("Crear artefacto…", "Shortcut+N", Icons.Icon.PLUS, this::createArtifact);
         createModuleItems.add(createModule);
         addTechnicianItems.add(addTechnician);
         createArtifactItems.add(createArtifact);
@@ -292,16 +295,16 @@ public final class App extends Application {
             addTechnician, createArtifact);
 
         Menu view = new Menu("Ver");
-        searchMenuItem = menuItem("Buscar artefactos", "Shortcut+F", this::focusSearch);
-        consoleMenuItem = menuItem("Consola", "F6", this::showConsole);
+        searchMenuItem = menuItem("Buscar artefactos", "Shortcut+F", Icons.Icon.SEARCH, this::focusSearch);
+        consoleMenuItem = menuItem("Consola", "F6", Icons.Icon.TERMINAL, this::showConsole);
         autoRefreshMenuItem = new CheckMenuItem("Actualización automática");
         autoRefreshMenuItem.setSelected(true);
         view.getItems().addAll(searchMenuItem, consoleMenuItem,
             new SeparatorMenuItem(), autoRefreshMenuItem);
 
         Menu help = new Menu("Ayuda");
-        help.getItems().addAll(menuItem("Atajos de teclado", null, this::showShortcuts),
-            menuItem("Acerca de", null, this::showAbout));
+        help.getItems().addAll(menuItem("Atajos de teclado", null, Icons.Icon.HELP, this::showShortcuts),
+            menuItem("Acerca de", null, Icons.Icon.INFO, this::showAbout));
 
         MenuBar bar = new MenuBar(file, project, view, help);
         bar.getStyleClass().add("app-menu");
@@ -317,9 +320,16 @@ public final class App extends Application {
         return item;
     }
 
+    private MenuItem menuItem(String text, String accelerator, Icons.Icon icon, Runnable action) {
+        MenuItem item = menuItem(text, accelerator, action);
+        if (icon != null) {
+            item.setGraphic(Icons.of(icon, 14, "menu-icon"));
+        }
+        return item;
+    }
+
     private Node headerBar() {
-        Label mark = new Label("◈");
-        mark.getStyleClass().add("brand-mark");
+        Node mark = Icons.of(Icons.Icon.AGENT, 30, "brand-icon");
 
         Label title = new Label("Agentic Viewer");
         title.getStyleClass().add("brand-title");
@@ -333,11 +343,13 @@ public final class App extends Application {
 
         openProjectButton = new Button("Abrir proyecto");
         openProjectButton.getStyleClass().add("secondary");
+        openProjectButton.setGraphic(Icons.of(Icons.Icon.FOLDER_OPEN, 15, "button-icon"));
         openProjectButton.setTooltip(new Tooltip("Abrir un proyecto (Ctrl+O)"));
         openProjectButton.setOnAction(event -> chooseProject());
 
         initProjectButton = new Button("Iniciar proyecto");
         initProjectButton.getStyleClass().add("primary");
+        initProjectButton.setGraphic(Icons.of(Icons.Icon.PLAY, 15, "button-icon"));
         initProjectButton.setTooltip(new Tooltip("Crear la estructura .sdd del proyecto"));
         initProjectButton.setOnAction(event -> initProject());
         initProjectButton.setManaged(false);
@@ -345,11 +357,15 @@ public final class App extends Application {
 
         createMenuButton = new MenuButton("Crear");
         createMenuButton.getStyleClass().addAll("primary", "create-menu");
+        createMenuButton.setGraphic(Icons.of(Icons.Icon.PLUS, 15, "button-icon"));
         MenuItem quickModule = new MenuItem("Módulo…");
+        quickModule.setGraphic(Icons.of(Icons.Icon.MODULE, 14, "menu-icon"));
         quickModule.setOnAction(event -> createModule());
         MenuItem quickTechnician = new MenuItem("Añadir técnico…");
+        quickTechnician.setGraphic(Icons.of(Icons.Icon.TECHNICIAN, 14, "menu-icon"));
         quickTechnician.setOnAction(event -> addTechnician());
         MenuItem quickArtifact = new MenuItem("Artefacto…");
+        quickArtifact.setGraphic(Icons.of(Icons.Icon.FILE_PLUS, 14, "menu-icon"));
         quickArtifact.setOnAction(event -> createArtifact());
         createModuleItems.add(quickModule);
         addTechnicianItems.add(quickTechnician);
@@ -391,7 +407,7 @@ public final class App extends Application {
         Label heading = new Label("Navegación");
         heading.getStyleClass().add("heading");
 
-        sidebarRefreshButton = new Button("↻");
+        sidebarRefreshButton = new Button("", Icons.of(Icons.Icon.REFRESH, 15, "button-icon"));
         sidebarRefreshButton.getStyleClass().addAll("ghost", "icon");
         sidebarRefreshButton.setTooltip(new Tooltip("Recargar (F5)"));
         sidebarRefreshButton.setAccessibleText("Recargar el árbol de artefactos");
@@ -413,6 +429,11 @@ public final class App extends Application {
             }
         });
 
+        HBox searchRow = new HBox(8, Icons.of(Icons.Icon.SEARCH, 15, "search-icon"), searchField);
+        searchRow.setAlignment(Pos.CENTER_LEFT);
+        searchRow.getStyleClass().add("search-row");
+        HBox.setHgrow(searchField, Priority.ALWAYS);
+
         filterStatus = new Label();
         filterStatus.getStyleClass().add("filter-status");
         filterStatus.setWrapText(true);
@@ -432,11 +453,13 @@ public final class App extends Application {
                 getStyleClass().removeAll(TREE_CLASSES);
                 if (empty || node == null) {
                     setText(null);
+                    setGraphic(null);
                     setTooltip(null);
                     return;
                 }
                 boolean dirty = previewPanel != null && previewPanel.isDirtyNode(node.path());
                 setText(TreeLabels.label(node) + (dirty ? "  ●" : ""));
+                setGraphic(treeIcon(node));
                 getStyleClass().add("tree-" + node.type());
                 if (dirty) {
                     getStyleClass().add("tree-dirty");
@@ -493,6 +516,7 @@ public final class App extends Application {
 
         Button staleReload = new Button("Recargar ahora");
         staleReload.getStyleClass().addAll("secondary", "small");
+        staleReload.setGraphic(Icons.of(Icons.Icon.REFRESH, 13, "button-icon"));
         staleReload.setOnAction(event -> reloadWithGuard());
 
         staleBanner = new HBox(8, staleWarning, staleReload);
@@ -507,7 +531,7 @@ public final class App extends Application {
         selectionInfo.setManaged(false);
         selectionInfo.setVisible(false);
 
-        VBox sidebar = new VBox(10, headingRow, searchField, filterStatus, treeView,
+        VBox sidebar = new VBox(10, headingRow, searchRow, filterStatus, treeView,
             treeWarnings, staleBanner, selectionInfo);
         VBox.setVgrow(treeView, Priority.ALWAYS);
         sidebar.getStyleClass().add("sidebar");
@@ -528,8 +552,9 @@ public final class App extends Application {
         statusMessage = new Label("Listo");
         statusMessage.getStyleClass().add("status-message");
 
-        dirtyStatus = new Label("● Cambios sin guardar");
+        dirtyStatus = new Label("Cambios sin guardar");
         dirtyStatus.getStyleClass().add("warning");
+        dirtyStatus.setGraphic(Icons.of(Icons.Icon.PENCIL, 12, "status-icon"));
         dirtyStatus.setManaged(false);
         dirtyStatus.setVisible(false);
 
@@ -544,6 +569,7 @@ public final class App extends Application {
 
         watcherStatus = new Label("Watcher inactivo");
         watcherStatus.getStyleClass().add("status-meta");
+        watcherStatus.setGraphic(Icons.of(Icons.Icon.REFRESH, 12, "status-icon"));
 
         HBox bar = new HBox(10, busySpinner, statusMessage, dirtyStatus, spacer,
             autoRefreshCheck, watcherStatus);
@@ -711,6 +737,35 @@ public final class App extends Application {
             parent.setExpanded(true);
             parent = parent.getParent();
         }
+    }
+
+    private static Node treeIcon(TreeData.Node node) {
+        String type = node.type() == null ? "" : node.type();
+        Icons.Icon icon = switch (type) {
+            case "agent" -> Icons.Icon.AGENT;
+            case "skill" -> Icons.Icon.SKILL;
+            case "hook" -> Icons.Icon.HOOK;
+            case "profile" -> Icons.Icon.PROFILE;
+            case "provider" -> Icons.Icon.PROVIDER;
+            case "module" -> Icons.Icon.MODULE;
+            case "technician" -> Icons.Icon.TECHNICIAN;
+            case "sdd" -> Icons.Icon.SDD;
+            case "root" -> "Global".equals(node.name()) ? Icons.Icon.GLOBE : Icons.Icon.FOLDER;
+            default -> Icons.Icon.FOLDER;
+        };
+        List<String> classes = new ArrayList<>();
+        classes.add("tree-icon");
+        classes.add("icon-" + (type.isBlank() ? "unknown" : type));
+        if (node.pending()) {
+            classes.add("icon-pending");
+        }
+        if ("legacy".equals(node.status())) {
+            classes.add("icon-legacy");
+        }
+        if ("detached".equals(node.status())) {
+            classes.add("icon-detached");
+        }
+        return Icons.of(icon, 15, classes.toArray(String[]::new));
     }
 
     private TreeItem<TreeData.Node> toItem(TreeData.Node node) {

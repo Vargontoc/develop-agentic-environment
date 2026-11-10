@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import es.vargontoc.agentic.viewer.ui.Icons;
 import es.vargontoc.agentic.viewer.ui.Theme;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
@@ -78,6 +79,9 @@ public final class AddTechnicianDialog {
         dialog.getDialogPane().setContent(content);
 
         var addButton = dialog.getDialogPane().lookupButton(add);
+        if (addButton instanceof javafx.scene.control.Button button) {
+            button.setGraphic(Icons.of(Icons.Icon.TECHNICIAN, 15, "button-icon"));
+        }
         Runnable validate = () -> addButton.setDisable(
             techChecks.values().stream().noneMatch(CheckBox::isSelected)
                 || provChecks.values().stream().noneMatch(CheckBox::isSelected));
