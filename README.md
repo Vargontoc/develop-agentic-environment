@@ -147,8 +147,9 @@ Para añadir técnicos a un módulo que ya existe, usa **Crear → Añadir técn
 ### 6. Aplica agentes y skills
 
 Usa **Crear → Artefactos**, marca uno o varios proveedores y elige el ámbito (global o proyecto). La
-aplicación crea los agentes, skills y perfiles relacionados que falten en cada proveedor. Lo que ya
-existe no se modifica: puedes cambiar el contenido después desde el árbol.
+aplicación aplica los agentes, skills y perfiles relacionados de cada proveedor. Con **Reemplazar los
+artefactos existentes** activado, actualiza los que ya existen usando la plantilla actual y guarda una
+copia de seguridad de cada fichero reemplazado; si lo desactivas, solo crea los que faltan.
 
 ### 7. Revisa, edita y guarda
 

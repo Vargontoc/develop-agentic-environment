@@ -21,13 +21,14 @@ import javafx.stage.Window;
 /**
  * Diálogo para aplicar los artefactos de uno o varios proveedores en un ámbito.
  * Solo pide proveedores y ámbito: el catálogo relacionado de cada proveedor se
- * aplica después, omitiendo lo que ya exista.
+ * aplica después. Los artefactos existentes se pueden reemplazar con copia de
+ * seguridad o dejar intactos.
  */
 public final class CreateArtifactDialog {
 
     private CreateArtifactDialog() {}
 
-    public record Result(List<String> providers, String scope) {}
+    public record Result(List<String> providers, String scope, boolean replace) {}
 
     private record Scope(String id, String label) {
         @Override
@@ -84,11 +85,20 @@ public final class CreateArtifactDialog {
         scopeChoice.getSelectionModel().selectFirst();
         scopeChoice.setMaxWidth(Double.MAX_VALUE);
 
-        Label hint = new Label("Se crearán los artefactos que falten. Lo que ya exista no se modifica.");
+        CheckBox replace = new CheckBox("Reemplazar los artefactos existentes");
+        replace.setSelected(true);
+
+        Label hint = new Label();
         hint.getStyleClass().add("muted");
         hint.setWrapText(true);
+        Runnable updateHint = () -> hint.setText(replace.isSelected()
+            ? "Se reemplazarán los agentes y skills existentes con la plantilla actual. "
+                + "Cada fichero reemplazado deja una copia de seguridad."
+            : "Se crearán solo los artefactos que falten. Lo que ya exista no se modifica.");
+        replace.selectedProperty().addListener((observable, previous, current) -> updateHint.run());
+        updateHint.run();
 
-        content.getChildren().addAll(providerLabel, providerBox, scopeLabel, scopeChoice, hint);
+        content.getChildren().addAll(providerLabel, providerBox, scopeLabel, scopeChoice, replace, hint);
         dialog.getDialogPane().setContent(content);
 
         var applyButton = dialog.getDialogPane().lookupButton(apply);
@@ -105,7 +115,8 @@ public final class CreateArtifactDialog {
                 return null;
             }
             Scope scope = scopeChoice.getValue();
-            return scope == null ? null : new Result(selected(providerChecks), scope.id());
+            return scope == null ? null
+                : new Result(selected(providerChecks), scope.id(), replace.isSelected());
         });
 
         return dialog.showAndWait();

@@ -1955,16 +1955,9 @@ public final class App extends Application {
             for (String provider : selection.providers()) {
                 try {
                     if (project == null) {
-                        ConfigureProviderData data = cliClient.configureProvider(provider);
-                        summary.add(provider + ": " + count(size(data.created()), "creado") + ", "
-                            + count(size(data.skipped()), "omitido"));
-                        if (data.warnings() != null) {
-                            for (String warning : data.warnings()) {
-                                problems.add(provider + ": " + warning);
-                            }
-                        }
+                        summary.add(applyGlobalProvider(provider, selection.replace(), problems));
                     } else {
-                        summary.add(applyProjectProvider(provider, project));
+                        summary.add(applyProjectProvider(provider, project, selection.replace()));
                     }
                 } catch (CliClientException exception) {
                     ErrorNotice notice = ErrorPresenter.present(exception);
@@ -1979,37 +1972,90 @@ public final class App extends Application {
                 cacheStore.invalidateAll();
                 refreshAll();
                 showInfoAlert("Artefactos aplicados",
-                    summaryMessage(selection.scope(), summary, problems));
+                    summaryMessage(selection.scope(), summary, problems, selection.replace()));
             });
         });
     }
 
-    private String applyProjectProvider(String provider, Path project) {
+    private String applyGlobalProvider(String provider, boolean replace, List<String> problems) {
         int created = 0;
+        int replaced = 0;
+        int skipped = 0;
+        if (replace) {
+            for (String kind : List.of("agent", "skill")) {
+                CatalogData catalog = cliClient.catalog(provider, "global", kind, null, null);
+                for (CatalogData.CatalogEntry entry : catalog.entries()) {
+                    boolean exists = entry.exists();
+                    cliClient.createArtifact(provider, "global", kind, entry.name(), null, null, true);
+                    if (exists) {
+                        replaced++;
+                    } else {
+                        created++;
+                    }
+                }
+            }
+        }
+        ConfigureProviderData data = cliClient.configureProvider(provider);
+        created += size(data.created());
+        skipped += replace ? 0 : size(data.skipped());
+        addWarnings(provider, data, problems);
+        return provider + ": " + counts(created, replaced, skipped);
+    }
+
+    private String applyProjectProvider(String provider, Path project, boolean replace) {
+        int created = 0;
+        int replaced = 0;
         int skipped = 0;
         for (String kind : List.of("agent", "skill")) {
             CatalogData catalog = cliClient.catalog(provider, "project", kind, null, project);
             for (CatalogData.CatalogEntry entry : catalog.entries()) {
                 if (entry.exists()) {
-                    skipped++;
+                    if (replace) {
+                        cliClient.createArtifact(provider, "project", kind, entry.name(), project, null, true);
+                        replaced++;
+                    } else {
+                        skipped++;
+                    }
                     continue;
                 }
                 cliClient.createArtifact(provider, "project", kind, entry.name(), project, null, false);
                 created++;
             }
         }
-        return provider + ": " + count(created, "creado") + ", " + count(skipped, "omitido");
+        return provider + ": " + counts(created, replaced, skipped);
+    }
+
+    private static void addWarnings(String provider, ConfigureProviderData data, List<String> problems) {
+        if (data.warnings() == null) {
+            return;
+        }
+        for (String warning : data.warnings()) {
+            problems.add(provider + ": " + warning);
+        }
     }
 
     private static int size(List<String> values) {
         return values == null ? 0 : values.size();
     }
 
+    private static String counts(int created, int replaced, int skipped) {
+        List<String> parts = new ArrayList<>();
+        parts.add(count(created, "creado"));
+        if (replaced > 0) {
+            parts.add(count(replaced, "reemplazado"));
+        }
+        if (skipped > 0) {
+            parts.add(count(skipped, "omitido"));
+        }
+        return String.join(", ", parts);
+    }
+
     private static String count(int value, String singular) {
         return value + " " + (value == 1 ? singular : singular + "s");
     }
 
-    private static String summaryMessage(String scope, List<String> summary, List<String> problems) {
+    private static String summaryMessage(String scope, List<String> summary, List<String> problems,
+                                         boolean replace) {
         StringBuilder text = new StringBuilder();
         text.append("Ámbito: ").append("global".equals(scope) ? "global" : "proyecto").append("\n\n");
         if (summary.isEmpty()) {
@@ -2020,7 +2066,9 @@ public final class App extends Application {
         if (!problems.isEmpty()) {
             text.append("\n\nIncidencias:\n").append(String.join("\n", problems));
         }
-        text.append("\n\nLos artefactos existentes no se han modificado.");
+        text.append(replace
+            ? "\n\nLos artefactos existentes se han reemplazado y tienen copia de seguridad."
+            : "\n\nLos artefactos existentes no se han modificado.");
         return text.toString();
     }
 
