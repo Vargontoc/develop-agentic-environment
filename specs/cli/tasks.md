@@ -8,7 +8,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
 
 ## Tareas
 
-### [ ] TASK-001 Resolvedor de rutas multiplataforma
+### [X] TASK-001 Resolvedor de rutas multiplataforma
 
 - **Cubre:** REQ-007, NFR-001, NFR-005, DEC-011
 - **Componente:** `path-resolver | por definir (analista técnico)`
@@ -20,7 +20,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error: ruta inexistente, ruta que es un fichero y enlace simbólico que escapa del ámbito; se rechazan con un error tipado.
 - **Prueba manual:** no aplica: componente interno sin interfaz propia; se verifica con las pruebas automáticas y se expone en TASK-022.
 
-### [ ] TASK-002 Almacén de texto con escritura atómica
+### [X] TASK-002 Almacén de texto con escritura atómica
 
 - **Cubre:** NFR-004, NFR-005, DEC-010
 - **Componente:** `text-store | por definir (analista técnico)`
@@ -32,7 +32,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: fallo simulado durante la escritura y ruta fuera de los ámbitos permitidos; el original queda intacto y la ruta se rechaza `(propuesto)`.
 - **Prueba manual:** no aplica: componente interno; se verifica con las pruebas automáticas y se usa desde TASK-012 en adelante.
 
-### [ ] TASK-003 Catálogo de proveedores y estados
+### [X] TASK-003 Catálogo de proveedores y estados
 
 - **Cubre:** REQ-008, DEC-015
 - **Componente:** `provider-catalog | no consta en el mapa`
@@ -44,7 +44,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: proveedor sin carpeta devuelve «no instalado»; carpeta con solo artefactos del usuario devuelve «instalado sin configurar» `(propuesto)`.
 - **Prueba manual:** no aplica: componente interno; se expone a través de `status` en TASK-022.
 
-### [ ] TASK-004 Catálogo de artefactos de la aplicación
+### [X] TASK-004 Catálogo de artefactos de la aplicación
 
 - **Cubre:** REQ-009, DEC-015
 - **Componente:** `artifact-catalog | por definir (analista técnico)`
@@ -56,7 +56,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: un agente propio del usuario no entra en el catálogo; un recurso del jar no instalado tampoco; un proveedor desconocido devuelve error `(propuesto)`.
 - **Prueba manual:** no aplica: componente interno; se verifica con pruebas automáticas y se expone en TASK-022.
 
-### [ ] TASK-005 Formato de artefactos Markdown y TOML
+### [X] TASK-005 Formato de artefactos Markdown y TOML
 
 - **Cubre:** REQ-011, REQ-012, NFR-007, DEC-008
 - **Componente:** `artifact-format | por definir (analista técnico)`
@@ -68,7 +68,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: fichero sin cabecera reconocible o con delimitadores incompletos devuelve un error de formato `(propuesto)`; la cabecera no se reserializa ni pierde comentarios.
 - **Prueba manual:** no aplica: componente interno; se verifica con pruebas automáticas y se expone en TASK-022.
 
-### [ ] TASK-006 Almacén de metadatos de agrupación
+### [X] TASK-006 Almacén de metadatos de agrupación
 
 - **Cubre:** REQ-013, DEC-005
 - **Componente:** `metadata-store | por definir (analista técnico)`
@@ -80,7 +80,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: almacén corrupto o ausente se trata como vacío y los artefactos pasan a personalizados `(propuesto)`; no aparece ningún fichero de metadatos bajo el proyecto.
 - **Prueba manual:** no aplica: componente interno; se verifica con pruebas automáticas y se expone indirectamente en TASK-025.
 
-### [ ] TASK-007 Inventario de artefactos instalados
+### [X] TASK-007 Inventario de artefactos instalados
 
 - **Cubre:** REQ-009, REQ-010, DEC-015
 - **Componente:** `artifact-inventory | por definir (analista técnico)`
@@ -92,7 +92,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: artefacto ilegible devuelve un error con la ruta `(propuesto)`; artefacto del usuario no aparece; artefacto sin metadatos se marca como legacy.
 - **Prueba manual:** no aplica: componente interno; se expone en el árbol de TASK-022.
 
-### [ ] TASK-008 Descripción de artefactos
+### [X] TASK-008 Descripción de artefactos
 
 - **Cubre:** REQ-011, REQ-014, DEC-004, DEC-008, DEC-009
 - **Componente:** `artifact-descriptor | por definir (analista técnico)`
@@ -104,7 +104,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: ruta del jar, artefacto inexistente y artefacto sin permisos de lectura devuelven error con la ruta.
 - **Prueba manual:** no aplica: componente interno; se expone en `describe` dentro de TASK-022.
 
-### [ ] TASK-009 Espacio de trabajo del proyecto y team.md
+### [X] TASK-009 Espacio de trabajo del proyecto y team.md
 
 - **Cubre:** REQ-017, REQ-010, DEC-017
 - **Componente:** `project-workspace | no consta en el mapa`
@@ -116,7 +116,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: ruta que no es directorio, `team.md` ausente, mal formado o con módulos repetidos devuelve aviso y resultado parcial.
 - **Prueba manual:** no aplica: componente interno; se expone en `init` dentro de TASK-023.
 
-### [ ] TASK-010 Árbol global y de proyecto
+### [X] TASK-010 Árbol global y de proyecto
 
 - **Cubre:** REQ-010, DEC-015, DEC-017
 - **Componente:** `project-tree | por definir (analista técnico)`
@@ -128,7 +128,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: `team.md` mal formado devuelve aviso y árbol parcial; módulo sin técnicos aparece vacío pero visible.
 - **Prueba manual:** no aplica: componente interno; se expone en `tree` dentro de TASK-022.
 
-### [ ] TASK-011 Servicios de aplicación sin impresión
+### [X] TASK-011 Servicios de aplicación sin impresión
 
 - **Cubre:** REQ-001, REQ-002, REQ-024, DEC-001
 - **Componente:** `application-services | no consta en el mapa`
@@ -140,7 +140,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: un error de dominio se propaga como resultado tipado y no como impresión `(propuesto)`; no hay salida por consola desde la capa de aplicación.
 - **Prueba manual:** no aplica: refactor interno; la regresión se comprueba en TASK-028.
 
-### [ ] TASK-012 Guardado de instancia y conflictos
+### [X] TASK-012 Guardado de instancia y conflictos
 
 - **Cubre:** REQ-012, REQ-014, NFR-004, DEC-009, DEC-010
 - **Componente:** `propagation-engine | por definir (analista técnico)`
@@ -152,7 +152,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: cambio externo devuelve conflicto; sobrescritura explícita actualiza y conserva copia; guardado sin diferencias no escribe.
 - **Prueba manual:** no aplica: componente interno; se expone en `save` dentro de TASK-025.
 
-### [ ] TASK-013 Propagación de cuerpo por grupo
+### [X] TASK-013 Propagación de cuerpo por grupo
 
 - **Cubre:** REQ-012, REQ-006, DEC-006, DEC-007
 - **Componente:** `propagation-engine | por definir (analista técnico)`
@@ -164,7 +164,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: proveedor sin el artefacto se omite; grupo sin cambios no escribe; skill de otro ámbito no se propaga.
 - **Prueba manual:** no aplica: componente interno; se expone en `save` dentro de TASK-025.
 
-### [ ] TASK-014 Migración de artefactos legacy y desvinculación
+### [X] TASK-014 Migración de artefactos legacy y desvinculación
 
 - **Cubre:** REQ-021, DEC-013
 - **Componente:** `migration-service | por definir (analista técnico)`
@@ -176,7 +176,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: metadatos corruptos no borran artefactos y se tratan como legacy `(propuesto)`; artefacto desvinculado sigue omitido en propagaciones posteriores.
 - **Prueba manual:** no aplica: componente interno; se expone en `save` dentro de TASK-025.
 
-### [ ] TASK-015 Skills como directorio
+### [X] TASK-015 Skills como directorio
 
 - **Cubre:** REQ-020, DEC-014
 - **Componente:** `artifact-service | por definir (analista técnico)`
@@ -188,7 +188,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: skill inexistente devuelve error; una skill global no se propaga a proyecto ni al contrario; un asset no afectado se conserva.
 - **Prueba manual:** no aplica: componente interno; se expone en `create-artifact` y en la edición de skills de TASK-027.
 
-### [ ] TASK-016 Creación de módulos
+### [X] TASK-016 Creación de módulos
 
 - **Cubre:** REQ-015, DEC-017, DEC-007
 - **Componente:** `module-service | no consta en el mapa`
@@ -200,7 +200,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: nombre inválido no crea nada; módulo duplicado no duplica; fallo a mitad de la generación devuelve resultado parcial con lo creado y lo omitido `(propuesto)`.
 - **Prueba manual:** no aplica: componente interno; se expone en `create-module` dentro de TASK-026.
 
-### [ ] TASK-017 Alta de técnicos
+### [X] TASK-017 Alta de técnicos
 
 - **Cubre:** REQ-016, DEC-017
 - **Componente:** `module-service | no consta en el mapa`
@@ -212,7 +212,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: técnico ya existente se omite sin sobrescribir; módulo inexistente devuelve error.
 - **Prueba manual:** no aplica: componente interno; se expone en `add-technician` dentro de TASK-026.
 
-### [ ] TASK-018 Creación de agentes y skills desde plantilla
+### [X] TASK-018 Creación de agentes y skills desde plantilla
 
 - **Cubre:** REQ-019, DEC-018
 - **Componente:** `artifact-service | por definir (analista técnico)`
@@ -224,7 +224,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: artefacto con el mismo nombre devuelve conflicto y no sobrescribe; ámbito o proveedor inválido devuelve error `(propuesto)`.
 - **Prueba manual:** no aplica: componente interno; se expone en `create-artifact` dentro de TASK-027.
 
-### [ ] TASK-019 Cabeceras por sistema operativo
+### [X] TASK-019 Cabeceras por sistema operativo
 
 - **Cubre:** REQ-022, NFR-001, DEC-012
 - **Componente:** `resource-repository | no consta en el mapa`
@@ -236,7 +236,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: variante ausente para el sistema actual devuelve error con la entrada afectada `(propuesto)`.
 - **Prueba manual:** no aplica: componente interno; se verifica de extremo a extremo en TASK-020 y TASK-024.
 
-### [ ] TASK-020 Configuración de proveedores
+### [X] TASK-020 Configuración de proveedores
 
 - **Cubre:** REQ-018, DEC-012, DEC-015
 - **Componente:** `provider-configurator | no consta en el mapa`
@@ -248,7 +248,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   - Caso de error o límite: proveedor ya configurado no se sobrescribe; recurso ausente devuelve error con su ruta; ejecución repetida es idempotente.
 - **Prueba manual:** no aplica: componente interno; se expone en `configure-provider` dentro de TASK-024.
 
-### [ ] TASK-021 Contrato de comandos y envelope
+### [X] TASK-021 Contrato de comandos y envelope
 
 - **Cubre:** REQ-003, REQ-004, REQ-005, REQ-006, REQ-023, NFR-006, DEC-002, DEC-003
 - **Componente:** `command-contract | por definir (analista técnico)`
@@ -263,7 +263,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Ejecutar `--version` y comprobar que muestra una versión.
   3. Ejecutar un comando inexistente y comprobar el código de salida 2 y el error estructurado.
 
-### [ ] TASK-022 Comandos de lectura: status, tree y describe
+### [X] TASK-022 Comandos de lectura: status, tree y describe
 
 - **Cubre:** REQ-002, REQ-010, REQ-011, REQ-024, NFR-003
 - **Componente:** `command-router | por definir (analista técnico)`; interfaces con `application-services`, `project-tree` y `artifact-descriptor`
@@ -278,7 +278,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Ejecutar `tree` sobre un proyecto con `.sdd` y comprobar módulos y técnicos.
   3. Ejecutar `describe` sobre un agente y comprobar cabecera, cuerpo y hash.
 
-### [ ] TASK-023 Comando init
+### [X] TASK-023 Comando init
 
 - **Cubre:** REQ-002, REQ-017, REQ-024
 - **Componente:** `command-router | por definir (analista técnico)`; `project-workspace`
@@ -293,7 +293,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Ejecutar `init` sobre él y comprobar que aparece `.sdd`.
   3. Ejecutar `init` de nuevo y comprobar que no se sobrescribe nada.
 
-### [ ] TASK-024 Comando configure-provider
+### [X] TASK-024 Comando configure-provider
 
 - **Cubre:** REQ-002, REQ-018, REQ-024
 - **Componente:** `command-router | por definir (analista técnico)`; `provider-configurator`
@@ -308,7 +308,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Ejecutar `configure-provider` y comprobar agentes y skills instalados.
   3. Ejecutar de nuevo y comprobar que no se sobrescribe.
 
-### [ ] TASK-025 Comando save
+### [X] TASK-025 Comando save
 
 - **Cubre:** REQ-002, REQ-012, REQ-014, REQ-024
 - **Componente:** `command-router | por definir (analista técnico)`; `propagation-engine`
@@ -323,7 +323,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Comprobar que los módulos del grupo reciben el cuerpo con su nombre correcto.
   3. Modificar un fichero por fuera y comprobar que `save` devuelve conflicto.
 
-### [ ] TASK-026 Comandos create-module y add-technician
+### [X] TASK-026 Comandos create-module y add-technician
 
 - **Cubre:** REQ-002, REQ-015, REQ-016, REQ-024
 - **Componente:** `command-router | por definir (analista técnico)`; `module-service`
@@ -338,7 +338,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Ejecutar sin simulación y comprobar módulo, técnicos y `team.md`.
   3. Ejecutar `add-technician` y comprobar que los técnicos previos no cambian.
 
-### [ ] TASK-027 Comando create-artifact
+### [X] TASK-027 Comando create-artifact
 
 - **Cubre:** REQ-002, REQ-019, REQ-020, REQ-024
 - **Componente:** `command-router | por definir (analista técnico)`; `artifact-service`
@@ -353,7 +353,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Ejecutar de nuevo con contenido modificado y comprobar el cambio.
   3. Repetir con el mismo nombre y comprobar que no se sobrescribe.
 
-### [ ] TASK-028 Adaptación del menú interactivo
+### [X] TASK-028 Adaptación del menú interactivo
 
 - **Cubre:** REQ-001, NFR-006, DEC-001
 - **Componente:** `interactive-cli | no consta en el mapa`; `cli-entrypoint | no consta en el mapa`
@@ -368,7 +368,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Configurar un proveedor de prueba y comprobar el resultado.
   3. Iniciar un proyecto, crear un módulo y salir; comprobar que no hay regresiones.
 
-### [ ] TASK-029 Medición de rendimiento
+### [X] TASK-029 Medición de rendimiento
 
 - **Cubre:** NFR-002, DEC-016
 - **Componente:** `command-contract | por definir (analista técnico)`; `artifact-inventory`
@@ -383,7 +383,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   2. Cronometrar `status`, `tree` y `describe`.
   3. Anotar los tiempos y si se requiere el daemon de v2.
 
-### [ ] TASK-030 Contrato: cli-json - envelope y comandos
+### [X] TASK-030 Contrato: cli-json - envelope y comandos
 
 - **Cubre:** REQ-003, REQ-004, REQ-005, REQ-023, DEC-002, DEC-003
 - **Componente:** `command-contract | por definir (analista técnico)`; contrato en `docs/contracts/cli-json/` con nombre `por definir (analista técnico)`
@@ -397,7 +397,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   1. Recorrer la tabla de interfaces del diseño y comprobar que cada comando aparece en el contrato.
   2. Ejecutar un comando y comparar su salida con el contrato.
 
-### [ ] TASK-031 Contrato: artifact-metadata - agrupación y hashes
+### [X] TASK-031 Contrato: artifact-metadata - agrupación y hashes
 
 - **Cubre:** REQ-013, REQ-014, REQ-021, DEC-005, DEC-009
 - **Componente:** `metadata-store | por definir (analista técnico)`; contrato en `docs/contracts/artifact-metadata/` con nombre `por definir (analista técnico)`
@@ -411,7 +411,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   1. Comparar un almacén real con el contrato.
   2. Comprobar que los estados de vinculación y los hashes documentados coinciden.
 
-### [ ] TASK-032 Contrato: provider-layout - rutas, formatos y cabeceras
+### [X] TASK-032 Contrato: provider-layout - rutas, formatos y cabeceras
 
 - **Cubre:** REQ-007, REQ-008, REQ-022, NFR-001, DEC-011, DEC-012
 - **Componente:** `provider-configurator | no consta en el mapa`; contrato en `docs/contracts/provider-layout/` con nombre `por definir (analista técnico)`
@@ -425,7 +425,7 @@ El trabajo se divide en cuatro bloques: fundamentos de dominio e infraestructura
   1. Comparar las rutas resueltas en Windows y Linux con las del contrato.
   2. Revisar que las cabeceras por sistema operativo están documentadas.
 
-### [ ] TASK-033 Contrato: sdd-team - lectura de módulos y técnicos
+### [X] TASK-033 Contrato: sdd-team - lectura de módulos y técnicos
 
 - **Cubre:** REQ-010, REQ-015, REQ-016, DEC-017
 - **Componente:** `project-workspace | no consta en el mapa`; contrato en `docs/contracts/sdd-team/` con nombre `por definir (analista técnico)`

@@ -20,7 +20,7 @@
         <maven-install-plugin.version>3.1.3</maven-install-plugin.version>
         <maven-shade-plugin.version>3.6.1</maven-shade-plugin.version>
         <maven-antrun-plugin.version>3.1.0</maven-antrun-plugin.version>
-        <vargontoc-framework.version>0.1.0-SNAPSHOT</vargontoc-framework.version>
+        <vargontoc-framework.version>0.1.0</vargontoc-framework.version>
     </properties>
 
 
@@ -34,7 +34,10 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+        </dependencies>
+    </dependencyManagement>
 
+    <dependencies>
             <dependency>
                 <groupId>es.vargontoc.framework</groupId>
                 <artifactId>framework-core</artifactId>
@@ -46,19 +49,6 @@
                 <artifactId>framework-json</artifactId>
                 <version>${vargontoc-framework.version}</version>
             </dependency>
-
-        </dependencies>
-    </dependencyManagement>
-
-    <dependencies>
-        <dependency>
-            <groupId>es.vargontoc.framework</groupId>
-            <artifactId>framework-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>es.vargontoc.framework</groupId>
-            <artifactId>framework-json</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>

@@ -321,7 +321,7 @@ jpackage \
   --runtime-image "$RUNTIME_DIR" \
   --dest "$DIST_DIR" \
   --app-version "$APP_VERSION" \
-  --vendor "Agentic Development" \
+  --vendor "Agentic Development Environment" \
   --description "Agentic Development Environment Viewer" \
   --java-options "-Dfile.encoding=UTF-8" \
   --java-options "-Dstdout.encoding=UTF-8" \
@@ -368,7 +368,7 @@ if [ "$INSTALLER" = true ]; then
       --app-image "$APP_IMAGE" \
       --name "$APP_NAME" \
       --app-version "$APP_VERSION" \
-      --vendor "Agentic Development" \
+      --vendor "Agentic Development Environment" \
       --description "Agentic Development Environment Viewer" \
       --linux-package-name "agentic-viewer" \
       --linux-menu-group "Development" \
