@@ -12,13 +12,15 @@ import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
 /**
- * Diálogo para añadir técnicos a un módulo existente: solo pide técnicos y proveedores.
+ * Diálogo para añadir técnicos a un módulo existente: pide técnicos, proveedores
+ * y, si hay varios módulos, cuál de ellos recibe los técnicos.
  */
 public final class AddTechnicianDialog {
 
@@ -26,21 +28,28 @@ public final class AddTechnicianDialog {
 
     private AddTechnicianDialog() {}
 
-    public record Result(List<String> technicians, List<String> providers) {}
+    public record Result(String module, List<String> technicians, List<String> providers) {}
 
     /**
      * Muestra el diálogo.
      *
      * @param owner       ventana propietaria
-     * @param moduleName  nombre del módulo al que se añaden técnicos
+     * @param modules     nombres de los módulos existentes (al menos uno)
      * @param providerIds identificadores de proveedores disponibles (del status)
-     * @return resultado con técnicos y proveedores seleccionados; vacío si se cancela
+     * @return resultado con módulo, técnicos y proveedores seleccionados; vacío si se cancela
      */
-    public static Optional<Result> show(Window owner, String moduleName, List<String> providerIds) {
+    public static Optional<Result> show(Window owner, List<String> modules, List<String> providerIds) {
+        if (modules == null || modules.isEmpty()) {
+            return Optional.empty();
+        }
+
         Dialog<Result> dialog = new Dialog<>();
         dialog.initOwner(owner);
-        dialog.setTitle("Añadir técnicos a " + moduleName);
-        dialog.setHeaderText("Genera los agentes de nuevos técnicos en el módulo «" + moduleName + "».");
+        String singleModule = modules.size() == 1 ? modules.getFirst() : null;
+        dialog.setTitle(singleModule == null ? "Añadir técnicos" : "Añadir técnicos a " + singleModule);
+        dialog.setHeaderText(singleModule == null
+            ? "Elige el módulo y genera los agentes de nuevos técnicos."
+            : "Genera los agentes de nuevos técnicos en el módulo «" + singleModule + "».");
         Theme.apply(dialog);
 
         ButtonType add = new ButtonType("Añadir técnicos", ButtonBar.ButtonData.OK_DONE);
@@ -50,6 +59,15 @@ public final class AddTechnicianDialog {
         VBox content = new VBox(12);
         content.setPadding(new Insets(8));
         content.setPrefWidth(380);
+
+        Label moduleLabel = formLabel("Módulo");
+        ChoiceBox<String> moduleChoice = new ChoiceBox<>();
+        moduleChoice.getItems().addAll(modules);
+        moduleChoice.getSelectionModel().selectFirst();
+        moduleChoice.setMaxWidth(Double.MAX_VALUE);
+        if (singleModule != null) {
+            moduleChoice.setDisable(true);
+        }
 
         Label techLabel = formLabel("Técnicos a añadir");
         Map<String, CheckBox> techChecks = new LinkedHashMap<>();
@@ -75,7 +93,7 @@ public final class AddTechnicianDialog {
             provBox.getChildren().add(empty);
         }
 
-        content.getChildren().addAll(techLabel, techBox, provLabel, provBox);
+        content.getChildren().addAll(moduleLabel, moduleChoice, techLabel, techBox, provLabel, provBox);
         dialog.getDialogPane().setContent(content);
 
         var addButton = dialog.getDialogPane().lookupButton(add);
@@ -83,8 +101,11 @@ public final class AddTechnicianDialog {
             button.setGraphic(Icons.of(Icons.Icon.TECHNICIAN, 15, "button-icon"));
         }
         Runnable validate = () -> addButton.setDisable(
-            techChecks.values().stream().noneMatch(CheckBox::isSelected)
+            moduleChoice.getValue() == null
+                || techChecks.values().stream().noneMatch(CheckBox::isSelected)
                 || provChecks.values().stream().noneMatch(CheckBox::isSelected));
+        moduleChoice.getSelectionModel().selectedItemProperty()
+            .addListener((o, p, c) -> validate.run());
         techChecks.values().forEach(check -> check.selectedProperty().addListener((o, p, c) -> validate.run()));
         provChecks.values().forEach(check -> check.selectedProperty().addListener((o, p, c) -> validate.run()));
         validate.run();
@@ -93,7 +114,9 @@ public final class AddTechnicianDialog {
             if (buttonType != add) {
                 return null;
             }
-            return new Result(selected(techChecks), selected(provChecks));
+            String module = moduleChoice.getValue();
+            return module == null ? null
+                : new Result(module, selected(techChecks), selected(provChecks));
         });
 
         return dialog.showAndWait();

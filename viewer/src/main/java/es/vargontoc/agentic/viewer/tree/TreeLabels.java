@@ -14,6 +14,7 @@ public final class TreeLabels {
         return switch (node.type()) {
             case "technician" -> node.name() + (node.pending() ? " (pendiente)" : "");
             case "agent", "skill", "profile" -> node.name() + statusSuffix(node.status());
+            case "hook" -> node.name() + (node.pending() ? " (pendiente)" : "") + statusSuffix(node.status());
             default -> node.name();
         };
     }

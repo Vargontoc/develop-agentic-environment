@@ -9,6 +9,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,8 +17,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactStatus;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
 import es.vargontoc.agentic.develop.cli.domain.errors.PathDomainException;
+import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
 import es.vargontoc.agentic.develop.cli.domain.team.TeamWarning;
 import es.vargontoc.agentic.develop.cli.domain.tree.ProjectTree;
 import es.vargontoc.agentic.develop.cli.domain.tree.TreeNode;
@@ -26,6 +29,7 @@ import es.vargontoc.agentic.develop.cli.infrastructure.files.TextStore;
 import es.vargontoc.agentic.develop.cli.infrastructure.metadata.MetadataStore;
 import es.vargontoc.agentic.develop.cli.infrastructure.paths.PathResolver;
 import es.vargontoc.agentic.develop.cli.infrastructure.providers.LocalProviderCatalog;
+import es.vargontoc.agentic.develop.cli.infrastructure.resources.HookResource;
 import es.vargontoc.agentic.develop.cli.infrastructure.resources.ResourceArtifactCatalog;
 
 class ProjectTreeBuilderTest {
@@ -34,19 +38,22 @@ class ProjectTreeBuilderTest {
     Path tmp;
 
     Path project;
+    PathResolver paths;
+    MetadataStore metadata;
     ProjectTreeBuilder builder;
 
     @BeforeEach
     void setUp() throws IOException {
-        PathResolver paths = new PathResolver(Map.of("HOME", tmp.toString()), PathResolver.Os.LINUX);
+        paths = new PathResolver(Map.of("HOME", tmp.toString()), PathResolver.Os.LINUX);
         Path appHome = Files.createDirectories(tmp.resolve("app-home"));
         Path backups = appHome.resolve("backups");
         project = Files.createDirectories(tmp.resolve("proyecto"));
 
         var catalog = new ResourceArtifactCatalog();
-        var metadata = new MetadataStore(appHome.resolve("metadata.json"), new TextStore(paths, List.of(appHome), backups));
+        metadata = new MetadataStore(appHome.resolve("metadata.json"), new TextStore(paths, List.of(appHome), backups));
         var inventory = new ArtifactInventory(paths, catalog, metadata, backups);
-        builder = new ProjectTreeBuilder(new LocalProviderCatalog(paths, catalog), inventory, new ProjectWorkspace(paths, backups));
+        builder = new ProjectTreeBuilder(new LocalProviderCatalog(paths, catalog), inventory,
+            new ProjectWorkspace(paths, backups), paths, metadata);
     }
 
     private Path file(Path path, String content) throws IOException {
@@ -82,9 +89,66 @@ class ProjectTreeBuilderTest {
 
         assertEquals(List.of("claude", "codex"), tree.global().stream().map(TreeNode::name).toList());
         TreeNode claude = child(tree.global(), NodeType.PROVIDER, "claude");
-        assertEquals(List.of("sdd-agent", "sdd-design"), claude.children().stream().map(TreeNode::name).toList());
+        assertEquals(List.of("sdd-agent", "sdd-design", "sdd-specs-only"),
+            claude.children().stream().map(TreeNode::name).toList());
         assertEquals(NodeType.SKILL, child(claude.children(), NodeType.SKILL, "sdd-design").type());
+        TreeNode codex = child(tree.global(), NodeType.PROVIDER, "codex");
+        assertTrue(codex.children().stream().noneMatch(n -> n.type() == NodeType.HOOK),
+            "El hook solo se muestra para Claude");
         assertTrue(tree.project().isEmpty());
+    }
+
+    @Test
+    void globalTreeShowsHookPendingWhenItIsNotInstalled() throws IOException {
+        Files.createDirectories(tmp.resolve(".claude"));
+
+        TreeNode hook = child(child(builder.build(null).global(), NodeType.PROVIDER, "claude").children(),
+            NodeType.HOOK, "sdd-specs-only");
+
+        assertTrue(hook.pending());
+        assertNull(hook.status());
+        assertEquals(ProviderType.CLAUDE, hook.provider());
+        assertEquals(tmp.resolve(".claude/hooks/sdd-specs-only.sh"), hook.path());
+    }
+
+    @Test
+    void globalTreeShowsHooksLinkedWhenRegisteredAndUnmodified() throws IOException {
+        Files.createDirectories(tmp.resolve(".claude"));
+        Path hook = paths.hookPath(ProviderType.CLAUDE);
+        byte[] content = HookResource.content(TargetOs.LINUX);
+        file(hook, new String(content, java.nio.charset.StandardCharsets.UTF_8));
+        metadata.putHook(hook, content);
+
+        TreeNode node = child(child(builder.build(null).global(), NodeType.PROVIDER, "claude").children(),
+            NodeType.HOOK, "sdd-specs-only");
+
+        assertFalse(node.pending());
+        assertEquals(ArtifactStatus.LINKED, node.status());
+    }
+
+    @Test
+    void globalTreeDoesNotShowHookForProvidersOtherThanClaude() throws IOException {
+        file(tmp.resolve(".codex/hooks/sdd-specs-only.sh"), "x");
+
+        TreeNode codex = child(builder.build(null).global(), NodeType.PROVIDER, "codex");
+
+        assertTrue(codex.children().stream().noneMatch(n -> n.type() == NodeType.HOOK));
+    }
+
+    @Test
+    void globalTreeMarksHooksLegacyWhenModifiedOrUnregistered() throws IOException {
+        Files.createDirectories(tmp.resolve(".claude"));
+        Path hook = paths.hookPath(ProviderType.CLAUDE);
+        file(hook, "contenido propio");
+
+        TreeNode unregistered = child(child(builder.build(null).global(), NodeType.PROVIDER, "claude").children(),
+            NodeType.HOOK, "sdd-specs-only");
+        assertEquals(ArtifactStatus.LEGACY, unregistered.status());
+
+        metadata.putHook(hook, HookResource.content(TargetOs.LINUX));
+        TreeNode modified = child(child(builder.build(null).global(), NodeType.PROVIDER, "claude").children(),
+            NodeType.HOOK, "sdd-specs-only");
+        assertEquals(ArtifactStatus.LEGACY, modified.status());
     }
 
     @Test

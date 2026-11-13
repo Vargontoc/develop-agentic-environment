@@ -259,8 +259,8 @@ public class ConfigureProvider {
 
             register(provider, result);
 
-            // Hook: después de los agentes y skills, solo en ámbito global (REQ-003) y una vez por proveedor
-            if(hooks != null)
+            // Hook: solo Claude, solo en ámbito global (REQ-003) y después de sus agentes y skills
+            if(hooks != null && type == ProviderType.CLAUDE)
                 hooks.install(provider, result);
         }
     }

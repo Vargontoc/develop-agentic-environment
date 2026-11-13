@@ -16,6 +16,7 @@ import es.vargontoc.agentic.develop.cli.application.MigrationService;
 import es.vargontoc.agentic.develop.cli.application.ProjectTreeBuilder;
 import es.vargontoc.agentic.develop.cli.application.ProjectWorkspace;
 import es.vargontoc.agentic.develop.cli.application.StatusService;
+import es.vargontoc.agentic.develop.cli.application.TeamService;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactCatalog;
 import es.vargontoc.agentic.develop.cli.domain.format.TargetOs;
@@ -37,6 +38,7 @@ public record Services(
         InitProject initProject,
         StatusService status,
         ProjectTreeBuilder tree,
+        TeamService team,
         ArtifactDescriptor descriptor,
         ArtifactSaver saver,
         GroupPropagator propagator,
@@ -67,7 +69,8 @@ public record Services(
         return new Services(paths, providers, artifacts, workspace,
             new InitProject(paths, workspace),
             new StatusService(providers, workspace),
-            new ProjectTreeBuilder(providers, inventory, workspace),
+            new ProjectTreeBuilder(providers, inventory, workspace, paths, metadata),
+            new TeamService(paths, backups),
             descriptor,
             saver,
             new GroupPropagator(metadata, descriptor, saver, migration),

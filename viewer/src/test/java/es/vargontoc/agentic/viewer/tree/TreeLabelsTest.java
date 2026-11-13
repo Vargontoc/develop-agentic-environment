@@ -31,6 +31,18 @@ class TreeLabelsTest {
         assertEquals("facturacion", TreeLabels.label(node("module", "facturacion", false, null)));
     }
 
+    @Test
+    void marcaHookPendiente() {
+        assertEquals("sdd-specs-only (pendiente)",
+            TreeLabels.label(node("hook", "sdd-specs-only", true, null)));
+    }
+
+    @Test
+    void marcaHookPersonalizado() {
+        assertEquals("sdd-specs-only [personalizado]",
+            TreeLabels.label(node("hook", "sdd-specs-only", false, "legacy")));
+    }
+
     private static TreeData.Node node(String type, String name, boolean pending, String status) {
         return new TreeData.Node(type, name, null, null, status, pending, null);
     }

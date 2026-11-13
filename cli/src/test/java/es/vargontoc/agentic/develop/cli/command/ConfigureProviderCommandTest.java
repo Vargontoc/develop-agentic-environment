@@ -139,9 +139,9 @@ class ConfigureProviderCommandTest {
     }
 
     @Test
-    void aHookWithoutARecordAppearsInTheWarningsOnlyForThatProvider() throws IOException {
+    void aHookWithoutARecordAppearsInTheWarningsOnlyForClaude() throws IOException {
         run(0, "configure-provider", "--provider", "claude");
-        // Sin almacén de metadatos el hook de claude queda sin registro; el de codex se instala después, ya con almacén nuevo
+        // Sin almacén de metadatos el hook de Claude queda sin registro; Codex no tiene hook
         Files.delete(home.resolve(".local/state/agentic-develop/metadata.json"));
         restart();
 
@@ -149,10 +149,10 @@ class ConfigureProviderCommandTest {
         Map<?, ?> codex = run(0, "configure-provider", "--provider", "codex");
 
         assertEquals(1, hookWarningsAbout(claude, "no se puede comprobar si fue modificado").size());
-        assertTrue(hookWarningsAbout(codex, "no se puede comprobar").isEmpty());
-        assertTrue(hookWarningsAbout(codex, "modificado").isEmpty());
-        assertTrue(((List<?>) data(codex).get("created")).contains("hooks/sdd-specs-only.sh"));
-        assertTrue(Files.isRegularFile(home.resolve(".codex/hooks/sdd-specs-only.sh")));
+        assertTrue(hookWarningsAbout(codex, "hooks/").isEmpty());
+        assertFalse(((List<?>) data(codex).get("created")).stream()
+            .anyMatch(v -> String.valueOf(v).startsWith("hooks/")));
+        assertFalse(Files.exists(home.resolve(".codex/hooks/sdd-specs-only.sh")));
     }
 
     @Test

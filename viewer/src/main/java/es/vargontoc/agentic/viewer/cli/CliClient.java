@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.vargontoc.agentic.viewer.cli.model.AdoptData;
 import es.vargontoc.agentic.viewer.cli.model.CatalogData;
 import es.vargontoc.agentic.viewer.cli.model.CliError;
+import es.vargontoc.agentic.viewer.cli.model.CliVersionInfo;
 import es.vargontoc.agentic.viewer.cli.model.ConfigureProviderData;
 import es.vargontoc.agentic.viewer.cli.model.CreateArtifactData;
 import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
@@ -23,6 +24,9 @@ import es.vargontoc.agentic.viewer.cli.model.DescribeData;
 import es.vargontoc.agentic.viewer.cli.model.InitData;
 import es.vargontoc.agentic.viewer.cli.model.SaveData;
 import es.vargontoc.agentic.viewer.cli.model.StatusData;
+import es.vargontoc.agentic.viewer.cli.model.TeamData;
+import es.vargontoc.agentic.viewer.cli.model.TeamUpdateData;
+import es.vargontoc.agentic.viewer.cli.model.TeamUpdateRequest;
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
 import es.vargontoc.agentic.viewer.watcher.CacheStore;
 
@@ -32,7 +36,8 @@ import es.vargontoc.agentic.viewer.watcher.CacheStore;
  */
 public final class CliClient {
 
-    private static final int SCHEMA_VERSION = 1;
+    /** Versión del contrato {@code cli-json} que entiende este visor. */
+    public static final int EXPECTED_SCHEMA_VERSION = 1;
 
     private final CliRunner runner;
     private final ObjectMapper mapper;
@@ -47,6 +52,34 @@ public final class CliClient {
         this.cache = cache;
         this.mapper = mapper.copy()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
+
+    /**
+     * Lee la versión del CLI y la {@code schemaVersion} del envelope.
+     *
+     * <p>No aplica la validación habitual del contrato: precisamente sirve para
+     * detectar que la versión no coincide y poder avisar de forma explícita.</p>
+     */
+    public CliVersionInfo version() {
+        CliProcess.CliResult result = runner.run(List.of("--version"), null, Duration.ofSeconds(10));
+        JsonNode root = envelope(result);
+
+        boolean ok = root.path("ok").asBoolean(false);
+        if (!ok) {
+            List<CliError> errors = errors(root.get("errors"));
+            CliError first = errors.isEmpty()
+                ? new CliError("client.unknown_error", null, "El CLI devolvió ok=false sin errores.")
+                : errors.getFirst();
+            throw new CliClientException(first.code(), first.path(), first.message(), result.exitCode());
+        }
+
+        JsonNode data = root.get("data");
+        String version = data == null || data.isNull() ? "" : data.path("version").asText("");
+        if (version.isBlank()) {
+            throw new CliClientException("client.invalid_data", null,
+                "El CLI no devolvió su versión.", result.exitCode());
+        }
+        return new CliVersionInfo(version, root.path("schemaVersion").asInt(-1));
     }
 
     public StatusData status(Path project) {
@@ -82,6 +115,33 @@ public final class CliClient {
         });
     }
 
+    /** Lee módulos y opciones de {@code .sdd/team.md}. */
+    public TeamData team(Path project) {
+        Objects.requireNonNull(project, "project");
+        return execute(List.of("team", "--project", project.toString()), TeamData.class);
+    }
+
+    /** Guarda módulos y opciones de {@code .sdd/team.md}; con {@code dryRun} solo calcula el diff. */
+    public TeamUpdateData teamUpdate(Path project, TeamUpdateRequest request, String expectHash, boolean dryRun) {
+        Objects.requireNonNull(project, "project");
+        Objects.requireNonNull(request, "request");
+        List<String> args = new ArrayList<>(List.of("team-update", "--project", project.toString(), "--stdin"));
+        if (expectHash != null && !expectHash.isBlank()) {
+            args.add("--expect-hash");
+            args.add(expectHash);
+        }
+        if (dryRun) {
+            args.add("--dry-run");
+        }
+        String payload;
+        try {
+            payload = mapper.writeValueAsString(request);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("No se pudo serializar el equipo.", exception);
+        }
+        return execute(args, payload, TeamUpdateData.class);
+    }
+
     /** Guarda el cuerpo de una instancia con {@code save --stdin}. */
     public SaveData saveBody(Path artifact, String content, Path project) {
         return saveBody(artifact, content, project, null);
@@ -89,6 +149,11 @@ public final class CliClient {
 
     /** Guarda el cuerpo de una instancia con {@code save --stdin}. */
     public SaveData saveBody(Path artifact, String content, Path project, String file) {
+        return saveBody(artifact, content, project, file, false);
+    }
+
+    /** Guarda el cuerpo de una instancia con {@code save --stdin}; con {@code overwrite} confirma la sobrescritura. */
+    public SaveData saveBody(Path artifact, String content, Path project, String file, boolean overwrite) {
         Objects.requireNonNull(artifact, "artifact");
         Objects.requireNonNull(content, "content");
         List<String> args = new ArrayList<>(List.of("save", "--path", artifact.toString(), "--stdin"));
@@ -96,16 +161,27 @@ public final class CliClient {
             args.add("--file");
             args.add(file);
         }
+        if (overwrite) {
+            args.add("--overwrite");
+        }
         addProject(args, project);
         return execute(args, content, SaveData.class);
     }
 
     /** Guarda la cabecera de un agente con {@code save --header-stdin} en modo instancia. */
     public SaveData saveHeader(Path artifact, String header, Path project) {
+        return saveHeader(artifact, header, project, false);
+    }
+
+    /** Guarda la cabecera de un agente; con {@code overwrite} confirma la sobrescritura. */
+    public SaveData saveHeader(Path artifact, String header, Path project, boolean overwrite) {
         Objects.requireNonNull(artifact, "artifact");
         Objects.requireNonNull(header, "header");
         List<String> args = new ArrayList<>(List.of("save", "--path", artifact.toString(),
             "--header-stdin", "--mode", "instance"));
+        if (overwrite) {
+            args.add("--overwrite");
+        }
         addProject(args, project);
         return execute(args, header, SaveData.class);
     }
@@ -252,29 +328,10 @@ public final class CliClient {
 
     private <T> T execute(List<String> args, String stdin, Class<T> type) {
         CliProcess.CliResult result = runner.run(args, stdin, Duration.ofSeconds(15));
-
-        if (result.timedOut()) {
-            throw new CliClientException("client.timeout", null,
-                "El CLI no respondió a tiempo.", -1);
-        }
-
-        String stdout = result.stdout() == null ? "" : result.stdout().replace("\uFEFF", "").trim();
-        if (stdout.isEmpty()) {
-            throw new CliClientException("client.empty_output", null,
-                "El CLI no devolvió datos.", result.exitCode());
-        }
-
-        JsonNode root;
-        try {
-            root = mapper.readTree(stdout);
-        } catch (JsonProcessingException exception) {
-            throw new CliClientException("client.invalid_json", null,
-                "La respuesta del CLI no es JSON válido: " + exception.getOriginalMessage(),
-                result.exitCode());
-        }
+        JsonNode root = envelope(result);
 
         int schemaVersion = root.path("schemaVersion").asInt(-1);
-        if (schemaVersion != SCHEMA_VERSION) {
+        if (schemaVersion != EXPECTED_SCHEMA_VERSION) {
             throw new CliClientException("client.unsupported_schema", null,
                 "Versión de contrato no compatible: " + schemaVersion, result.exitCode());
         }
@@ -299,6 +356,28 @@ public final class CliClient {
         } catch (JsonProcessingException exception) {
             throw new CliClientException("client.invalid_data", null,
                 "Los datos del CLI no tienen la forma esperada: " + exception.getOriginalMessage(),
+                result.exitCode());
+        }
+    }
+
+    /** Valida la salida mínima (tiempo, contenido y JSON) sin mirar aún el contrato. */
+    private JsonNode envelope(CliProcess.CliResult result) {
+        if (result.timedOut()) {
+            throw new CliClientException("client.timeout", null,
+                "El CLI no respondió a tiempo.", -1);
+        }
+
+        String stdout = result.stdout() == null ? "" : result.stdout().replace("\uFEFF", "").trim();
+        if (stdout.isEmpty()) {
+            throw new CliClientException("client.empty_output", null,
+                "El CLI no devolvió datos.", result.exitCode());
+        }
+
+        try {
+            return mapper.readTree(stdout);
+        } catch (JsonProcessingException exception) {
+            throw new CliClientException("client.invalid_json", null,
+                "La respuesta del CLI no es JSON válido: " + exception.getOriginalMessage(),
                 result.exitCode());
         }
     }

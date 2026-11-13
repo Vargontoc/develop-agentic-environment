@@ -23,7 +23,7 @@ public record TreeNode(
         boolean pending,
         List<TreeNode> children) {
 
-    public enum NodeType { PROVIDER, AGENT, SKILL, PROFILE, SDD, MODULE, TECHNICIAN }
+    public enum NodeType { PROVIDER, AGENT, SKILL, PROFILE, HOOK, SDD, MODULE, TECHNICIAN }
 
     public TreeNode {
         children = List.copyOf(children);

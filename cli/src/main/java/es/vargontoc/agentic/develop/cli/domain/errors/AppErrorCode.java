@@ -39,7 +39,12 @@ public enum AppErrorCode implements ErrorCode {
     CONTENT_UNREADABLE("validation.content.unreadable", ErrorCategory.VALIDATION, List.of()),
     GROUP_NOT_FOUND("not_found.group", ErrorCategory.NOT_FOUND, List.of()),
     ARTIFACT_NOT_LEGACY("conflict.artifact.already_tracked", ErrorCategory.CONFLICT, List.of()),
-    HEADER_MARKER_INVALID("internal.resource.header_marker", ErrorCategory.INTERNAL, List.of());
+    HEADER_MARKER_INVALID("internal.resource.header_marker", ErrorCategory.INTERNAL, List.of()),
+    TEAM_FILE_NOT_FOUND("not_found.team.file", ErrorCategory.NOT_FOUND, List.of()),
+    TEAM_CONFLICT("conflict.team.modified_externally", ErrorCategory.CONFLICT, List.of()),
+    TEAM_OPTION_INVALID("validation.team.option_invalid", ErrorCategory.VALIDATION, List.of()),
+    TEAM_MODULE_DUPLICATE("validation.team.module_duplicate", ErrorCategory.VALIDATION, List.of()),
+    TEAM_MODULE_INVALID("validation.team.module_invalid", ErrorCategory.VALIDATION, List.of());
 
     private final String value;
     private final ErrorCategory category;

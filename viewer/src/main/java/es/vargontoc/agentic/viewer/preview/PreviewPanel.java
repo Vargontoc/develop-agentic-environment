@@ -100,6 +100,10 @@ public final class PreviewPanel extends VBox {
     private final VBox sddList = new VBox(2);
     private final ScrollPane sddScroll = new ScrollPane();
 
+    // Ficha de módulo o técnico
+    private final VBox detailSection = new VBox(8);
+    private final ScrollPane detailScroll = new ScrollPane();
+
     // Sección de cabecera (solo agentes)
     private final VBox headerSection = new VBox(6);
     private final Label headerTitle = new Label();
@@ -152,11 +156,12 @@ public final class PreviewPanel extends VBox {
         setupSharedSection();
         setupBodySection();
         setupSddSection();
+        setupDetailSection();
         setupActionButtons();
 
         VBox.setVgrow(metaBox, Priority.NEVER);
         getChildren().setAll(title, notice, metaBox, sddSection, headerSection, skillFilesSection,
-            sharedSection, bodySection, actionBar);
+            sharedSection, bodySection, detailSection, actionBar);
 
         showEmpty();
     }
@@ -314,6 +319,15 @@ public final class PreviewPanel extends VBox {
         VBox.setVgrow(sddSection, Priority.ALWAYS);
     }
 
+    private void setupDetailSection() {
+        detailScroll.setFitToWidth(true);
+        detailScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        detailScroll.getStyleClass().add("detail-scroll");
+        VBox.setVgrow(detailScroll, Priority.ALWAYS);
+        detailSection.getChildren().setAll(detailScroll);
+        VBox.setVgrow(detailSection, Priority.ALWAYS);
+    }
+
     private void showSddSectionFull() {
         VBox.setVgrow(sddSection, Priority.ALWAYS);
         sddScroll.setPrefViewportHeight(320);
@@ -464,6 +478,31 @@ public final class PreviewPanel extends VBox {
         }
     }
 
+    /**
+     * Refresca los buffers visibles tras sustituirlos por la versión del disco
+     * durante la resolución de un conflicto externo.
+     */
+    public void refreshAfterExternalResolution() {
+        if (editor != null) {
+            showHeader();
+            if (!editor.body().isBlank()) {
+                showBody();
+            } else {
+                hide(bodySection);
+            }
+            showSharedBody();
+            updateDirty();
+            return;
+        }
+        if (isSkillMode && skillEditor != null) {
+            String selected = skillEditor.selectedFile();
+            updatingFromModel = true;
+            skillFileEdit.setText(selected == null ? "" : skillEditor.getContent(selected));
+            updatingFromModel = false;
+            updateDirty();
+        }
+    }
+
     public void showEmpty() {
         editor = null;
         skillEditor = null;
@@ -479,6 +518,7 @@ public final class PreviewPanel extends VBox {
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
+        hide(detailSection);
         notifyDirtyChanged();
     }
 
@@ -504,6 +544,7 @@ public final class PreviewPanel extends VBox {
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
+        hide(detailSection);
         notifyDirtyChanged();
     }
 
@@ -527,6 +568,7 @@ public final class PreviewPanel extends VBox {
         hideNotice();
         setMetaMode(false);
         showMeta(preview);
+        hide(detailSection);
         hide(sddSection);
         hide(skillFilesSection);
         showHeader();
@@ -558,6 +600,7 @@ public final class PreviewPanel extends VBox {
         hide(headerSection);
         hide(sharedSection);
         hide(bodySection);
+        hide(detailSection);
         showSkillEditor();
 
         saveStatus.setText("");
@@ -606,6 +649,7 @@ public final class PreviewPanel extends VBox {
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
+        hide(detailSection);
 
         sddTitle.setText("Ficheros de .sdd (" + files.size() + ")");
         sddList.getChildren().clear();
@@ -644,8 +688,23 @@ public final class PreviewPanel extends VBox {
         hide(skillFilesSection);
         hide(sharedSection);
         hide(actionBar);
+        hide(detailSection);
         showBodyContent(content, languageFor(name), false);
         notifyDirtyChanged();
+    }
+
+    /** Vista de {@code team.md} con acceso al formulario seguro que escribe mediante el CLI. */
+    public void showTeamFile(String name, String content, Runnable onEdit) {
+        showSddFile(name, content);
+        showNotice("Equipo del proyecto · edición con formulario; el texto de abajo es solo lectura", false);
+        Button edit = new Button("Editar equipo…");
+        edit.getStyleClass().add("primary");
+        edit.setGraphic(Icons.of(Icons.Icon.SETTINGS, 15, "button-icon"));
+        edit.setOnAction(event -> onEdit.run());
+        VBox actions = new VBox(8, hint("Los módulos y las opciones se validan y se guardan con el CLI, "
+            + "con copia de seguridad. El resto del fichero no se toca."), edit);
+        actions.setPadding(new Insets(6, 0, 0, 0));
+        metaBox.getChildren().setAll(actions);
     }
 
     public void showError(String heading, String message) {
@@ -663,6 +722,7 @@ public final class PreviewPanel extends VBox {
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
+        hide(detailSection);
         notifyDirtyChanged();
     }
 
@@ -689,7 +749,156 @@ public final class PreviewPanel extends VBox {
         hide(sharedSection);
         hide(bodySection);
         hide(actionBar);
+        hide(detailSection);
         notifyDirtyChanged();
+    }
+
+    /**
+     * Muestra la ficha de un nodo no editable (por ejemplo, el hook) con su estado,
+     * su ruta y una acción opcional, como instalar o actualizar.
+     */
+    public void showNodeInfo(String heading, String message, String statusText, String path,
+                             String actionLabel, Runnable action) {
+        editor = null;
+        skillEditor = null;
+        isSkillMode = false;
+        title.setText(heading);
+        setTitleIcon(Icons.Icon.HOOK, "icon-hook");
+        hideNotice();
+        setMetaMode(true);
+
+        VBox box = new VBox(8);
+        Label text = new Label(message);
+        text.getStyleClass().add("muted");
+        text.setWrapText(true);
+        text.setMaxWidth(620);
+        box.getChildren().add(text);
+
+        if (statusText != null && !statusText.isBlank()) {
+            Label status = new Label("Estado: " + statusText);
+            status.getStyleClass().add("muted");
+            status.setWrapText(true);
+            box.getChildren().add(status);
+        }
+        if (path != null && !path.isBlank()) {
+            Label pathLabel = new Label(path);
+            pathLabel.getStyleClass().add("muted");
+            pathLabel.setWrapText(true);
+            pathLabel.setMaxWidth(620);
+            box.getChildren().add(pathLabel);
+        }
+        if (actionLabel != null && action != null) {
+            Button actionButton = new Button(actionLabel);
+            actionButton.setOnAction(event -> action.run());
+            box.getChildren().add(actionButton);
+        }
+
+        box.getStyleClass().add("empty-state");
+        box.setPadding(new Insets(24));
+        metaBox.getChildren().setAll(box);
+        hide(sddSection);
+        hide(headerSection);
+        hide(skillFilesSection);
+        hide(sharedSection);
+        hide(bodySection);
+        hide(actionBar);
+        hide(detailSection);
+        notifyDirtyChanged();
+    }
+
+    /** Ficha estructurada de un módulo o técnico: secciones, artefactos, estado y rutas. */
+    public void showNodeDetail(NodeDetail detail, Icons.Icon icon) {
+        editor = null;
+        skillEditor = null;
+        isSkillMode = false;
+        title.setText(detail.heading());
+        setTitleIcon(icon, "icon-detail");
+        hideNotice();
+        setMetaMode(true);
+        metaBox.getChildren().clear();
+
+        VBox content = new VBox(14);
+        content.setPadding(new Insets(4, 4, 12, 4));
+        if (detail.subtitle() != null && !detail.subtitle().isBlank()) {
+            Label subtitle = new Label(detail.subtitle());
+            subtitle.getStyleClass().add("muted");
+            subtitle.setWrapText(true);
+            content.getChildren().add(subtitle);
+        }
+
+        for (NodeDetail.Section section : detail.sections()) {
+            VBox block = new VBox(8);
+            block.getStyleClass().add("detail-section");
+            Label sectionTitle = new Label(section.title());
+            sectionTitle.getStyleClass().add("section-title");
+            block.getChildren().add(sectionTitle);
+            if (section.items().isEmpty()) {
+                Label empty = new Label("Sin elementos.");
+                empty.getStyleClass().add("muted");
+                block.getChildren().add(empty);
+            } else {
+                for (NodeDetail.Item item : section.items()) {
+                    block.getChildren().add(detailItem(item));
+                }
+            }
+            content.getChildren().add(block);
+        }
+
+        detailScroll.setContent(content);
+        detailSection.getChildren().setAll(detailScroll);
+        hide(sddSection);
+        hide(headerSection);
+        hide(skillFilesSection);
+        hide(sharedSection);
+        hide(bodySection);
+        hide(actionBar);
+        show(detailSection);
+        notifyDirtyChanged();
+    }
+
+    private Node detailItem(NodeDetail.Item item) {
+        VBox box = new VBox(3);
+        box.getStyleClass().add("detail-item");
+
+        HBox header = new HBox(8);
+        header.setAlignment(Pos.CENTER_LEFT);
+        Label title = new Label(item.title() == null ? "" : item.title());
+        title.getStyleClass().add("detail-item-title");
+        header.getChildren().add(title);
+        if (item.status() != null && !item.status().isBlank()) {
+            Label status = new Label(item.status());
+            status.getStyleClass().add("detail-status");
+            status.getStyleClass().add(statusStyle(item.status()));
+            header.getChildren().add(status);
+        }
+        box.getChildren().add(header);
+
+        if (item.detail() != null && !item.detail().isBlank()) {
+            Label detail = new Label(item.detail());
+            detail.getStyleClass().add("muted");
+            detail.setWrapText(true);
+            box.getChildren().add(detail);
+        }
+        if (item.path() != null && !item.path().isBlank()) {
+            Label path = new Label(item.path());
+            path.getStyleClass().add("detail-path");
+            path.setWrapText(true);
+            box.getChildren().add(path);
+        }
+        return box;
+    }
+
+    private static String statusStyle(String status) {
+        String value = status.toLowerCase(java.util.Locale.ROOT);
+        if (value.contains("pendiente") || value.contains("personalizado")
+            || value.contains("desvinculado") || value.contains("error")) {
+            return "detail-status-warning";
+        }
+        if (value.contains("instalado") || value.contains("vinculado")
+            || value.contains("configurado") || value.contains("listo")) {
+            return "detail-status-ok";
+        }
+        return "detail-status-muted";
     }
 
     public void showSaveStatus(String message, boolean error) {

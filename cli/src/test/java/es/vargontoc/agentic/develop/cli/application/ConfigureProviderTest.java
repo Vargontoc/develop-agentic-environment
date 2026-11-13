@@ -160,7 +160,7 @@ class ConfigureProviderTest {
     }
 
     @Test
-    void globalInstallLeavesTheHookInEverySelectedProvider() throws IOException {
+    void globalInstallLeavesTheHookOnlyInClaude() throws IOException {
         MetadataStore[] store = new MetadataStore[1];
         ConfigureProvider configureWithHooks = withHooks(store);
         Provider claude = provider(ProviderType.CLAUDE);
@@ -170,15 +170,16 @@ class ConfigureProviderTest {
         OperationResult second = configureWithHooks.execute(codex, true);
 
         assertTrue(Files.isRegularFile(claude.getPath().resolve("hooks/sdd-specs-only.sh")));
-        assertTrue(Files.isRegularFile(codex.getPath().resolve("hooks/sdd-specs-only.sh")));
+        assertFalse(Files.exists(codex.getPath().resolve("hooks")),
+            "El hook solo se instala en Claude");
         assertFalse(Files.exists(claude.getPath().resolve("hooks/sdd-specs-only.bat")));
         assertTrue(first.created().contains("hooks/sdd-specs-only.sh"));
-        assertTrue(second.created().contains("hooks/sdd-specs-only.sh"));
+        assertFalse(second.created().contains("hooks/sdd-specs-only.sh"));
         // En un sistema de ficheros no POSIX el permiso de ejecución no se puede fijar y eso es lo único que avisa
         boolean posix = claude.getPath().getFileSystem().supportedFileAttributeViews().contains("posix");
         assertTrue(first.warnings().stream().allMatch(w -> !posix && w.contains("could not be made executable")),
             first.warnings().toString());
-        assertEquals(2, store[0].artifactsOfGroup("global/hook/sdd-specs-only").size());
+        assertEquals(1, store[0].artifactsOfGroup("global/hook/sdd-specs-only").size());
     }
 
     @Test

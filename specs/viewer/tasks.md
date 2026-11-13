@@ -297,6 +297,175 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   2. Provocar un conflicto y comprobar las opciones.
   3. Desconectar la red y repetir apertura, edición y creación.
 
+### [x] TASK-018 Configurar proveedores desde el visor
+
+- **Cubre:** Mejora de usabilidad (no estaba en requisitos originales)
+- **Componente:** `viewer-ui | setup`; `cli-client`
+- **Depende de:** TASK-003 (CliClient), TASK-015 (empaquetado)
+- **Alcance:** Añadir un diálogo de configuración de proveedores accesible desde Archivo → Configurar proveedores y mostrarlo automáticamente en el primer arranque si no hay proveedores configurados. El diálogo lista los 4 proveedores soportados (Claude, Codex, Gemini, OpenCode), muestra su estado actual (configurado/no configurado), permite seleccionar cuáles instalar y ejecuta `configure-provider` para cada uno, mostrando los resultados.
+- **Hecho cuando:** el usuario puede configurar proveedores sin salir al CLI, y el primer arranque sin proveedores muestra un asistente automáticamente.
+- **Pruebas automáticas:**
+  - Caso feliz: el diálogo lista los 4 proveedores, marca correctamente los configurados, selecciona por defecto los no configurados, y la configuración genera resultados.
+  - Caso de error: un proveedor que falla muestra el error en los resultados sin interrumpir la configuración de los demás.
+- **Prueba manual:**
+  1. Borrar la configuración de un proveedor y comprobar que aparece como "No configurado" en el diálogo.
+  2. Ejecutar Archivo → Configurar proveedores, seleccionar uno y comprobar que se instala correctamente.
+  3. Borrar todas las configuraciones y arrancar de nuevo para comprobar el asistente de primer arranque.
+- **Implementación:**
+  - `ConfigureProvidersDialog`: diálogo con checkboxes para los 4 proveedores, estados coloreados (verde/rojo), selección inteligente por defecto, resultados con conteo de creados/omitidos/advertencias.
+  - `App.configureProviders()`: método invocado desde el menú Archivo.
+  - `App.loadGlobalStatus()`: detección de primer arranque con flag `initialProviderCheckDone`, muestra el asistente si todos los proveedores están `not_installed` o `unconfigured`.
+  - `ConfigureProvidersDialogTest`: 5 pruebas unitarias que verifican la construcción de la lista de proveedores, marcado de configurados, y estructura de resultados.
+
+### [x] TASK-019 Visibilidad e instalación del hook desde el visor
+
+- **Cubre:** Mejora de usabilidad (no estaba en requisitos originales); NFR-006 (el CLI sigue siendo la única fuente de escritura)
+- **Componente:** `cli-tree`; `viewer-ui | preview`; `cli-client`
+- **Depende de:** TASK-005 (árbol), TASK-018 (configuración de proveedores), TASK-015 (empaquetado)
+- **Alcance:** El tipo `hook` ya existía en el visor (icono, etiqueta y grupo) pero el CLI nunca lo emitía. Se añade el nodo `hook` al `tree` global bajo Claude (único proveedor con hook), con estado (`pending` si falta, `linked` si está registrado y sin cambios, `legacy` si está modificado o sin registro), y el visor muestra su ficha con ruta, estado y acción de instalación/actualización.
+- **Hecho cuando:** el hook `sdd-specs-only` aparece en el árbol global de Claude, se ve su estado y se puede instalar o actualizar desde el visor sin salir al CLI. Los demás proveedores no muestran ni instalan hook.
+- **Pruebas automáticas:**
+  - Caso feliz: nodo hook pendiente cuando falta; `linked` cuando hay registro y el hash coincide; `legacy` cuando está modificado o sin registro.
+  - Caso de error: ruta de hook fuera del ámbito global se anota como problema del árbol y el nodo queda pendiente sin romper el resto.
+- **Prueba manual:**
+  1. Configurar un proveedor y comprobar que el hook aparece como vinculado bajo su nodo global.
+  2. Modificar el hook a mano y comprobar que pasa a «personalizado» (legacy).
+  3. Seleccionar el nodo hook, pulsar «Reinstalar / actualizar hook» y comprobar el resultado y el refresco del árbol.
+- **Implementación:**
+  - CLI: `TreeNode.NodeType.HOOK`; `ProjectTreeBuilder` añade el nodo bajo Claude usando `PathResolver.hookPath`, `MetadataStore.hook` y `ContentHash`; `Services` cablea `PathResolver` y `MetadataStore`.
+  - CLI: `ConfigureProvider` instala el hook solo cuando el proveedor es Claude; el resto no toca `hooks/`.
+  - Contratos: `cli-json` documenta el tipo `hook` y su semántica; `artifact-metadata` y `provider-layout` dejan de decir que el hook no aparece en `tree` y aclaran que solo existe para Claude.
+  - Viewer: `PreviewPanel.showNodeInfo(...)` muestra una ficha con estado, ruta y acción; `App.loadHook(...)` la compone y `App.installHook(...)` reutiliza `configure-provider` (idempotente) y refresca el árbol.
+  - Pruebas CLI: `ProjectTreeBuilderTest` cubre hook pendiente, vinculado, legacy y ausencia en proveedores distintos de Claude; `ConfigureProviderTest` y `ConfigureProviderCommandTest` verifican que solo Claude instala el hook.
+
+### [x] TASK-020 Resolver conflictos externos con guía
+
+- **Cubre:** Mejora de usabilidad; REQ-007, REQ-008, REQ-015 (guardado de artefactos y ficheros de skill); NFR-005 (no perder cambios sin confirmación)
+- **Componente:** `viewer-ui | diff`; `viewer-ui | preview`; `cli-client`
+- **Depende de:** TASK-007 (edición), TASK-012 (skills), TASK-014 (watcher/cambios externos)
+- **Alcance:** Cuando el CLI rechaza un guardado con `conflict.artifact.modified_externally`, mostrar la versión del usuario y la del disco (lado a lado y diff) y permitir **Conservar mi versión** (`save --overwrite`, con copia de seguridad), **Usar la versión del disco** (descarta los cambios de esa parte) o **Cancelar**. Cubre cabecera, cuerpo y ficheros de skill, incluido «guardar todo».
+- **Hecho cuando:** el usuario puede resolver un conflicto sin salir del visor, viendo qué cambia, y el guardado con `--overwrite` deja copia de seguridad.
+- **Pruebas automáticas:**
+  - Caso feliz: el diff local marca líneas eliminadas y añadidas; el cliente envía `--overwrite` en cuerpo y cabecera.
+  - Caso de error o límite: un fichero que vuelve a cambiar tras elegir «conservar mi versión» vuelve a mostrar el conflicto; un fichero de skill ilegible informa y no escribe.
+- **Prueba manual:**
+  1. Abrir un agente, modificarlo sin guardar y cambiar el fichero por fuera.
+  2. Guardar: comprobar el diálogo con lado a lado/diff; elegir «Conservar mi versión» y verificar la copia de seguridad.
+  3. Repetir eligiendo «Usar la versión del disco» y comprobar que el editor queda limpio.
+  4. Repetir con un fichero de skill y con «guardar todo».
+- **Implementación:**
+  - `CliClient.saveBody`/`saveHeader` aceptan `overwrite` y añaden `--overwrite`.
+  - `TextDiff`: diff de líneas local (LCS con límite de celdas) para no depender de un dry-run que hoy devuelve conflicto.
+  - `ConflictResolutionDialog`: pestañas «Lado a lado» y «Diff», botones de conservar/usar disco/cancelar.
+  - `PreviewPanel.refreshAfterExternalResolution()`: refleja en los editores la versión del disco.
+  - `App`: `saveEditor` sin diálogos (apto para hilo virtual), `resolveEditorConflicts`/`resolveEditorPart` en JavaFX, resolución por fichero de skill y por lote; `SaveOutcome` transporta la parte en conflicto y el mensaje de copia de seguridad.
+  - Pruebas: `TextDiffTest` y casos de `--overwrite` en `CliClientTest`.
+
+### [x] TASK-021 Proyectos recientes y reapertura
+
+- **Cubre:** Mejora de usabilidad; REQ-001, REQ-002 (selección y validación de proyecto)
+- **Componente:** `viewer-ui | welcome`; `runtime`
+- **Depende de:** TASK-004 (selección de proyecto)
+- **Alcance:** Persistir el último proyecto y una lista de recientes (máximo 8). Al arrancar, reabrir el más reciente que siga existiendo; si no hay ninguno válido, mostrar la bienvenida. Añadir un submenú **Archivo → Abrir recientes** y enlaces de recientes en la pantalla de bienvenida.
+- **Hecho cuando:** cerrar y volver a abrir el visor recupera el último proyecto sin pasar por el selector, y se puede cambiar a otro reciente desde el menú o la bienvenida.
+- **Pruebas automáticas:**
+  - Caso feliz: recordar mueve al principio, sin duplicados y con tope; `lastExisting` devuelve el más reciente existente.
+  - Caso de error o límite: proyectos borrados se ocultan de la lista; un JSON corrupto se trata como lista vacía.
+- **Prueba manual:**
+  1. Abrir un proyecto, cerrarlo y reiniciar el visor: debe reabrirse solo.
+  2. Abrir otro proyecto y comprobar que ambos aparecen en Archivo → Abrir recientes y en la bienvenida.
+  3. Borrar la carpeta de un reciente y comprobar que desaparece de las listas y no se intenta reabrir.
+  4. Usar «Limpiar lista» y comprobar que la bienvenida deja de mostrar recientes.
+- **Implementación:**
+  - `RecentProjectsStore`: JSON `recent-projects.json` en la carpeta de estado del visor, orden reciente→antiguo, tope de 8, escritura atómica, filtrado de rutas inexistentes y tolerancia a JSON corrupto.
+  - `AppPaths.recentProjectsFile()`.
+  - `App`: `reopenLastProject()` al arrancar, `rememberRecentProject()` tras validar un proyecto, submenú «Abrir recientes» con entradas y «Limpiar lista», y `openRecentProject()` con guardia de cambios sin guardar.
+  - `WelcomePane`: sección de proyectos recientes con enlaces (máximo 5) y aviso si la carpeta ya no existe.
+  - Pruebas: `RecentProjectsStoreTest` (orden, tope, rutas borradas, eliminar/limpiar, JSON corrupto).
+
+### [x] TASK-022 Edición de `.sdd/team.md` con formulario
+
+- **Cubre:** Mejora de usabilidad; NFR-006 (el cliente no escribe `.sdd`); REQ-012 (módulos)
+- **Componente:** `cli-team`; `viewer-ui | team`; `cli-client`
+- **Depende de:** TASK-004 (selección de proyecto), TASK-010 (validación de módulos), TASK-012 (skills, por el patrón de edición)
+- **Alcance:** Sustituir la edición a mano de `team.md` por un formulario que gestione módulos (`nombre`, `mapId`, rutas) y las opciones `sprints`, `git-policy`, `contract-strategy` y `readme-owner`. El CLI lee el estado con `team` y lo guarda con `team-update` recibiendo el estado completo por `--stdin`, con hash esperado, validación, `--dry-run`, copia de seguridad y conservación del resto del fichero. El visor mantiene el texto en solo lectura y añade «Editar equipo…».
+- **Hecho cuando:** se pueden editar módulos y opciones desde el visor sin tocar Markdown, se ve el diff antes de guardar y un cambio externo concurrente se detecta sin sobrescribir.
+- **Pruebas automáticas:**
+  - Caso feliz: `team` devuelve módulos y opciones efectivas; `team-update` reescribe solo las listas, conserva comentarios/otras secciones y deja copia; el visor envía el JSON esperado.
+  - Caso de error o límite: hash viejo da `conflict.team.modified_externally`; módulos duplicados o `readme-owner` inexistente dan error de validación; `--dry-run` no escribe; CRLF se conserva.
+- **Prueba manual:**
+  1. Abrir `.sdd/team.md`, pulsar «Editar equipo…», añadir un módulo y cambiar las cuatro opciones.
+  2. Guardar, revisar el diff y comprobar el fichero y la copia de seguridad.
+  3. Editar `team.md` a mano entre abrir y guardar el formulario y comprobar el conflicto.
+  4. Quitar un módulo y verificar que sus artefactos no se borran.
+- **Implementación:**
+  - CLI: `TeamOptions`, `ModuleName` (validación compartida con `create-module`), `TeamParser.parseDocument` (módulos + opciones + `unknown_option`), `TeamService` (lectura, hash, validación y reescritura preservando comentarios/CRLF, `TextStore` para copia atómica), comandos `team` y `team-update`.
+  - Contratos: `cli-json` documenta ambos comandos, códigos de error y `unknown_option`; `sdd-team` documenta `## Opciones` y la escritura completa.
+  - Viewer: modelos `TeamData`/`TeamUpdateRequest`/`TeamUpdateData`, métodos `CliClient.team`/`teamUpdate`, `TeamEditorDialog` (módulos, opciones, avisos, validación básica), `PreviewPanel.showTeamFile` y flujo `App.openTeamEditor`/`saveTeam` con dry-run + diff + backup.
+  - Pruebas: `TeamParserTest`, `TeamServiceTest`, `TeamCommandsTest` y casos de `CliClientTest`.
+
+### [x] TASK-023 Asistente único de creación de artefactos
+
+- **Cubre:** REQ-014, DEC-013; mejora de usabilidad
+- **Componente:** `viewer-ui | creation`; `cli-client`
+- **Depende de:** TASK-011 (creación desde plantilla)
+- **Alcance:** Sustituir la cadena de diálogos por un único asistente con tres pasos: (1) ámbito, proveedores, tipo y reemplazo; (2) catálogo con búsqueda y selección múltiple; (3) vista previa editable por artefacto. La creación sigue delegando en `create-artifact`; no se reimplementan reglas ni se escribe desde el visor.
+- **Hecho cuando:** se pueden buscar, seleccionar, previsualizar y crear varios agentes/skills en un solo flujo, con plantilla editable y aviso de existentes.
+- **Pruebas automáticas:**
+  - Caso feliz: la clave de catálogo identifica proveedor/ámbito/tipo/nombre; la petición copia selección y contenidos y el cliente envía `create-artifact` con el contenido editado.
+  - Caso de error o límite: sin proveedor o sin tipo no se avanza; los existentes no se seleccionan sin marcar reemplazo; un conflicto al crear se informa y no se cuenta como creado.
+- **Prueba manual:**
+  1. Abrir «Crear artefactos», buscar en el catálogo, seleccionar varios y revisar sus plantillas.
+  2. Editar el contenido de uno y crear el lote.
+  3. Repetir con un artefacto existente sin reemplazo y comprobar que no se toca; activar reemplazo y comprobar la copia.
+- **Implementación:**
+  - `CreateArtifactWizard`: pasos con navegación, validación, búsqueda, selección múltiple, vista previa editable por entrada y `Request` final.
+  - Carga de catálogo y plantillas en hilos virtuales con token de versión para evitar carreras; los cargadores los aporta `App` mediante `CliClient.catalog`.
+  - `App.createArtifact`/`applyArtifactCreation`: crea cada selección con `create-artifact`, cuenta creados/reemplazados/omitidos, trata conflictos y refresca el árbol.
+  - Reset de plantilla, selección de visibles y bloqueo de existentes sin reemplazo; menú y bienvenida renombrados a «Crear artefactos».
+  - Pruebas: `CreateArtifactWizardTest`.
+
+### [x] TASK-024 Avisos no modales para éxitos
+
+- **Cubre:** Mejora de usabilidad; DEC-019 (estado de vista JavaFX)
+- **Componente:** `viewer-ui | notifications`
+- **Depende de:** TASK-010, TASK-011, TASK-023
+- **Alcance:** Sustituir los `Alert` de éxito (módulo, técnicos, artefactos, hook y equipo) por toasts no modales apilados en la esquina inferior derecha y un mensaje en la barra de estado. Los errores y las confirmaciones que exigen decisión siguen siendo modales.
+- **Hecho cuando:** crear un módulo, técnico, artefacto, hook o guardar el equipo no bloquea la ventana; el resultado se ve en un toast que desaparece solo y en la barra de estado.
+- **Pruebas automáticas:**
+  - Caso feliz: los toasts no capturan el ratón y se limitan a tres visibles; los avisos con incidencias duran más.
+  - Caso de error o límite: los errores y las confirmaciones de destrucción/reemplazo siguen usando diálogos modales.
+- **Prueba manual:**
+  1. Crear artefactos y comprobar que aparece un toast sin bloquear la ventana.
+  2. Encadenar varias operaciones y ver que los toasts se apilan y desaparecen.
+  3. Provocar una incidencia y comprobar que el toast de aviso dura más.
+- **Implementación:**
+  - `ToastHost`: capa transparente sobre la raíz, sin captura de ratón, tarjetas apiladas (máximo 3), fundido de entrada/salida, duración 6 s (9 s con aviso) y truncado seguro de mensajes largos.
+  - `App`: raíz envuelta en `StackPane` con `ToastHost`; `notifySuccess`/`notifyWarning` escriben también en la barra de estado.
+  - Sustituidos los `showInfoAlert` de éxito en creación de módulos, técnicos, artefactos, hook y guardado del equipo; los errores y confirmaciones no cambian.
+  - Estilos `toast`, `toast-title`, `toast-message` y `toast-warning` en `styles.css`.
+
+### [x] TASK-025 Detalle real de módulos y técnicos
+
+- **Cubre:** Mejora de usabilidad; REQ-005 (árbol global y de proyecto), REQ-012
+- **Componente:** `viewer-ui | preview`; `viewer-ui | tree`
+- **Depende de:** TASK-005 (árbol), TASK-022 (`team.md` estructurado)
+- **Alcance:** Sustituir los mensajes genéricos de módulo y técnico por una ficha con secciones: para el módulo, nombre, identificador del mapa, rutas, técnicos y artefactos; para el técnico, rol, módulo y artefactos. Cada artefacto muestra proveedor, contexto, estado y ruta.
+- **Hecho cuando:** al seleccionar un módulo o técnico se ve su información real y la de sus artefactos, sin tener que recorrer el árbol.
+- **Pruebas automáticas:**
+  - Caso feliz: la ficha de módulo incluye `mapId`, rutas, técnicos y artefactos; la de técnico incluye módulo y artefactos con estado y ruta.
+  - Caso de error o límite: sin `team.md` legible o sin padre conocido se muestra la ficha con lo disponible y valores como «sin datos»/«—».
+- **Prueba manual:**
+  1. Seleccionar un módulo y comprobar identificador, rutas, técnicos y artefactos.
+  2. Seleccionar un técnico y comprobar su módulo y especialistas por proveedor.
+  3. Alternar entre artefactos y volver al módulo para comprobar que la ficha se refresca.
+- **Implementación:**
+  - `NodeDetail`: modelo de ficha con secciones e ítems (título, detalle, estado, ruta).
+  - `NodeDetails`: construcción pura a partir de `TreeData` y, para módulos, `TeamData`; estados legibles con `TreePresentation`.
+  - `PreviewPanel.showNodeDetail`: sección desplazable con estilos `detail-*`; los artefactos muestran chip de estado y ruta monoespaciada.
+  - `App.loadModuleDetail`: carga `team` en segundo plano con guarda de selección; `showTechnicianDetail` resuelve el módulo padre desde el árbol.
+  - Pruebas: `NodeDetailsTest`.
+
 ## Cobertura
 
 | Requisito | Tareas |
@@ -342,3 +511,12 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
 - No existe `.sdd/task-types.md`; no se han generado tipos de tarea adicionales.
 - `specs/viewer/requirements.md` y `specs/viewer/design.md` siguen en `borrador`.
 - Se han propuesto casos de error o límite en TASK-006 y TASK-016 porque los requisitos no los detallaban.
+- TASK-018 (Configurar proveedores desde el visor) es una mejora de usabilidad añadida a petición del usuario; no estaba en el spec original. Incluye asistente de primer arranque y menú Archivo → Configurar proveedores.
+- Corrección: `addTechnician()` ya no usa siempre `modules().getFirst()`. `AddTechnicianDialog` muestra un selector de módulo (ChoiceBox) cuando hay varios y `Result` incluye el módulo elegido; con un solo módulo se muestra deshabilitado. Añadidas pruebas en `AddTechnicianDialogTest`.
+- TASK-019: el hook `sdd-specs-only` ya aparece en el `tree` global bajo Claude (único proveedor con hook) con estado (`pending`/`linked`/`legacy`) y se puede instalar/actualizar desde el visor. Implica cambios en el CLI (`NodeType.HOOK`, `ProjectTreeBuilder`, `ConfigureProvider` solo para Claude), en los contratos (`cli-json`, `artifact-metadata`, `provider-layout`) y en el visor (`PreviewPanel.showNodeInfo`, `App.loadHook`/`installHook`).
+- TASK-020: los conflictos por cambios externos ya no se limitan a un mensaje de error. El visor muestra «Tu versión» frente a «Versión en disco» (lado a lado y diff) y permite conservar la propia (con `--overwrite` y copia), usar la del disco o cancelar, tanto en cabecera/cuerpo como en ficheros de skill y «guardar todo». El diff local (`TextDiff`) evita depender de `--dry-run`, que en instancia sigue devolviendo el conflicto.
+- TASK-021: el último proyecto y hasta 8 recientes se guardan en `recent-projects.json` (carpeta de estado del visor). Al arrancar se reabre el más reciente existente; también se puede elegir otro desde Archivo → Abrir recientes o desde los enlaces de la pantalla de bienvenida. Las rutas borradas se ocultan y un JSON corrupto se ignora.
+- TASK-022: `.sdd/team.md` se edita con formulario (módulos + `sprints`, `git-policy`, `contract-strategy`, `readme-owner`). El visor no escribe `.sdd`: usa los nuevos comandos `team` (lectura con hash) y `team-update` (estado completo por `--stdin`, `--expect-hash`, `--dry-run`), que preservan comentarios, secciones y CRLF y dejan copia de seguridad. La vista de texto sigue en solo lectura.
+- TASK-023: la creación de artefactos pasa a un asistente único de tres pasos (ámbito/proveedor/tipo, catálogo con búsqueda y multiselección, vista previa editable). Sustituye «Aplicar artefactos» por «Crear artefactos» y crea cada entrada con `create-artifact`; los perfiles y el hook siguen en «Configurar proveedores».
+- TASK-024: los éxitos de creación de módulos, técnicos, artefactos, hook y guardado de equipo ya no usan `Alert`. Se muestran como toasts no modales apilados (máximo 3, 6 s o 9 s con avisos) y como mensaje en la barra de estado. Errores y confirmaciones siguen siendo modales.
+- TASK-025: módulos y técnicos muestran una ficha real: identificador y rutas del módulo (desde `team`), técnicos con número de artefactos, y artefactos con proveedor, contexto, estado y ruta. Sin `team.md` legible se muestra lo que aporta el árbol.

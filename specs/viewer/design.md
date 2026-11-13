@@ -207,6 +207,42 @@ Las entradas son responsabilidades lógicas; varias pueden vivir en el mismo paq
 - **Alternativas descartadas:** framework de estado externo (dependencia innecesaria) o variables globales sin observabilidad.
 - **Cubre:** NFR-002, REQ-017.
 
+### DEC-020 Conflictos externos con diff local y `--overwrite`
+
+- **Decisión:** Cuando `save` devuelve `conflict.artifact.modified_externally`, el visor muestra la versión del editor y la del disco (lado a lado y diff calculado localmente) y ofrece conservar la propia (`--overwrite`, con copia de seguridad del CLI), usar la del disco o cancelar. No se usa `--dry-run` para el diff porque en instancia devuelve el mismo conflicto.
+- **Alternativas descartadas:** diálogo ciego sin comparación (el usuario no puede decidir) o diff con herramienta externa (rompe el stack y la portabilidad).
+- **Cubre:** REQ-007, REQ-008, REQ-015, NFR-005.
+
+### DEC-021 Proyectos recientes en estado local del visor
+
+- **Decisión:** Guardar el último proyecto y una lista de hasta 8 recientes en `recent-projects.json` dentro de la carpeta de estado del visor. Al arrancar se reabre el más reciente que siga existiendo; no se persiste ningún estado del proyecto ni del CLI.
+- **Alternativas descartadas:** `Preferences` del sistema (menos portable y difícil de inspeccionar) o guardar la ruta dentro del proyecto (mezcla estado del visor con el proyecto).
+- **Cubre:** REQ-001, REQ-002.
+
+### DEC-022 Editor de equipo por estado completo con hash
+
+- **Decisión:** `.sdd/team.md` se edita con un formulario que envía el estado completo (módulos y opciones) a `team-update`; el CLI valida, reescribe solo las listas de `## Módulos` y `## Opciones`, conserva el resto del fichero y exige el hash leído por `team` para detectar cambios concurrentes. El visor mantiene el texto en solo lectura.
+- **Alternativas descartadas:** escribir `team.md` desde el visor (rompe NFR-006) o editar solo opciones sin módulos (no cumple el objetivo).
+- **Cubre:** NFR-006, REQ-012.
+
+### DEC-023 Asistente único de creación con catálogo y vista previa
+
+- **Decisión:** Un solo diálogo de tres pasos (ámbito/proveedor/tipo, catálogo con búsqueda y selección, vista previa editable) sustituye la cadena de diálogos. El catálogo y las plantillas se consultan al CLI; la creación se ejecuta con `create-artifact` por entrada seleccionada.
+- **Alternativas descartadas:** encadenar diálogos (más clics y pérdida de contexto) o crear desde el visor sin plantilla (menos seguro).
+- **Cubre:** REQ-014, DEC-013.
+
+### DEC-024 Avisos de éxito no modales
+
+- **Decisión:** Los resultados correctos de operaciones se muestran con toasts apilados en la esquina inferior derecha y un mensaje en la barra de estado, sin bloquear la ventana. Solo errores y confirmaciones que exigen decisión usan diálogos modales.
+- **Alternativas descartadas:** `Alert` para todo (interrumpe el flujo) o solo barra de estado (fácil de pasar por alto).
+- **Cubre:** Mejora de usabilidad; DEC-019.
+
+### DEC-025 Fichas de módulo y técnico derivadas del árbol y `team.md`
+
+- **Decisión:** La ficha de un módulo combina el nodo del árbol (técnicos y artefactos) con el estado estructurado de `team.md` (identificador y rutas); la de un técnico combina su nodo, su módulo padre y sus artefactos. El visor solo presenta datos del CLI, sin inferir reglas de dominio.
+- **Alternativas descartadas:** mantener el mensaje genérico (poco informativo) o reconstruir módulos y técnicos desde ficheros sueltos (duplicaría reglas).
+- **Cubre:** REQ-005, REQ-012.
+
 ## Riesgos
 
 - **Latencia de la JVM por comando:** se mitiga con caché, ejecución en segundo plano de `status` y `tree`, y sin sondeo.

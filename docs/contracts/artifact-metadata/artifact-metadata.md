@@ -72,11 +72,13 @@ propagar devuelve conflicto y no sobrescribe sin confirmación (se conserva copi
 
 ## Hook `sdd-specs-only`
 
-El hook que la aplicación instala en `hooks/` de la carpeta global de cada proveedor (ver `provider-layout`) es un
+El hook que la aplicación instala en `hooks/` de la carpeta global de Claude (ver `provider-layout`) es un
 artefacto de **tipo fichero** con registro propio. No forma parte del catálogo de agentes, skills y perfiles.
+Solo existe para Claude; los demás proveedores no tienen hook.
 
 - Cada hook registrado tiene `groupId` `global/hook/sdd-specs-only` y estado `LINKED`. El hook nunca se desvincula
-  (`DETACHED`) ni participa en la propagación, en `adopt`, en `describe` ni en `tree`.
+  (`DETACHED`) ni participa en la propagación, en `adopt` ni en `describe`. El árbol lo muestra como un nodo informativo
+  `hook` bajo el proveedor global (ver `cli-json`), sin hijos.
 - El hash es el del fichero completo (ver «Hashes»). Se registra con lo que quedó en disco tras escribirlo, no con el
   contenido que se quiso escribir.
 - Con registro, la aplicación compara el hash en disco con el registrado:

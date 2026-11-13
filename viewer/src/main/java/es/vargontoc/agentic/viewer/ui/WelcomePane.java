@@ -1,12 +1,16 @@
 package es.vargontoc.agentic.viewer.ui;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.function.Consumer;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -25,9 +29,11 @@ public final class WelcomePane extends VBox {
 
     private final Button openButton = new Button("Abrir proyecto");
     private final Button initButton = new Button("Iniciar proyecto");
-    private final Button createButton = new Button("Aplicar artefactos");
+    private final Button createButton = new Button("Crear artefactos");
     private final Label cliStatus = new Label();
     private final Label projectStatus = new Label("Aún no has abierto ningún proyecto.");
+    private final Label versionInfo = new Label();
+    private final VBox recentSection = new VBox(4);
 
     private boolean cliAvailable;
     private boolean hasProject;
@@ -37,6 +43,7 @@ public final class WelcomePane extends VBox {
     private Action onOpenProject = () -> { };
     private Action onInitProject = () -> { };
     private Action onCreateArtifact = () -> { };
+    private Consumer<Path> onOpenRecent = path -> { };
 
     public WelcomePane() {
         getStyleClass().add("welcome");
@@ -67,15 +74,15 @@ public final class WelcomePane extends VBox {
         createButton.setMaxWidth(Double.MAX_VALUE);
         openButton.setAccessibleText("Abrir un proyecto del equipo");
         initButton.setAccessibleText("Iniciar la estructura .sdd del proyecto");
-        createButton.setAccessibleText("Aplicar los artefactos de los proveedores seleccionados");
+        createButton.setAccessibleText("Crear agentes y skills desde el catálogo");
 
         HBox steps = new HBox(16,
             step("1", Icons.Icon.FOLDER_OPEN, "Elige tu proyecto",
                 "Abre la carpeta donde trabajas y valida su estado con el CLI.", openButton),
             step("2", Icons.Icon.PLAY, "Prepáralo",
                 "Crea la estructura .sdd y registra el equipo si aún no existe.", initButton),
-            step("3", Icons.Icon.PLUS, "Aplica artefactos",
-                "Instala agentes, skills y perfiles en los proveedores que elijas.", createButton));
+            step("3", Icons.Icon.PLUS, "Crea artefactos",
+                "Elige agentes o skills del catálogo y revisa su plantilla.", createButton));
         steps.setAlignment(Pos.CENTER);
         steps.setFillHeight(true);
 
@@ -88,7 +95,16 @@ public final class WelcomePane extends VBox {
         projectStatus.setWrapText(true);
         projectStatus.setMaxWidth(720);
 
-        VBox card = new VBox(18, title, subtitle, steps, projectStatus, cliStatus);
+        versionInfo.getStyleClass().addAll("welcome-version", "muted");
+        versionInfo.setWrapText(true);
+        versionInfo.setMaxWidth(720);
+
+        recentSection.getStyleClass().add("recent-projects");
+        recentSection.setManaged(false);
+        recentSection.setVisible(false);
+
+        VBox card = new VBox(18, title, subtitle, steps, recentSection, projectStatus, cliStatus,
+            versionInfo);
         card.getStyleClass().add("welcome-card");
         card.setAlignment(Pos.CENTER);
         card.setMaxWidth(940);
@@ -115,6 +131,45 @@ public final class WelcomePane extends VBox {
         this.onCreateArtifact = action == null ? () -> { } : action;
     }
 
+    public void setOnOpenRecent(Consumer<Path> action) {
+        this.onOpenRecent = action == null ? path -> { } : action;
+    }
+
+    /** Muestra los proyectos recientes como enlaces; oculta la sección si no hay ninguno. */
+    public void setRecentProjects(List<Path> projects) {
+        recentSection.getChildren().clear();
+        if (projects == null || projects.isEmpty()) {
+            recentSection.setManaged(false);
+            recentSection.setVisible(false);
+            return;
+        }
+
+        Label title = new Label("Proyectos recientes");
+        title.getStyleClass().add("form-label");
+        recentSection.getChildren().add(title);
+
+        int limit = Math.min(projects.size(), 5);
+        for (Path project : projects.subList(0, limit)) {
+            Hyperlink link = new Hyperlink(displayName(project));
+            link.setTooltip(new Tooltip(project.toString()));
+            link.setMaxWidth(Double.MAX_VALUE);
+            link.setAlignment(Pos.CENTER_LEFT);
+            link.setOnAction(event -> onOpenRecent.accept(project));
+            recentSection.getChildren().add(link);
+        }
+        recentSection.setManaged(true);
+        recentSection.setVisible(true);
+    }
+
+    private static String displayName(Path project) {
+        Path name = project.getFileName();
+        Path parent = project.getParent();
+        if (name == null) {
+            return project.toString();
+        }
+        return parent == null ? name.toString() : name + "  ·  " + parent;
+    }
+
     /** Informa de si el CLI está disponible y, si no, por qué. */
     public void setCli(boolean available, String error) {
         this.cliAvailable = available;
@@ -129,6 +184,13 @@ public final class WelcomePane extends VBox {
             cliStatus.setVisible(true);
         }
         refreshControls();
+    }
+
+    /** Muestra las versiones del visor y del CLI y resalta una incompatibilidad. */
+    public void setVersionInfo(String text, boolean warning) {
+        versionInfo.setText(text == null ? "" : text);
+        versionInfo.getStyleClass().removeAll("muted", "warning");
+        versionInfo.getStyleClass().add(warning ? "warning" : "muted");
     }
 
     /** Actualiza el estado del proyecto para habilitar el paso correspondiente. */
@@ -157,7 +219,7 @@ public final class WelcomePane extends VBox {
         initButton.setText(configured ? "Proyecto iniciado" : "Iniciar proyecto");
         createButton.setDisable(!cliAvailable || !providersAvailable);
         createButton.setTooltip(providersAvailable
-            ? new javafx.scene.control.Tooltip("Aplicar los artefactos de los proveedores seleccionados")
+            ? new javafx.scene.control.Tooltip("Crear agentes y skills desde el catálogo")
             : new javafx.scene.control.Tooltip("Configura al menos un proveedor para aplicar artefactos"));
     }
 

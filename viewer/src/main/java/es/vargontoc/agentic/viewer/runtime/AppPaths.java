@@ -27,6 +27,10 @@ public final class AppPaths {
         return stateDirectory().resolve("drafts.json");
     }
 
+    public static Path recentProjectsFile() {
+        return stateDirectory().resolve("recent-projects.json");
+    }
+
     public static Path logFile() {
         return stateDirectory().resolve("viewer.log");
     }

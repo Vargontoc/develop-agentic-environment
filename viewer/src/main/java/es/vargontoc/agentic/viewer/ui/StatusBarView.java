@@ -2,6 +2,7 @@ package es.vargontoc.agentic.viewer.ui;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.Label;
@@ -22,10 +23,17 @@ public final class StatusBarView extends HBox {
     private final Label dirty = new Label("Cambios sin guardar");
     private final Label draft = new Label();
     private final Label watcher = new Label("Watcher inactivo");
+    private final Label versions = new Label();
     private final CheckBox autoRefresh = new CheckBox("Auto-actualizar");
     private final CheckBox autoRefreshPreview = new CheckBox("Recargar vista");
+    private final Runnable onShowVersions;
 
     public StatusBarView(CheckMenuItem autoRefreshMenuItem) {
+        this(autoRefreshMenuItem, null);
+    }
+
+    public StatusBarView(CheckMenuItem autoRefreshMenuItem, Runnable onShowVersions) {
+        this.onShowVersions = onShowVersions == null ? () -> { } : onShowVersions;
         getStyleClass().add("status-bar");
         setAlignment(Pos.CENTER_LEFT);
         setSpacing(10);
@@ -63,10 +71,31 @@ public final class StatusBarView extends HBox {
         watcher.getStyleClass().add("status-meta");
         watcher.setGraphic(Icons.of(Icons.Icon.REFRESH, 12, "status-icon"));
 
+        versions.getStyleClass().add("status-meta");
+        versions.getStyleClass().add("status-versions");
+        versions.setGraphic(Icons.of(Icons.Icon.INFO, 12, "status-icon"));
+        versions.setCursor(Cursor.HAND);
+        versions.setManaged(false);
+        versions.setVisible(false);
+        versions.setOnMouseClicked(event -> this.onShowVersions.run());
+        versions.setTooltip(new Tooltip("Versiones del visor y del CLI"));
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        getChildren().setAll(busy, message, dirty, draft, spacer, autoRefresh, autoRefreshPreview, watcher);
+        getChildren().setAll(busy, message, dirty, draft, spacer, versions,
+            autoRefresh, autoRefreshPreview, watcher);
+    }
+
+    /** Muestra la versión del visor y del CLI; en warning, resalta la incompatibilidad. */
+    public void setVersions(String summary, String tooltip, boolean warning) {
+        boolean visible = summary != null && !summary.isBlank();
+        versions.setText(visible ? summary : "");
+        versions.setManaged(visible);
+        versions.setVisible(visible);
+        versions.getStyleClass().removeAll("ok", "warning", "muted");
+        versions.getStyleClass().add(warning ? "warning" : "muted");
+        versions.setTooltip(new Tooltip(tooltip == null || tooltip.isBlank() ? summary : tooltip));
     }
 
     public void setBusy(boolean value, String text) {

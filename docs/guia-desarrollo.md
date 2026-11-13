@@ -14,20 +14,23 @@ Esta guía reúne lo necesario para construir, probar y empaquetar el proyecto. 
 
 ## Dependencias externas
 
-La CLI usa `framework-core` y `framework-json` de `vargontoc-framework`. Los artefactos están en
-`cli/external-libs/vargontoc-framework/` y hay que instalarlos una vez en el repositorio Maven local
-(`~/.m2`), desde `cli/`:
+La CLI usa `framework-core` y `framework-json` (versión `0.1.0`) de `vargontoc-framework`, publicados en
+GitHub Packages (`https://maven.pkg.github.com/Vargontoc/vargontoc-framework`). Maven los descarga solo, pero
+GitHub Packages exige credenciales incluso para leer. Añade a `~/.m2/settings.xml`:
 
-```powershell
-# POM padre
-mvn install:install-file "-Dfile=external-libs/vargontoc-framework/pom.xml" "-DpomFile=external-libs/vargontoc-framework/pom.xml" "-Dpackaging=pom"
-
-# framework-core
-mvn install:install-file "-Dfile=external-libs/vargontoc-framework/framework-core/0.1.0-SNAPSHOT/framework-core-0.1.0-SNAPSHOT.jar" "-DpomFile=external-libs/vargontoc-framework/framework-core/0.1.0-SNAPSHOT/framework-core-0.1.0-SNAPSHOT.pom"
-
-# framework-json
-mvn install:install-file "-Dfile=external-libs/vargontoc-framework/framework-json/0.1.0-SNAPSHOT/framework-json-0.1.0-SNAPSHOT.jar" "-DpomFile=external-libs/vargontoc-framework/framework-json/0.1.0-SNAPSHOT/framework-json-0.1.0-SNAPSHOT.pom"
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github-vargontoc-framework</id>
+      <username>TU_USUARIO_GITHUB</username>
+      <password>TOKEN_CON_read:packages</password>
+    </server>
+  </servers>
+</settings>
 ```
+
+El token es un *personal access token (classic)* con el permiso `read:packages`. En CI se usa `GITHUB_TOKEN`.
 
 ## Compilar y probar
 
@@ -285,7 +288,6 @@ java -jar cli/target/agentic-develop.jar adopt --path C:\proyectos\mi-app\.claud
   - `command/`: adaptador no interactivo (JSON).
   - `ui/`: adaptador del menú interactivo.
   - `src/main/resources/`: agentes, skills, cabeceras y plantillas que se instalan.
-- `cli/external-libs/`: artefactos de `vargontoc-framework`.
 - `viewer/`: aplicación de escritorio JavaFX.
 - `docs/contracts/`: contratos de datos y de organización.
 - `specs/`: especificaciones SDD (requisitos, diseño y tareas).

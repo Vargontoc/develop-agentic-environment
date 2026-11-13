@@ -242,7 +242,7 @@ class ReadCommandsTest {
         Output out = run("--help");
 
         List<?> commands = (List<?>) out.data().get("commands");
-        assertEquals(List.of("add-technician", "adopt", "catalog", "configure-provider", "create-artifact", "create-module", "describe", "init", "save", "status", "tree"),commands.stream().map(c -> ((Map<?, ?>) c).get("name")).toList());
+        assertEquals(List.of("add-technician", "adopt", "catalog", "configure-provider", "create-artifact", "create-module", "describe", "init", "save", "status", "team", "team-update", "tree"),commands.stream().map(c -> ((Map<?, ?>) c).get("name")).toList());
     }
 
     @Test

@@ -85,7 +85,7 @@ Solo lee. Opción: `--project` (no obligatoria).
 
 `data`: `{"providers":[{"id","name","state","missing":[ruta relativa]}],"project":{"path","initialized","modules":[texto],"warnings":[{"type","line"}]}|null}`.
 `state`: `not_installed`, `unconfigured`, `partial`, `configured`. `warnings[].type` (en minúsculas): `team_missing`,
-`team_unreadable`, `section_missing`, `malformed_line`, `duplicate_module`.
+`team_unreadable`, `section_missing`, `malformed_line`, `duplicate_module`, `unknown_option`.
 
 ### `tree`
 
@@ -93,9 +93,43 @@ Solo lee. Opción: `--project` (no obligatoria).
 
 `data`: `{"global":[Nodo],"project":[Nodo],"warnings":[{"type","line"}],"problems":[{"path","code"}]}`.
 `Nodo`: `{"type","name","path"|null,"provider"|null,"status"|null,"pending","children":[Nodo]}`.
-`type`: `provider`, `agent`, `skill`, `profile`, `sdd`, `module`, `technician`. `status`: `linked`, `detached`, `legacy`.
-Cada router aparece una sola vez bajo su proveedor. El nodo `sdd` lleva `pending: true` si el proyecto aún no tiene `.sdd`; un técnico
-lleva `pending: true` si ningún proveedor tiene su especialista, y sus `children` son los especialistas instalados.
+`type`: `provider`, `agent`, `skill`, `profile`, `hook`, `sdd`, `module`, `technician`. `status`: `linked`, `detached`, `legacy`.
+Cada router aparece una sola vez bajo su proveedor. El hook `sdd-specs-only` aparece bajo el nodo global de Claude (es el
+único proveedor con hook): `pending: true` si no está instalado, `status` `linked` si está registrado y sin cambios, y
+`legacy` si está modificado o no tiene registro. Nunca aparece en el ámbito de proyecto ni en otros proveedores. El nodo
+`sdd` lleva `pending: true` si el proyecto aún no tiene `.sdd`; un técnico lleva `pending: true` si ningún proveedor tiene
+su especialista, y sus `children` son los especialistas instalados.
+
+### `team`
+
+Solo lee. Opción: `--project` (obligatoria).
+
+`data`: `{"path","hash","modules":[{"name","mapId"|null,"paths":[texto]}],"options":{"sprints","gitPolicy","contractStrategy","readmeOwner"|null},"warnings":[{"type","line"}]}`.
+`hash` identifica el contenido actual de `team.md` y sirve para `team-update --expect-hash`. `options` devuelve los valores
+efectivos (por defecto si faltan): `sprints` (`si`/`no`), `gitPolicy` (`balanced`/`strict`), `contractStrategy`
+(`implementation-first`/`contract-first`) y `readmeOwner` (nombre de módulo o `null`). `warnings` usa los mismos tipos que
+`status`. Errores: `not_found.team.file`.
+
+### `team-update`
+
+Escribe las secciones `## Módulos` y `## Opciones` de `.sdd/team.md`. No toca el resto del fichero; conserva comentarios,
+otras secciones y el fin de línea, y deja copia de seguridad.
+
+| Opción | Obligatoria | Descripción |
+|---|---|---|
+| `--project` | sí | Proyecto. |
+| `--content-file` / `--stdin` | sí (una) | Documento JSON con `options` y `modules`. |
+| `--expect-hash` | no | Hash devuelto por `team`; si no coincide, conflicto. |
+| `--dry-run` | no | Calcula y devuelve el diff sin escribir. |
+
+Entrada (`--stdin`):
+`{"options":{"sprints","gitPolicy","contractStrategy","readmeOwner"|null},"modules":[{"name","mapId"|null,"paths":[texto]}]}`.
+Los módulos se normalizan y validan con las mismas reglas que `create-module`; `readmeOwner` debe ser `null` o un módulo
+de la lista. Escribir una lista de módulos vacía los quita todos de `team.md` (no borra sus artefactos).
+
+`data`: `{"path","dryRun","written","backup"|null,"hash","diff","warnings":[{"type","line"}]}`. `hash` es el del contenido
+resultante. Errores: `not_found.team.file`, `conflict.team.modified_externally`, `validation.team.option_invalid`,
+`validation.team.module_duplicate`, `validation.team.module_invalid`, `validation.module.*`, `validation.content.unreadable`.
 
 ### `describe`
 
@@ -116,8 +150,8 @@ debe permitir cadenas de ese tamaño (en Jackson, `StreamReadConstraints.maxStri
 
 ### `configure-provider`
 
-Instala los agentes, skills y perfiles globales del proveedor y el hook `sdd-specs-only`. No sobrescribe agentes,
-skills ni perfiles. El hook es la única excepción: si lo instaló la aplicación y el usuario no lo ha modificado, se
+Instala los agentes, skills y perfiles globales del proveedor y, solo en Claude, el hook `sdd-specs-only`. No sobrescribe
+agentes, skills ni perfiles. El hook es la única excepción: si lo instaló la aplicación y el usuario no lo ha modificado, se
 sustituye por la versión incorporada (en `created`); si está modificado o no tiene registro, se omite con un aviso en
 `warnings` (en `skipped`). Los avisos del hook no son errores ni cambian el código de salida. Reglas completas en
 `provider-layout` («Hook `sdd-specs-only`»). Idempotente.
@@ -310,6 +344,11 @@ debe pasar por los comandos de este contrato, que son los que conservan copias y
 | `validation.content.unreadable` | validación | 1 |
 | `not_found.group` | no encontrado | 1 |
 | `conflict.artifact.already_tracked` | conflicto | 1 |
+| `not_found.team.file` | no encontrado | 1 |
+| `conflict.team.modified_externally` | conflicto | 1 |
+| `validation.team.option_invalid` | validación | 1 |
+| `validation.team.module_duplicate` | validación | 1 |
+| `validation.team.module_invalid` | validación | 1 |
 | `internal.env` | interno | 3 |
 | `internal.project.sdd_resource` | interno | 3 |
 | `internal.project.copy` | interno | 3 |
@@ -326,7 +365,7 @@ debe pasar por los comandos de este contrato, que son los que conservan copias y
 
 ## Propiedades
 
-- **Idempotencia:** `init`, `configure-provider`, `create-module`, `add-technician` y `create-artifact` (sin
+- **Idempotencia:** `init`, `configure-provider`, `create-module`, `add-technician`, `team-update` y `create-artifact` (sin
   `--overwrite`) no sobrescriben nada al repetirse; lo existente se informa como omitido o como conflicto. Única
   excepción: el hook `sdd-specs-only` que instala `configure-provider`, que se sustituye si no lo ha modificado el
   usuario y la versión incorporada es distinta (ver `configure-provider`); repetir sin cambiar de versión no lo toca.
@@ -334,5 +373,5 @@ debe pasar por los comandos de este contrato, que son los que conservan copias y
   directorio de copias de la aplicación. Excepción: la sustitución del hook es atómica (se escribe a un temporal y se
   mueve encima), pero no deja copia, porque solo se sustituye un hook sin cambios del usuario cuyo contenido es el de
   una versión anterior de la aplicación.
-- **Entrada:** solo `save` (`--stdin`, `--header-stdin`), `create-artifact --stdin` y `adopt --stdin` leen la entrada
-  estándar, y solo cuando se piden.
+- **Entrada:** solo `save` (`--stdin`, `--header-stdin`), `create-artifact --stdin`, `adopt --stdin` y `team-update
+  --stdin` leen la entrada estándar, y solo cuando se piden.

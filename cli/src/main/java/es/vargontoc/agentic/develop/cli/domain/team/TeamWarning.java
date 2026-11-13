@@ -17,6 +17,8 @@ public record TeamWarning(Type type, int line) {
         /** Línea de la sección que no sigue el patrón. */
         MALFORMED_LINE,
         /** Módulo ya registrado antes; se conserva el primero. */
-        DUPLICATE_MODULE
+        DUPLICATE_MODULE,
+        /** Opción desconocida o con un valor no admitido; se ignora y se usa el valor por defecto. */
+        UNKNOWN_OPTION
     }
 }

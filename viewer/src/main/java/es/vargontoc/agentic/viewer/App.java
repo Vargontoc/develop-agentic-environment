@@ -23,29 +23,41 @@ import es.vargontoc.agentic.viewer.cli.ErrorPresenter;
 import es.vargontoc.agentic.viewer.cli.ErrorPresenter.ErrorNotice;
 import es.vargontoc.agentic.viewer.cli.model.AdoptData;
 import es.vargontoc.agentic.viewer.cli.model.CatalogData;
+import es.vargontoc.agentic.viewer.cli.model.CliVersionInfo;
 import es.vargontoc.agentic.viewer.cli.model.ConfigureProviderData;
+import es.vargontoc.agentic.viewer.cli.model.CreateArtifactData;
 import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
 import es.vargontoc.agentic.viewer.cli.model.DescribeData;
 import es.vargontoc.agentic.viewer.cli.model.InitData;
 import es.vargontoc.agentic.viewer.cli.model.SaveData;
 import es.vargontoc.agentic.viewer.cli.model.StatusData;
+import es.vargontoc.agentic.viewer.cli.model.TeamData;
+import es.vargontoc.agentic.viewer.cli.model.TeamUpdateData;
+import es.vargontoc.agentic.viewer.cli.model.TeamUpdateRequest;
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
+import es.vargontoc.agentic.viewer.compat.VersionStatus;
 import es.vargontoc.agentic.viewer.creation.AddTechnicianDialog;
-import es.vargontoc.agentic.viewer.creation.CreateArtifactDialog;
+import es.vargontoc.agentic.viewer.creation.CreateArtifactWizard;
 import es.vargontoc.agentic.viewer.creation.CreateModuleDialog;
 import es.vargontoc.agentic.viewer.creation.CreationPreviewDialog;
+import es.vargontoc.agentic.viewer.diff.ConflictResolutionDialog;
 import es.vargontoc.agentic.viewer.diff.DiffReview;
 import es.vargontoc.agentic.viewer.diff.DiffReviewDialog;
 import es.vargontoc.agentic.viewer.draft.DraftStore;
 import es.vargontoc.agentic.viewer.editor.EditorModel;
 import es.vargontoc.agentic.viewer.editor.SkillEditorModel;
 import es.vargontoc.agentic.viewer.preview.ArtifactPreview;
+import es.vargontoc.agentic.viewer.preview.NodeDetails;
 import es.vargontoc.agentic.viewer.preview.PreviewPanel;
 import es.vargontoc.agentic.viewer.preview.SddFiles;
 import es.vargontoc.agentic.viewer.runtime.AppPaths;
+import es.vargontoc.agentic.viewer.runtime.RecentProjectsStore;
 import es.vargontoc.agentic.viewer.runtime.ViewerLog;
+import es.vargontoc.agentic.viewer.runtime.ViewerVersion;
 import es.vargontoc.agentic.viewer.runtime.WatcherPaths;
+import es.vargontoc.agentic.viewer.setup.ConfigureProvidersDialog;
 import es.vargontoc.agentic.viewer.terminal.PtyConsolePanel;
+import es.vargontoc.agentic.viewer.team.TeamEditorDialog;
 import es.vargontoc.agentic.viewer.tree.TreeFilter;
 import es.vargontoc.agentic.viewer.tree.TreeGroups;
 import es.vargontoc.agentic.viewer.tree.TreeLabels;
@@ -53,6 +65,7 @@ import es.vargontoc.agentic.viewer.tree.TreeModel;
 import es.vargontoc.agentic.viewer.ui.Icons;
 import es.vargontoc.agentic.viewer.ui.StatusBarView;
 import es.vargontoc.agentic.viewer.ui.Theme;
+import es.vargontoc.agentic.viewer.ui.ToastHost;
 import es.vargontoc.agentic.viewer.ui.TreePresentation;
 import es.vargontoc.agentic.viewer.ui.WelcomePane;
 import es.vargontoc.agentic.viewer.watcher.CacheStore;
@@ -115,12 +128,14 @@ public final class App extends Application {
     private CliClient cliClient;
     private ProjectSession projectSession;
     private StatusData globalStatus;
+    private boolean initialProviderCheckDone = false;
     private String cliError;
 
     private ProjectWatcher projectWatcher;
     private CacheStore cacheStore;
     private StaleTracker staleTracker;
     private DraftStore draftStore;
+    private RecentProjectsStore recentProjects;
     private PauseTransition draftSaveDelay;
     private String lastDraftPath;
 
@@ -142,6 +157,8 @@ public final class App extends Application {
     private final List<MenuItem> createArtifactItems = new ArrayList<>();
     private MenuItem searchMenuItem;
     private MenuItem consoleMenuItem;
+    private MenuItem configureProvidersMenuItem;
+    private Menu recentProjectsMenu;
     private CheckMenuItem autoRefreshMenuItem;
 
     private TreeView<TreeData.Node> treeView;
@@ -165,8 +182,14 @@ public final class App extends Application {
     private PtyConsolePanel ptyConsolePanel;
 
     private StatusBarView statusBar;
+    private ToastHost toastHost;
     private PauseTransition autoRefreshDelay;
     private int busyCount;
+
+    private VersionStatus versionStatus;
+    private HBox versionBanner;
+    private Label versionBannerLabel;
+    private String lastVersionWarning;
 
     @Override
     public void start(Stage stage) {
@@ -188,9 +211,11 @@ public final class App extends Application {
         ptyConsolePanel.setOnStateChanged(this::onConsoleStateChanged);
 
         welcomePane = new WelcomePane();
+        welcomePane.setVersionInfo("Visor " + ViewerVersion.current(), false);
         welcomePane.setOnOpenProject(this::chooseProject);
         welcomePane.setOnInitProject(this::initProject);
         welcomePane.setOnCreateArtifact(this::createArtifact);
+        welcomePane.setOnOpenRecent(this::openRecentProject);
 
         workspaceTabs = new TabPane();
         workspaceTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -213,7 +238,7 @@ public final class App extends Application {
         draftSaveDelay = new PauseTransition(Duration.millis(1200));
         draftSaveDelay.setOnFinished(event -> saveDraftNow());
 
-        VBox top = new VBox(menuBar(), headerBar());
+        VBox top = new VBox(menuBar(), headerBar(), versionBanner());
         SplitPane body = new SplitPane(sidebar(), centerHost);
         body.getStyleClass().add("main-split");
         body.setDividerPositions(0.27);
@@ -225,7 +250,9 @@ public final class App extends Application {
         root.setCenter(body);
         root.setBottom(statusBar());
 
-        Scene scene = new Scene(root, 1320, 880);
+        toastHost = new ToastHost();
+        StackPane sceneRoot = new StackPane(root, toastHost);
+        Scene scene = new Scene(sceneRoot, 1320, 880);
         Theme.apply(scene);
 
         stage.setTitle("Agentic Viewer");
@@ -248,6 +275,7 @@ public final class App extends Application {
         updateWatcherStatus();
         updateWindowTitle();
         showWelcome();
+        loadVersions(null);
 
         if (cliError != null) {
             welcomePane.setCli(false, cliError);
@@ -258,6 +286,7 @@ public final class App extends Application {
             loadGlobalStatus();
             startWatcherForProject();
             refreshDraftStatus();
+            reopenLastProject();
             ViewerLog.info("Vista inicial preparada");
         }
     }
@@ -272,6 +301,7 @@ public final class App extends Application {
             staleTracker = new StaleTracker();
             projectWatcher = new ProjectWatcher(this::onFileSystemChange);
             draftStore = DraftStore.defaultStore();
+            recentProjects = RecentProjectsStore.defaultStore();
             ViewerLog.info("Visor iniciado. Log: " + ViewerLog.file());
         } catch (RuntimeException exception) {
             cliError = exception.getMessage();
@@ -292,12 +322,15 @@ public final class App extends Application {
     private MenuBar menuBar() {
         Menu file = new Menu("Archivo");
         openProjectMenuItem = menuItem("Abrir proyecto…", "Shortcut+O", Icons.Icon.FOLDER_OPEN, this::chooseProject);
+        recentProjectsMenu = new Menu("Abrir recientes");
+        configureProvidersMenuItem = menuItem("Configurar proveedores…", null, Icons.Icon.SETTINGS, this::configureProviders);
         reloadMenuItem = menuItem("Recargar", "F5", Icons.Icon.REFRESH, this::reloadWithGuard);
         saveMenuItem = menuItem("Guardar", "Shortcut+S", Icons.Icon.SAVE, this::saveCurrent);
         discardDraftsMenuItem = menuItem("Descartar borradores", null, Icons.Icon.TRASH, this::discardDrafts);
         closeProjectMenuItem = menuItem("Cerrar proyecto", null, Icons.Icon.CLOSE, this::closeProject);
         MenuItem exit = menuItem("Salir", "Shortcut+Q", Icons.Icon.LOG_OUT, this::requestExit);
-        file.getItems().addAll(openProjectMenuItem, reloadMenuItem, saveMenuItem,
+        file.getItems().addAll(openProjectMenuItem, recentProjectsMenu, new SeparatorMenuItem(),
+            configureProvidersMenuItem, reloadMenuItem, saveMenuItem,
             discardDraftsMenuItem, new SeparatorMenuItem(), closeProjectMenuItem,
             new SeparatorMenuItem(), exit);
 
@@ -305,7 +338,7 @@ public final class App extends Application {
         initProjectMenuItem = menuItem("Iniciar proyecto", null, Icons.Icon.PLAY, this::initProject);
         MenuItem createModule = menuItem("Crear módulo…", "Shortcut+M", Icons.Icon.MODULE, this::createModule);
         MenuItem addTechnician = menuItem("Añadir técnico…", "Shortcut+Shift+T", Icons.Icon.TECHNICIAN, this::addTechnician);
-        MenuItem createArtifact = menuItem("Aplicar artefactos…", "Shortcut+N", Icons.Icon.PLUS, this::createArtifact);
+        MenuItem createArtifact = menuItem("Crear artefactos…", "Shortcut+N", Icons.Icon.PLUS, this::createArtifact);
         createModuleItems.add(createModule);
         addTechnicianItems.add(addTechnician);
         createArtifactItems.add(createArtifact);
@@ -322,11 +355,13 @@ public final class App extends Application {
 
         Menu help = new Menu("Ayuda");
         help.getItems().addAll(menuItem("Atajos de teclado", null, Icons.Icon.HELP, this::showShortcuts),
+            menuItem("Comprobar versiones…", null, Icons.Icon.INFO, () -> loadVersions(this::showAbout)),
             menuItem("Abrir carpeta de logs", null, Icons.Icon.FOLDER_OPEN, this::openLogFolder),
             menuItem("Acerca de", null, Icons.Icon.INFO, this::showAbout));
 
         MenuBar bar = new MenuBar(file, project, view, help);
         bar.getStyleClass().add("app-menu");
+        refreshRecentProjectsMenu();
         return bar;
     }
 
@@ -560,8 +595,92 @@ public final class App extends Application {
     }
 
     private StatusBarView statusBar() {
-        statusBar = new StatusBarView(autoRefreshMenuItem);
+        statusBar = new StatusBarView(autoRefreshMenuItem, this::showAbout);
+        statusBar.setVersions("Visor " + ViewerVersion.current() + " · comprobando CLI…",
+            "Versiones del visor y del CLI", false);
         return statusBar;
+    }
+
+    /** Aviso persistente y no modal cuando el contrato del CLI no coincide. */
+    private Node versionBanner() {
+        versionBannerLabel = new Label();
+        versionBannerLabel.getStyleClass().add("version-banner-text");
+        versionBannerLabel.setWrapText(true);
+        HBox.setHgrow(versionBannerLabel, Priority.ALWAYS);
+
+        Button showVersions = new Button("Ver versiones");
+        showVersions.getStyleClass().addAll("secondary", "small");
+        showVersions.setGraphic(Icons.of(Icons.Icon.INFO, 13, "button-icon"));
+        showVersions.setOnAction(event -> showAbout());
+
+        versionBanner = new HBox(8, versionBannerLabel, showVersions);
+        versionBanner.setAlignment(Pos.CENTER_LEFT);
+        versionBanner.getStyleClass().add("version-banner");
+        versionBanner.setManaged(false);
+        versionBanner.setVisible(false);
+        return versionBanner;
+    }
+
+    // ------------------------------------------------------------------
+    // Versiones y compatibilidad del contrato
+    // ------------------------------------------------------------------
+
+    private void loadVersions(Runnable onDone) {
+        String viewerVersion = ViewerVersion.current();
+        int expected = CliClient.EXPECTED_SCHEMA_VERSION;
+
+        if (cliClient == null) {
+            applyVersions(VersionStatus.unavailable(viewerVersion, expected, cliError), onDone);
+            return;
+        }
+
+        if (statusBar != null) {
+            statusBar.setVersions("Visor " + viewerVersion + " · comprobando CLI…",
+                "Versiones del visor y del CLI", false);
+        }
+        Thread.ofVirtual().start(() -> {
+            VersionStatus status;
+            try {
+                CliVersionInfo info = cliClient.version();
+                status = info.schemaVersion() == expected
+                    ? VersionStatus.compatible(viewerVersion, info.version(), expected)
+                    : VersionStatus.mismatch(viewerVersion, info.version(), expected, info.schemaVersion());
+            } catch (RuntimeException exception) {
+                status = VersionStatus.unavailable(viewerVersion, expected, exception.getMessage());
+            }
+            VersionStatus result = status;
+            Platform.runLater(() -> applyVersions(result, onDone));
+        });
+    }
+
+    private void applyVersions(VersionStatus status, Runnable onDone) {
+        versionStatus = status;
+        if (statusBar != null) {
+            statusBar.setVersions(status.summary(), status.aboutText(), !status.compatible());
+        }
+        if (welcomePane != null) {
+            welcomePane.setVersionInfo(status.summary(), !status.compatible());
+        }
+
+        boolean mismatch = status.state() == VersionStatus.State.CONTRACT_MISMATCH;
+        if (versionBanner != null) {
+            versionBanner.setManaged(mismatch);
+            versionBanner.setVisible(mismatch);
+            if (mismatch) {
+                versionBannerLabel.setText(status.warning());
+            }
+        }
+        if (mismatch && !Objects.equals(lastVersionWarning, status.warning())) {
+            lastVersionWarning = status.warning();
+            notifyWarning("Contrato incompatible", status.warning());
+        }
+        if (!status.compatible()) {
+            ViewerLog.warn("Compatibilidad: " + status.summary()
+                + (status.detail().isBlank() ? "" : " · " + status.detail()));
+        }
+        if (onDone != null) {
+            onDone.run();
+        }
     }
 
     // ------------------------------------------------------------------
@@ -750,11 +869,10 @@ public final class App extends Application {
         showWorkspace();
         switch (node.type()) {
             case "agent", "skill", "profile" -> loadArtifact(node);
+            case "hook" -> loadHook(node);
             case "sdd" -> loadSddDirectory(node);
-            case "module" -> previewPanel.showMessage(node.name(),
-                "Módulo del equipo. Selecciona una de sus skills o agentes para verlo y editarlo.");
-            case "technician" -> previewPanel.showMessage(node.name(),
-                "Técnico del equipo. Sus artefactos generados aparecen agrupados por proveedor y módulo.");
+            case "module" -> loadModuleDetail(node);
+            case "technician" -> showTechnicianDetail(node);
             case "provider" -> previewPanel.showMessage(node.name(),
                 "Proveedor. Selecciona un agente, una skill o un perfil para previsualizarlo.");
             case "group" -> {
@@ -807,6 +925,135 @@ public final class App extends Application {
                     previewPanel.showError(node.name(),
                         exception.getMessage() == null ? "Error inesperado." : exception.getMessage());
                     endBusy("Error al abrir el artefacto");
+                });
+            }
+        });
+    }
+
+    /**
+     * Ficha del hook {@code sdd-specs-only}: estado, ruta y acción de instalación.
+     * El CLI lo entrega como nodo {@code hook} bajo el proveedor global.
+     */
+    private void loadModuleDetail(TreeData.Node node) {
+        previewPanel.showLoading(node.name());
+        beginBusy("Cargando módulo…");
+        Path project = currentProject();
+        Thread.ofVirtual().start(() -> {
+            TeamData team = null;
+            if (project != null && cliClient != null) {
+                try {
+                    team = cliClient.team(project);
+                } catch (RuntimeException ignored) {
+                    // Sin team.md legible se muestra lo que ya trae el árbol.
+                }
+            }
+            final TeamData data = team;
+            Platform.runLater(() -> {
+                if (selectedNode != node) {
+                    endBusy("Listo");
+                    return;
+                }
+                previewPanel.showNodeDetail(NodeDetails.module(node, data), Icons.Icon.MODULE);
+                endBusy("Listo");
+            });
+        });
+    }
+
+    private void showTechnicianDetail(TreeData.Node node) {
+        previewPanel.showNodeDetail(NodeDetails.technician(node, parentOf(node)), Icons.Icon.TECHNICIAN);
+    }
+
+    private TreeData.Node parentOf(TreeData.Node target) {
+        if (lastTreeData == null || target == null) {
+            return null;
+        }
+        TreeData.Node parent = parentOf(lastTreeData.project(), target);
+        return parent != null ? parent : parentOf(lastTreeData.global(), target);
+    }
+
+    private static TreeData.Node parentOf(List<TreeData.Node> nodes, TreeData.Node target) {
+        if (nodes == null) {
+            return null;
+        }
+        for (TreeData.Node node : nodes) {
+            if (node.children() == null) {
+                continue;
+            }
+            for (TreeData.Node child : node.children()) {
+                if (child == target) {
+                    return node;
+                }
+            }
+            TreeData.Node deeper = parentOf(node.children(), target);
+            if (deeper != null) {
+                return deeper;
+            }
+        }
+        return null;
+    }
+
+    private void loadHook(TreeData.Node node) {
+        String provider = node.provider() == null ? "el proveedor" : node.provider();
+        String statusText = node.pending()
+            ? "pendiente de instalar"
+            : TreePresentation.statusLabel(node.status());
+        String message;
+        if (node.pending()) {
+            message = "El hook sdd-specs-only no está instalado en " + provider
+                + ". Al instalarlo se restringen las escrituras de los agentes SDD.";
+        } else if ("legacy".equals(node.status())) {
+            message = "El hook está instalado en " + provider
+                + " pero está modificado o no tiene registro. Se respeta tal cual y no se sobrescribe.";
+        } else {
+            message = "El hook está instalado en " + provider
+                + " y coincide con la versión de la aplicación.";
+        }
+        message += "\n\nLa acción ejecuta configure-provider: instala o actualiza el hook y completa"
+            + " los artefactos globales que falten, sin sobrescribir los existentes.";
+        String actionLabel = node.pending() ? "Instalar hook" : "Reinstalar / actualizar hook";
+        previewPanel.showNodeInfo("sdd-specs-only", message, statusText, node.path(), actionLabel,
+            () -> installHook(provider));
+    }
+
+    private void installHook(String providerId) {
+        if (cliClient == null) {
+            showErrorAlert("Error de aplicación", "No se encontró el CLI",
+                "No se puede instalar el hook sin el CLI de la aplicación.");
+            return;
+        }
+        beginBusy("Instalando el hook…");
+        Thread.ofVirtual().start(() -> {
+            try {
+                ConfigureProviderData data = cliClient.configureProvider(providerId);
+                Platform.runLater(() -> {
+                    invalidateAfterWrite();
+                    refreshAll();
+                    String warnings = data.warnings() == null ? "" : String.join("\n- ", data.warnings());
+                    String message = "Proveedor: " + providerId
+                        + "\nCreados: " + size(data.created())
+                        + " · Omitidos: " + size(data.skipped());
+                    boolean hasWarnings = !warnings.isBlank();
+                    if (hasWarnings) {
+                        message += "\n\nAvisos:\n- " + warnings;
+                    }
+                    endBusy("Hook actualizado");
+                    if (hasWarnings) {
+                        notifyWarning("Hook sdd-specs-only", message);
+                    } else {
+                        notifySuccess("Hook sdd-specs-only", message);
+                    }
+                });
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    showErrorAlert("Error", null, notice.message());
+                    endBusy("Error al instalar el hook");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    showErrorAlert("Error", null,
+                        exception.getMessage() == null ? "Error inesperado." : exception.getMessage());
+                    endBusy("Error al instalar el hook");
                 });
             }
         });
@@ -867,7 +1114,13 @@ public final class App extends Application {
             try {
                 String content = SddFiles.read(sddDir, file);
                 Platform.runLater(() -> {
-                    previewPanel.showSddFile(file.getFileName().toString(), content);
+                    if ("team.md".equals(file.getFileName().toString())) {
+                        Path project = sddDir.getParent();
+                        previewPanel.showTeamFile(file.getFileName().toString(), content,
+                            () -> openTeamEditor(project));
+                    } else {
+                        previewPanel.showSddFile(file.getFileName().toString(), content);
+                    }
                     endBusy("Listo");
                 });
             } catch (SddFiles.SddReadException exception) {
@@ -883,6 +1136,107 @@ public final class App extends Application {
                 });
             }
         });
+    }
+
+    private void openTeamEditor(Path project) {
+        if (cliClient == null || project == null) {
+            return;
+        }
+        beginBusy("Leyendo el equipo…");
+        Thread.ofVirtual().start(() -> {
+            try {
+                TeamData data = cliClient.team(project);
+                Platform.runLater(() -> {
+                    endBusy("Listo");
+                    TeamEditorDialog.show(stage, data)
+                        .ifPresent(request -> saveTeam(project, data, request));
+                });
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    showErrorAlert("Error al leer el equipo", null,
+                        notice.message() + " " + notice.action());
+                    endBusy("Error al leer el equipo");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    showErrorAlert("Error al leer el equipo", null, unexpectedMessage(exception));
+                    endBusy("Error al leer el equipo");
+                });
+            }
+        });
+    }
+
+    private void saveTeam(Path project, TeamData original, TeamUpdateRequest request) {
+        beginBusy("Simulando cambios del equipo…");
+        Thread.ofVirtual().start(() -> {
+            try {
+                TeamUpdateData dryRun = cliClient.teamUpdate(project, request, original.hash(), true);
+                Platform.runLater(() -> {
+                    endBusy("Listo");
+                    if (!dryRun.written()) {
+                        notifySuccess("Equipo del proyecto", "No hay cambios que guardar.");
+                        return;
+                    }
+                    boolean confirmed = DiffReviewDialog.confirm(stage, "Guardar equipo",
+                        "Revisa los cambios de .sdd/team.md antes de guardar.", dryRun.diff());
+                    if (!confirmed) {
+                        return;
+                    }
+                    beginBusy("Guardando el equipo…");
+                    Thread.ofVirtual().start(() -> saveTeamConfirmed(project, original, request));
+                });
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                Platform.runLater(() -> {
+                    showErrorAlert("Error al simular el equipo", null, notice.message() + " " + notice.action());
+                    endBusy("Error al simular el equipo");
+                });
+            } catch (RuntimeException exception) {
+                Platform.runLater(() -> {
+                    showErrorAlert("Error al simular el equipo", null, unexpectedMessage(exception));
+                    endBusy("Error al simular el equipo");
+                });
+            }
+        });
+    }
+
+    private void saveTeamConfirmed(Path project, TeamData original, TeamUpdateRequest request) {
+        try {
+            TeamUpdateData result = cliClient.teamUpdate(project, request, original.hash(), false);
+            Platform.runLater(() -> {
+                invalidateAfterWrite();
+                refreshAll();
+                loadSddFile(project.resolve(".sdd").resolve("team.md"));
+                StringBuilder message = new StringBuilder("Módulos: ").append(request.modules().size());
+                if (result.backup() != null) {
+                    message.append("\nCopia de seguridad: ").append(result.backup());
+                }
+                boolean hasWarnings = result.warnings() != null && !result.warnings().isEmpty();
+                if (hasWarnings) {
+                    message.append("\n\nAvisos:");
+                    result.warnings().forEach(w -> message.append("\n· ").append(w.type())
+                        .append(w.line() > 0 ? " (línea " + w.line() + ")" : ""));
+                }
+                endBusy("Equipo guardado");
+                if (hasWarnings) {
+                    notifyWarning("Equipo guardado", message.toString());
+                } else {
+                    notifySuccess("Equipo guardado", message.toString());
+                }
+            });
+        } catch (CliClientException exception) {
+            ErrorNotice notice = ErrorPresenter.present(exception);
+            Platform.runLater(() -> {
+                showErrorAlert("Error al guardar el equipo", null, notice.message() + " " + notice.action());
+                endBusy("Error al guardar el equipo");
+            });
+        } catch (RuntimeException exception) {
+            Platform.runLater(() -> {
+                showErrorAlert("Error al guardar el equipo", null, unexpectedMessage(exception));
+                endBusy("Error al guardar el equipo");
+            });
+        }
     }
 
     private void updateSelectionInfo(TreeData.Node node) {
@@ -1048,6 +1402,7 @@ public final class App extends Application {
                 StatusData status = projectSession.select(path);
                 Platform.runLater(() -> {
                     openProjectButton.setDisable(false);
+                    rememberRecentProject(projectSession.path());
                     renderProject(status);
                     endBusy("Proyecto cargado");
                 });
@@ -1067,6 +1422,78 @@ public final class App extends Application {
                 });
             }
         });
+    }
+
+    private void openRecentProject(Path path) {
+        if (path == null || projectSession == null) {
+            return;
+        }
+        if (!Files.isDirectory(path)) {
+            recentProjects.remove(path);
+            refreshRecentProjectsMenu();
+            updateWelcomeState();
+            showErrorAlert("Proyecto no disponible", null,
+                "La carpeta del proyecto ya no existe:\n" + path);
+            return;
+        }
+        if (path.equals(currentProject()) && projectSession.status() != null) {
+            showWorkspace();
+            return;
+        }
+        if (!confirmCloseEditors("Cambiar de proyecto",
+            "Hay cambios sin guardar. ¿Qué quieres hacer antes de cambiar de proyecto?")) {
+            return;
+        }
+        loadProject(path);
+    }
+
+    private void rememberRecentProject(Path path) {
+        if (recentProjects == null || path == null) {
+            return;
+        }
+        recentProjects.remember(path);
+        refreshRecentProjectsMenu();
+    }
+
+    private void refreshRecentProjectsMenu() {
+        if (recentProjectsMenu == null) {
+            return;
+        }
+        recentProjectsMenu.getItems().clear();
+        List<Path> recents = recentProjects == null ? List.of() : recentProjects.list();
+        if (recents.isEmpty()) {
+            MenuItem empty = new MenuItem("Sin proyectos recientes");
+            empty.setDisable(true);
+            recentProjectsMenu.getItems().add(empty);
+            return;
+        }
+        for (Path path : recents) {
+            MenuItem item = new MenuItem(path.toString());
+            item.setOnAction(event -> openRecentProject(path));
+            recentProjectsMenu.getItems().add(item);
+        }
+        recentProjectsMenu.getItems().add(new SeparatorMenuItem());
+        MenuItem clear = new MenuItem("Limpiar lista");
+        clear.setOnAction(event -> {
+            if (recentProjects != null) {
+                recentProjects.clear();
+            }
+            refreshRecentProjectsMenu();
+            updateWelcomeState();
+        });
+        recentProjectsMenu.getItems().add(clear);
+    }
+
+    private void reopenLastProject() {
+        if (recentProjects == null) {
+            return;
+        }
+        Optional<Path> last = recentProjects.lastExisting();
+        if (last.isEmpty()) {
+            return;
+        }
+        ViewerLog.info("Reabriendo último proyecto: " + last.get());
+        loadProject(last.get());
     }
 
     private void initProject() {
@@ -1104,6 +1531,28 @@ public final class App extends Application {
                     endBusy("Error al iniciar el proyecto");
                 });
             }
+        });
+    }
+
+    private void configureProviders() {
+        if (cliClient == null) {
+            showErrorAlert("Error de aplicación", "No se encontró el CLI",
+                "No se puede configurar proveedores sin el CLI de la aplicación.");
+            return;
+        }
+
+        List<String> current = globalStatus != null && globalStatus.providers() != null
+            ? globalStatus.providers().stream().map(StatusData.Provider::id).toList()
+            : List.of();
+
+        var result = ConfigureProvidersDialog.show(stage, cliClient, current);
+        result.ifPresent(r -> {
+            // Mostrar resultados
+            ConfigureProvidersDialog.showResults(stage, r);
+            // Recargar estado global para actualizar la lista de proveedores
+            loadGlobalStatus();
+            refreshTree();
+            ViewerLog.info("Proveedores configurados: " + r.results().size());
         });
     }
 
@@ -1227,6 +1676,7 @@ public final class App extends Application {
         Path path = projectSession == null ? null : projectSession.path();
         boolean configured = projectSession != null && projectSession.configured();
         welcomePane.setProject(path, configured);
+        welcomePane.setRecentProjects(recentProjects == null ? List.of() : recentProjects.list());
     }
 
     private void showWelcome() {
@@ -1259,6 +1709,21 @@ public final class App extends Application {
                 Platform.runLater(() -> {
                     globalStatus = status;
                     updateMenuStates();
+                    // Asistente de primer arranque: si no hay proveedores configurados,
+                    // ofrecer configurar uno. Solo se muestra la primera vez.
+                    if (!initialProviderCheckDone) {
+                        initialProviderCheckDone = true;
+                        boolean noProviders = status == null || status.providers() == null 
+                            || status.providers().isEmpty()
+                            || status.providers().stream().allMatch(p -> {
+                                String state = p.state();
+                                return "not_installed".equals(state) || "unconfigured".equals(state);
+                            });
+                        if (noProviders) {
+                            ViewerLog.info("No hay proveedores configurados, mostrando asistente de primer arranque");
+                            Platform.runLater(this::configureProviders);
+                        }
+                    }
                 });
             } catch (RuntimeException ignored) {
                 // Sin estado global: las acciones dependientes del proyecto siguen disponibles.
@@ -1339,7 +1804,7 @@ public final class App extends Application {
             return false;
         }
         if (result.get() == saveButton) {
-            SaveOutcome outcome = saveEditor(editor);
+            SaveOutcome outcome = resolveEditorConflicts(editor);
             applySaveOutcome(editor, outcome);
             if (!outcome.ok()) {
                 return false;
@@ -1397,76 +1862,179 @@ public final class App extends Application {
         Thread.ofVirtual().start(() -> {
             SaveOutcome outcome = saveEditor(editor);
             Platform.runLater(() -> {
-                applySaveOutcome(editor, outcome);
-                endBusy(outcome.ok() ? "Guardado" : "Error al guardar");
+                SaveOutcome finalOutcome = outcome.conflictPart() == null
+                    ? outcome
+                    : resolveEditorConflicts(editor, outcome);
+                applySaveOutcome(editor, finalOutcome);
+                endBusy(finalOutcome.ok() ? "Guardado" : "Error al guardar");
             });
         });
     }
 
+    /**
+     * Intenta guardar las partes sucias sin abrir diálogos: se puede llamar desde
+     * un hilo virtual. Si hay conflicto devuelve {@link SavePart} para que la
+     * interfaz lo resuelva en el hilo de JavaFX.
+     */
     private SaveOutcome saveEditor(EditorModel editor) {
-        String error = null;
+        String message = null;
         if (editor.headerDirty()) {
-            error = saveHeaderEdit(editor);
+            SaveOutcome header = saveHeaderAttempt(editor, false);
+            if (!header.ok()) {
+                return header;
+            }
+            message = header.message();
         }
-        if (error == null && editor.bodyDirty()) {
-            error = saveBodyEdit(editor);
+        if (editor.bodyDirty()) {
+            SaveOutcome body = saveBodyAttempt(editor, false);
+            if (!body.ok()) {
+                return body;
+            }
+            if (body.message() != null) {
+                message = body.message();
+            }
         }
-        return error == null ? SaveOutcome.success() : SaveOutcome.failure(error);
+        return SaveOutcome.success(message);
     }
 
-    private String saveHeaderEdit(EditorModel editor) {
+    private SaveOutcome saveHeaderAttempt(EditorModel editor, boolean overwrite) {
         try {
-            cliClient.saveHeader(editor.path(), editor.header(), editor.project());
+            SaveData data = cliClient.saveHeader(editor.path(), editor.header(), editor.project(), overwrite);
             editor.markHeaderSaved();
             invalidateAfterWrite();
-            return null;
+            return SaveOutcome.success(backupMessage(data));
         } catch (CliClientException exception) {
+            if (isConflict(exception)) {
+                return SaveOutcome.conflict(SavePart.HEADER, exception.getMessage());
+            }
             ErrorNotice notice = ErrorPresenter.present(exception);
-            return notice.message() + " " + notice.action();
+            return SaveOutcome.failure(notice.message() + " " + notice.action());
         } catch (RuntimeException exception) {
-            return exception.getMessage() == null ? "Error inesperado." : exception.getMessage();
+            return SaveOutcome.failure(unexpectedMessage(exception));
         }
     }
 
-    private String saveBodyEdit(EditorModel editor) {
+    private SaveOutcome saveBodyAttempt(EditorModel editor, boolean overwrite) {
         try {
-            cliClient.saveBody(editor.path(), editor.body(), editor.project());
+            SaveData data = cliClient.saveBody(editor.path(), editor.body(), editor.project(), null, overwrite);
             editor.markBodySaved();
             invalidateAfterWrite();
-            return null;
+            return SaveOutcome.success(backupMessage(data));
         } catch (CliClientException exception) {
+            if (isConflict(exception)) {
+                return SaveOutcome.conflict(SavePart.BODY, exception.getMessage());
+            }
             ErrorNotice notice = ErrorPresenter.present(exception);
-            return notice.message() + " " + notice.action();
+            return SaveOutcome.failure(notice.message() + " " + notice.action());
         } catch (RuntimeException exception) {
-            return exception.getMessage() == null ? "Error inesperado." : exception.getMessage();
+            return SaveOutcome.failure(unexpectedMessage(exception));
+        }
+    }
+
+    /**
+     * Resuelve los conflictos de una instancia en el hilo de JavaFX: muestra el
+     * diff y aplica «conservar mi versión» o «usar la del disco». Repite el ciclo
+     * mientras el fichero vuelva a cambiar entre la elección y la escritura.
+     */
+    private SaveOutcome resolveEditorConflicts(EditorModel editor) {
+        return resolveEditorConflicts(editor, saveEditor(editor));
+    }
+
+    /**
+     * Resuelve los conflictos de una instancia en el hilo de JavaFX: muestra el
+     * diff y aplica «conservar mi versión» o «usar la del disco». Repite el ciclo
+     * mientras el fichero vuelva a cambiar entre la elección y la escritura.
+     */
+    private SaveOutcome resolveEditorConflicts(EditorModel editor, SaveOutcome initial) {
+        SaveOutcome current = initial;
+        String lastMessage = null;
+        while (true) {
+            if (current.ok()) {
+                return SaveOutcome.success(current.message() != null ? current.message() : lastMessage);
+            }
+            if (current.conflictPart() == null) {
+                return current;
+            }
+            SaveOutcome resolution = resolveEditorPart(editor, current.conflictPart());
+            if (!resolution.ok()) {
+                return resolution;
+            }
+            if (resolution.message() != null) {
+                lastMessage = resolution.message();
+            }
+            current = saveEditor(editor);
+        }
+    }
+
+    private SaveOutcome resolveEditorPart(EditorModel editor, SavePart part) {
+        while (true) {
+            DescribeData disk;
+            try {
+                disk = cliClient.describe(editor.path(), editor.project());
+            } catch (CliClientException exception) {
+                ErrorNotice notice = ErrorPresenter.present(exception);
+                return SaveOutcome.failure(
+                    "No se pudo leer la versión del disco: " + notice.message() + " " + notice.action());
+            } catch (RuntimeException exception) {
+                return SaveOutcome.failure("No se pudo leer la versión del disco: " + unexpectedMessage(exception));
+            }
+
+            String mine = part == SavePart.HEADER ? editor.header() : editor.body();
+            String diskText = part == SavePart.HEADER ? disk.header() : disk.body();
+            var choice = ConflictResolutionDialog.show(stage, new ConflictResolutionDialog.Request(
+                artifactName(editor), part == SavePart.HEADER ? "Cabecera" : "Cuerpo",
+                nullToEmpty(mine), nullToEmpty(diskText)));
+
+            switch (choice) {
+                case CANCEL -> {
+                    return SaveOutcome.failure("Guardado cancelado: el artefacto cambió fuera de la aplicación.");
+                }
+                case USE_DISK -> {
+                    if (part == SavePart.HEADER) {
+                        editor.setHeader(diskText);
+                        editor.markHeaderSaved();
+                    } else {
+                        editor.setBody(diskText);
+                        editor.markBodySaved();
+                    }
+                    refreshSharedBodyFromDisk(editor, disk);
+                    previewPanel.refreshAfterExternalResolution();
+                    deleteDraft(editor.path() == null ? lastDraftPath : editor.path().toString());
+                    return SaveOutcome.success("Se usó la versión del disco.");
+                }
+                case KEEP_MINE -> {
+                    SaveOutcome retry = part == SavePart.HEADER
+                        ? saveHeaderAttempt(editor, true)
+                        : saveBodyAttempt(editor, true);
+                    if (retry.ok() || retry.conflictPart() == null) {
+                        return retry;
+                    }
+                    // El fichero volvió a cambiar: se muestra el conflicto otra vez con el disco actualizado.
+                }
+            }
         }
     }
 
     private void saveSkillFile(SkillEditorModel skillEditor, String file) {
-        String content = skillEditor.getContent(file);
         beginBusy("Guardando " + file + "…");
         Thread.ofVirtual().start(() -> {
-            try {
-                cliClient.saveBody(skillEditor.skillPath(), content, skillEditor.project(), file);
-                Platform.runLater(() -> {
+            SaveOutcome outcome = saveSkillFileAttempt(skillEditor, file, false);
+            Platform.runLater(() -> {
+                SaveOutcome finalOutcome = outcome.conflictPart() == null
+                    ? outcome
+                    : resolveSkillFileConflict(skillEditor, file);
+                if (finalOutcome.ok()) {
                     skillEditor.markSaved(file);
-                    previewPanel.showSaveStatus("Fichero " + file + " guardado.", false);
+                    previewPanel.refreshAfterExternalResolution();
+                    previewPanel.showSaveStatus(finalOutcome.message() == null
+                        ? "Fichero " + file + " guardado."
+                        : finalOutcome.message(), false);
                     invalidateAfterWrite();
-                    endBusy("Guardado");
-                });
-            } catch (CliClientException exception) {
-                ErrorNotice notice = ErrorPresenter.present(exception);
-                Platform.runLater(() -> {
-                    previewPanel.showSaveStatus("Error: " + notice.message() + " " + notice.action(), true);
-                    endBusy("Error al guardar");
-                });
-            } catch (RuntimeException exception) {
-                Platform.runLater(() -> {
-                    previewPanel.showSaveStatus("Error: "
-                        + (exception.getMessage() == null ? "inesperado" : exception.getMessage()), true);
-                    endBusy("Error al guardar");
-                });
-            }
+                } else {
+                    previewPanel.showSaveStatus("Error: " + finalOutcome.message(), true);
+                }
+                endBusy(finalOutcome.ok() ? "Guardado" : "Error al guardar");
+            });
         });
     }
 
@@ -1477,39 +2045,203 @@ public final class App extends Application {
         }
         beginBusy("Guardando " + dirtyFiles.size() + " fichero(s)…");
         Thread.ofVirtual().start(() -> {
-            String error = saveAllSkillFilesNow(skillEditor, dirtyFiles);
+            SkillBatch batch = saveSkillBatch(skillEditor, dirtyFiles);
             Platform.runLater(() -> {
-                if (error == null) {
-                    dirtyFiles.forEach(skillEditor::markSaved);
-                    previewPanel.showSaveStatus("Todos los ficheros guardados.", false);
+                batch.saved().forEach(skillEditor::markSaved);
+                if (batch.conflictFile() != null) {
+                    SaveOutcome resolved = resolveSkillFileConflict(skillEditor, batch.conflictFile());
+                    if (!resolved.ok()) {
+                        previewPanel.showSaveStatus("Error: " + resolved.message(), true);
+                        endBusy("Error al guardar");
+                        return;
+                    }
+                    skillEditor.markSaved(batch.conflictFile());
+                    previewPanel.refreshAfterExternalResolution();
+                    previewPanel.showSaveStatus(resolved.message() == null
+                        ? "Conflicto resuelto." : resolved.message(), false);
                     invalidateAfterWrite();
                     endBusy("Guardado");
-                } else {
-                    previewPanel.showSaveStatus("Error: " + error, true);
-                    endBusy("Error al guardar");
+                    if (skillEditor.isDirty()) {
+                        saveAllSkillFiles(skillEditor);
+                    }
+                    return;
                 }
+                if (batch.message() != null) {
+                    previewPanel.showSaveStatus("Error: " + batch.message(), true);
+                    endBusy("Error al guardar");
+                    return;
+                }
+                previewPanel.showSaveStatus("Todos los ficheros guardados.", false);
+                invalidateAfterWrite();
+                endBusy("Guardado");
             });
         });
     }
 
-    private String saveAllSkillFilesNow(SkillEditorModel skillEditor) {
-        List<String> dirtyFiles = skillEditor.files().stream().filter(skillEditor::isDirty).toList();
-        return saveAllSkillFilesNow(skillEditor, dirtyFiles);
+    private SaveOutcome saveSkillFileAttempt(SkillEditorModel skillEditor, String file, boolean overwrite) {
+        try {
+            SaveData data = cliClient.saveBody(skillEditor.skillPath(), skillEditor.getContent(file),
+                skillEditor.project(), file, overwrite);
+            invalidateAfterWrite();
+            return SaveOutcome.success(backupMessage(data));
+        } catch (CliClientException exception) {
+            if (isConflict(exception)) {
+                return SaveOutcome.conflict(SavePart.BODY, exception.getMessage());
+            }
+            ErrorNotice notice = ErrorPresenter.present(exception);
+            return SaveOutcome.failure(notice.message() + " " + notice.action());
+        } catch (RuntimeException exception) {
+            return SaveOutcome.failure(unexpectedMessage(exception));
+        }
     }
 
-    private String saveAllSkillFilesNow(SkillEditorModel skillEditor, List<String> dirtyFiles) {
-        for (String file : dirtyFiles) {
-            try {
-                cliClient.saveBody(skillEditor.skillPath(), skillEditor.getContent(file),
-                    skillEditor.project(), file);
-            } catch (CliClientException exception) {
-                ErrorNotice notice = ErrorPresenter.present(exception);
-                return notice.message() + " " + notice.action();
-            } catch (RuntimeException exception) {
-                return exception.getMessage() == null ? "Error inesperado." : exception.getMessage();
+    private SaveOutcome resolveSkillFileConflict(SkillEditorModel skillEditor, String file) {
+        while (true) {
+            String disk = readSkillFile(skillEditor.skillPath(), file);
+            if (disk == null) {
+                return SaveOutcome.failure("No se pudo leer la versión del disco de " + file + ".");
+            }
+            var choice = ConflictResolutionDialog.show(stage, new ConflictResolutionDialog.Request(
+                skillName(skillEditor), file, skillEditor.getContent(file), disk));
+
+            switch (choice) {
+                case CANCEL -> {
+                    return SaveOutcome.failure("Guardado cancelado: " + file + " cambió fuera de la aplicación.");
+                }
+                case USE_DISK -> {
+                    skillEditor.setContent(file, disk);
+                    skillEditor.markSaved(file);
+                    previewPanel.refreshAfterExternalResolution();
+                    deleteDraft(skillEditor.skillPath() == null ? lastDraftPath : skillEditor.skillPath().toString());
+                    return SaveOutcome.success("Se usó la versión del disco para " + file + ".");
+                }
+                case KEEP_MINE -> {
+                    SaveOutcome retry = saveSkillFileAttempt(skillEditor, file, true);
+                    if (retry.ok() || retry.conflictPart() == null) {
+                        return retry;
+                    }
+                    // El fichero volvió a cambiar: se muestra el conflicto otra vez.
+                }
             }
         }
-        return null;
+    }
+
+    private SkillBatch saveSkillBatch(SkillEditorModel skillEditor, List<String> dirtyFiles) {
+        List<String> saved = new ArrayList<>();
+        for (String file : dirtyFiles) {
+            SaveOutcome outcome = saveSkillFileAttempt(skillEditor, file, false);
+            if (outcome.ok()) {
+                saved.add(file);
+                continue;
+            }
+            if (outcome.conflictPart() != null) {
+                return SkillBatch.conflict(saved, file);
+            }
+            return SkillBatch.error(saved, outcome.message());
+        }
+        return SkillBatch.success(saved);
+    }
+
+    /** Guardado síncrono con guía de conflictos, para las confirmaciones de cierre/navegación. */
+    private String saveAllSkillFilesNow(SkillEditorModel skillEditor) {
+        while (true) {
+            List<String> dirtyFiles = skillEditor.files().stream().filter(skillEditor::isDirty).toList();
+            if (dirtyFiles.isEmpty()) {
+                return null;
+            }
+            SkillBatch batch = saveSkillBatch(skillEditor, dirtyFiles);
+            batch.saved().forEach(skillEditor::markSaved);
+            if (batch.conflictFile() != null) {
+                SaveOutcome resolved = resolveSkillFileConflict(skillEditor, batch.conflictFile());
+                if (!resolved.ok()) {
+                    return resolved.message();
+                }
+                skillEditor.markSaved(batch.conflictFile());
+                continue;
+            }
+            if (batch.message() != null) {
+                return batch.message();
+            }
+            return null;
+        }
+    }
+
+    private boolean isConflict(CliClientException exception) {
+        return exception != null && "conflict.artifact.modified_externally".equals(exception.code());
+    }
+
+    private static String unexpectedMessage(Exception exception) {
+        return exception.getMessage() == null ? "Error inesperado." : exception.getMessage();
+    }
+
+    private static String backupMessage(SaveData data) {
+        if (data == null || data.backups() == null || data.backups().isEmpty()) {
+            return null;
+        }
+        return "Guardado · copia de seguridad: " + String.join(", ", data.backups());
+    }
+
+    private static String artifactName(EditorModel editor) {
+        if (editor.path() == null) {
+            return "Artefacto";
+        }
+        return editor.path().getFileName() == null ? editor.path().toString() : editor.path().getFileName().toString();
+    }
+
+    private static String skillName(SkillEditorModel skillEditor) {
+        if (skillEditor.skillPath() == null) {
+            return "Skill";
+        }
+        return skillEditor.skillPath().getFileName() == null
+            ? skillEditor.skillPath().toString()
+            : skillEditor.skillPath().getFileName().toString();
+    }
+
+    private String readSkillFile(Path skillPath, String file) {
+        if (skillPath == null || file == null || file.isBlank()) {
+            return null;
+        }
+        try {
+            Path root = skillPath.toAbsolutePath().normalize();
+            Path target = root.resolve(file).normalize();
+            if (!target.startsWith(root)) {
+                showErrorAlert("Error", null, "La ruta del fichero sale de la skill: " + file);
+                return null;
+            }
+            return Files.readString(target);
+        } catch (IOException | RuntimeException exception) {
+            showErrorAlert("Error", null,
+                "No se pudo leer " + file + ": " + unexpectedMessage(exception));
+            return null;
+        }
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    /** Si el cuerpo compartido no tiene cambios propios, se sincroniza con el disco. */
+    private static void refreshSharedBodyFromDisk(EditorModel editor, DescribeData disk) {
+        if (!editor.sharedBodyDirty() && disk.sharedBody() != null) {
+            editor.setSharedBody(disk.sharedBody());
+            editor.markSharedBodySaved();
+        }
+    }
+
+    private enum SavePart { HEADER, BODY }
+
+    private record SkillBatch(List<String> saved, String conflictFile, String message) {
+        static SkillBatch success(List<String> saved) {
+            return new SkillBatch(saved, null, null);
+        }
+
+        static SkillBatch conflict(List<String> saved, String conflictFile) {
+            return new SkillBatch(saved, conflictFile, null);
+        }
+
+        static SkillBatch error(List<String> saved, String message) {
+            return new SkillBatch(saved, null, message);
+        }
     }
 
     /** Propagación síncrona reservada para las confirmaciones de cierre/navegación. */
@@ -1756,16 +2488,22 @@ public final class App extends Application {
     }
 
     private void applySaveOutcome(EditorModel editor, SaveOutcome outcome) {
-        previewPanel.showSaveStatus(outcome.ok() ? "Guardado" : "Error: " + outcome.message(), !outcome.ok());
+        previewPanel.showSaveStatus(outcome.ok()
+            ? (outcome.message() == null ? "Guardado" : outcome.message())
+            : "Error: " + outcome.message(), !outcome.ok());
     }
 
-    private record SaveOutcome(boolean ok, String message) {
-        static SaveOutcome success() {
-            return new SaveOutcome(true, null);
+    private record SaveOutcome(boolean ok, String message, SavePart conflictPart) {
+        static SaveOutcome success(String message) {
+            return new SaveOutcome(true, message, null);
         }
 
         static SaveOutcome failure(String message) {
-            return new SaveOutcome(false, message);
+            return new SaveOutcome(false, message, null);
+        }
+
+        static SaveOutcome conflict(SavePart part, String message) {
+            return new SaveOutcome(false, message, part);
         }
     }
 
@@ -1827,11 +2565,11 @@ public final class App extends Application {
                 projectSession.path(), name, technicians, providers, false);
 
             Platform.runLater(() -> {
-                showInfoAlert("Módulo creado",
-                    "Se crearon " + result.created().size() + " artefactos.\n"
-                        + "Se omitieron " + result.skipped().size() + ".");
                 endBusy("Módulo creado");
                 refreshAll();
+                notifySuccess("Módulo creado",
+                    "Se crearon " + result.created().size() + " artefactos.\n"
+                        + "Se omitieron " + result.skipped().size() + ".");
             });
         } catch (CliClientException exception) {
             ErrorNotice notice = ErrorPresenter.present(exception);
@@ -1851,20 +2589,21 @@ public final class App extends Application {
         if (!requireProject()) {
             return;
         }
-        if (projectSession.status().project().modules().isEmpty()) {
+        List<String> modules = projectSession.status().project().modules();
+        if (modules.isEmpty()) {
             showErrorAlert("Sin módulos", null, "No hay módulos registrados en el proyecto.");
             return;
         }
 
-        String selectedModule = projectSession.status().project().modules().getFirst();
-        var result = AddTechnicianDialog.show(stage, selectedModule, providerIds());
+        var result = AddTechnicianDialog.show(stage, modules, providerIds());
         if (result.isEmpty()) {
             return;
         }
 
         AddTechnicianDialog.Result params = result.get();
-        if (params.technicians().isEmpty() || params.providers().isEmpty()) {
-            showErrorAlert("Faltan datos", null, "Selecciona técnicos y proveedores.");
+        String selectedModule = params.module();
+        if (params.technicians().isEmpty() || params.providers().isEmpty() || selectedModule == null) {
+            showErrorAlert("Faltan datos", null, "Selecciona módulo, técnicos y proveedores.");
             return;
         }
 
@@ -1907,11 +2646,11 @@ public final class App extends Application {
                 projectSession.path(), module, technicians, providers, false);
 
             Platform.runLater(() -> {
-                showInfoAlert("Técnicos añadidos",
-                    "Se crearon " + result.created().size() + " artefactos.\n"
-                        + "Se omitieron " + result.skipped().size() + ".");
                 endBusy("Técnicos añadidos");
                 refreshAll();
+                notifySuccess("Técnicos añadidos",
+                    "Se crearon " + result.created().size() + " artefactos.\n"
+                        + "Se omitieron " + result.skipped().size() + ".");
             });
         } catch (CliClientException exception) {
             ErrorNotice notice = ErrorPresenter.present(exception);
@@ -1934,104 +2673,88 @@ public final class App extends Application {
             showErrorAlert("Sin proveedores", null, "No hay proveedores configurados.");
             return;
         }
+        Path project = hasProject ? projectSession.path() : null;
 
-        Optional<CreateArtifactDialog.Result> selectionOpt = CreateArtifactDialog.show(stage, providers, hasProject);
-        if (selectionOpt.isEmpty()) {
-            return;
-        }
-        CreateArtifactDialog.Result selection = selectionOpt.get();
-
-        if ("project".equals(selection.scope()) && !hasProject) {
-            showErrorAlert("Proyecto requerido", null,
-                "No hay proyecto configurado. Selecciona un proyecto o usa ámbito global.");
-            return;
-        }
-
-        Path project = "project".equals(selection.scope()) ? projectSession.path() : null;
-        beginBusy("Aplicando artefactos…");
-        Thread.ofVirtual().start(() -> {
-            List<String> summary = new ArrayList<>();
-            List<String> problems = new ArrayList<>();
-            for (String provider : selection.providers()) {
-                try {
-                    if (project == null) {
-                        summary.add(applyGlobalProvider(provider, selection.replace(), problems));
-                    } else {
-                        summary.add(applyProjectProvider(provider, project, selection.replace()));
+        CreateArtifactWizard.CatalogLoader catalogLoader = (scope, selectedProviders, kinds) -> {
+            Path scopedProject = "project".equals(scope) ? project : null;
+            List<CreateArtifactWizard.CatalogItem> items = new ArrayList<>();
+            for (String provider : selectedProviders) {
+                for (String kind : kinds) {
+                    CatalogData catalog = cliClient.catalog(provider, scope, kind, null, scopedProject);
+                    for (CatalogData.CatalogEntry entry : catalog.entries()) {
+                        items.add(new CreateArtifactWizard.CatalogItem(provider, scope, kind, entry.name(),
+                            entry.relativePath(), entry.module(), entry.technician(), entry.exists()));
                     }
-                } catch (CliClientException exception) {
-                    ErrorNotice notice = ErrorPresenter.present(exception);
-                    problems.add(provider + ": " + notice.message());
-                } catch (RuntimeException exception) {
-                    problems.add(provider + ": " + exception.getMessage());
                 }
             }
+            return items;
+        };
 
-            Platform.runLater(() -> {
-                endBusy("Artefactos aplicados");
-                cacheStore.invalidateAll();
-                refreshAll();
-                showInfoAlert("Artefactos aplicados",
-                    summaryMessage(selection.scope(), summary, problems, selection.replace()));
-            });
-        });
+        CreateArtifactWizard.TemplateLoader templateLoader = item -> {
+            Path scopedProject = "project".equals(item.scope()) ? project : null;
+            CatalogData data = cliClient.catalog(item.provider(), item.scope(), item.kind(), item.name(),
+                scopedProject);
+            return data.entries().isEmpty() ? null : data.entries().getFirst().template();
+        };
+
+        CreateArtifactWizard.show(stage, providers, hasProject, catalogLoader, templateLoader)
+            .ifPresent(this::applyArtifactCreation);
     }
 
-    private String applyGlobalProvider(String provider, boolean replace, List<String> problems) {
-        int created = 0;
-        int replaced = 0;
-        int skipped = 0;
-        if (replace) {
-            for (String kind : List.of("agent", "skill")) {
-                CatalogData catalog = cliClient.catalog(provider, "global", kind, null, null);
-                for (CatalogData.CatalogEntry entry : catalog.entries()) {
-                    boolean exists = entry.exists();
-                    cliClient.createArtifact(provider, "global", kind, entry.name(), null, null, true);
-                    if (exists) {
+    private void applyArtifactCreation(CreateArtifactWizard.Request request) {
+        Path project = "project".equals(request.scope()) ? currentProject() : null;
+        beginBusy("Creando artefactos…");
+        Thread.ofVirtual().start(() -> {
+            int created = 0;
+            int replaced = 0;
+            int skipped = 0;
+            List<String> problems = new ArrayList<>();
+            for (CreateArtifactWizard.CatalogItem item : request.items()) {
+                try {
+                    CreateArtifactData data = cliClient.createArtifact(item.provider(), item.scope(), item.kind(),
+                        item.name(), project, request.contents().get(item.key()), request.replace());
+                    if (data.replaced()) {
                         replaced++;
                     } else {
                         created++;
                     }
-                }
-            }
-        }
-        ConfigureProviderData data = cliClient.configureProvider(provider);
-        created += size(data.created());
-        skipped += replace ? 0 : size(data.skipped());
-        addWarnings(provider, data, problems);
-        return provider + ": " + counts(created, replaced, skipped);
-    }
-
-    private String applyProjectProvider(String provider, Path project, boolean replace) {
-        int created = 0;
-        int replaced = 0;
-        int skipped = 0;
-        for (String kind : List.of("agent", "skill")) {
-            CatalogData catalog = cliClient.catalog(provider, "project", kind, null, project);
-            for (CatalogData.CatalogEntry entry : catalog.entries()) {
-                if (entry.exists()) {
-                    if (replace) {
-                        cliClient.createArtifact(provider, "project", kind, entry.name(), project, null, true);
-                        replaced++;
-                    } else {
+                } catch (CliClientException exception) {
+                    if ("conflict.artifact.already_exists".equals(exception.code()) && !request.replace()) {
                         skipped++;
+                    } else {
+                        ErrorNotice notice = ErrorPresenter.present(exception);
+                        problems.add(item.provider() + " · " + item.name() + ": " + notice.message());
                     }
-                    continue;
+                } catch (RuntimeException exception) {
+                    problems.add(item.provider() + " · " + item.name() + ": " + unexpectedMessage(exception));
                 }
-                cliClient.createArtifact(provider, "project", kind, entry.name(), project, null, false);
-                created++;
             }
-        }
-        return provider + ": " + counts(created, replaced, skipped);
-    }
 
-    private static void addWarnings(String provider, ConfigureProviderData data, List<String> problems) {
-        if (data.warnings() == null) {
-            return;
-        }
-        for (String warning : data.warnings()) {
-            problems.add(provider + ": " + warning);
-        }
+            int finalCreated = created;
+            int finalReplaced = replaced;
+            int finalSkipped = skipped;
+            Platform.runLater(() -> {
+                invalidateAfterWrite();
+                refreshAll();
+                StringBuilder message = new StringBuilder();
+                message.append("Ámbito: ")
+                    .append("project".equals(request.scope()) ? "proyecto" : "global")
+                    .append('\n')
+                    .append(counts(finalCreated, finalReplaced, finalSkipped));
+                if (!problems.isEmpty()) {
+                    message.append("\n\nIncidencias:\n").append(String.join("\n", problems));
+                }
+                message.append(request.replace()
+                    ? "\n\nLos artefactos existentes se reemplazaron y tienen copia de seguridad."
+                    : "\n\nLos artefactos existentes no se modificaron.");
+                endBusy("Artefactos creados");
+                if (problems.isEmpty()) {
+                    notifySuccess("Artefactos creados", message.toString());
+                } else {
+                    notifyWarning("Artefactos creados con incidencias", message.toString());
+                }
+            });
+        });
     }
 
     private static int size(List<String> values) {
@@ -2052,24 +2775,6 @@ public final class App extends Application {
 
     private static String count(int value, String singular) {
         return value + " " + (value == 1 ? singular : singular + "s");
-    }
-
-    private static String summaryMessage(String scope, List<String> summary, List<String> problems,
-                                         boolean replace) {
-        StringBuilder text = new StringBuilder();
-        text.append("Ámbito: ").append("global".equals(scope) ? "global" : "proyecto").append("\n\n");
-        if (summary.isEmpty()) {
-            text.append("No se aplicó ningún proveedor.\n");
-        } else {
-            text.append(String.join("\n", summary));
-        }
-        if (!problems.isEmpty()) {
-            text.append("\n\nIncidencias:\n").append(String.join("\n", problems));
-        }
-        text.append(replace
-            ? "\n\nLos artefactos existentes se han reemplazado y tienen copia de seguridad."
-            : "\n\nLos artefactos existentes no se han modificado.");
-        return text.toString();
     }
 
     private boolean requireProject() {
@@ -2408,10 +3113,15 @@ public final class App extends Application {
         alert.setTitle("Acerca de Agentic Viewer");
         alert.setHeaderText("Agentic Viewer");
         Theme.apply(alert);
+        String versions = versionStatus == null
+            ? "Visor: " + ViewerVersion.current() + "\nCLI: comprobando…"
+            : versionStatus.aboutText();
         alert.setContentText("""
             Visor de escritorio para el entorno agéntico de desarrollo.
 
-            JavaFX 21 · Consume el CLI mediante el contrato cli-json v1.
+            """ + versions + """
+
+            JavaFX 21 · Consume el CLI mediante el contrato cli-json.
             Todo se ejecuta en tu equipo; no requiere conexión a internet.
 
             Log de diagnóstico:
@@ -2451,6 +3161,27 @@ public final class App extends Application {
         alert.setResizable(true);
         Theme.apply(alert);
         alert.showAndWait();
+    }
+
+    /** Éxito no modal: toast en la esquina y mensaje en la barra de estado. */
+    private void notifySuccess(String title, String message) {
+        notify(title, message, false);
+    }
+
+    /** Resultado no modal con avisos que conviene destacar algo más de tiempo. */
+    private void notifyWarning(String title, String message) {
+        notify(title, message, true);
+    }
+
+    private void notify(String title, String message, boolean warning) {
+        ViewerLog.info("Aviso (" + (warning ? "warning" : "ok") + "): " + title
+            + (message == null || message.isBlank() ? "" : " · " + message));
+        if (toastHost != null) {
+            toastHost.show(title, message, warning);
+        }
+        if (statusBar != null) {
+            statusBar.setMessage(title);
+        }
     }
 
     private static String formatProjectSummary(StatusData status) {

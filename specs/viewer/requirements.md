@@ -173,6 +173,14 @@ Se quiere una aplicación de escritorio que permita seleccionar un proyecto, com
   - Dado un error de dominio del CLI, cuando se produzca, entonces el viewer muestra el código, la ruta y una acción sugerida.
   - Dado un fallo inesperado del CLI, entonces la aplicación sigue abierta y permite reintentar la operación.
 
+### REQ-019 Versiones y compatibilidad del contrato
+
+- **Requisito:** El viewer deberá mostrar su propia versión y la del CLI, y avisar de forma no modal cuando la versión del contrato `cli-json` no coincida con la que entiende.
+- **Criterios de aceptación:**
+  - Dado que el CLI está disponible, cuando arranque el viewer, entonces la barra de estado y la bienvenida muestran la versión del visor, la del CLI y la del contrato.
+  - Dado un CLI cuyo `schemaVersion` no coincide, entonces aparece un aviso persistente con la acción recomendada y «Acerca de» detalla ambas versiones.
+  - Dado que no se puede ejecutar el CLI, entonces el viewer muestra «CLI no disponible» sin cerrar la aplicación.
+
 ## Requisitos no funcionales
 
 ### NFR-001 Plataformas soportadas

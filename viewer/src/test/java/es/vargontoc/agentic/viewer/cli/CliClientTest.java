@@ -16,11 +16,17 @@ import org.junit.jupiter.api.Test;
 
 import es.vargontoc.agentic.viewer.cli.CliProcess.CliResult;
 import es.vargontoc.agentic.viewer.cli.model.AdoptData;
+import es.vargontoc.agentic.viewer.cli.model.CatalogData;
+import es.vargontoc.agentic.viewer.cli.model.CliVersionInfo;
 import es.vargontoc.agentic.viewer.cli.model.ConfigureProviderData;
+import es.vargontoc.agentic.viewer.cli.model.CreateArtifactData;
 import es.vargontoc.agentic.viewer.cli.model.CreateModuleData;
 import es.vargontoc.agentic.viewer.cli.model.DescribeData;
 import es.vargontoc.agentic.viewer.cli.model.SaveData;
 import es.vargontoc.agentic.viewer.cli.model.StatusData;
+import es.vargontoc.agentic.viewer.cli.model.TeamData;
+import es.vargontoc.agentic.viewer.cli.model.TeamUpdateData;
+import es.vargontoc.agentic.viewer.cli.model.TeamUpdateRequest;
 import es.vargontoc.agentic.viewer.cli.model.TreeData;
 import es.vargontoc.agentic.viewer.watcher.CacheStore;
 
@@ -115,6 +121,46 @@ class CliClientTest {
     }
 
     @Test
+    void leeLaVersionYElContratoDelCli() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, versionJson(1, "1.0.0-SNAPSHOT"), "", false, 1);
+        }, mapper);
+
+        CliVersionInfo info = client.version();
+
+        assertEquals(List.of("--version"), seen.get());
+        assertEquals("1.0.0-SNAPSHOT", info.version());
+        assertEquals(1, info.schemaVersion());
+    }
+
+    @Test
+    void laSondaDeVersionInformaAunqueElContratoNoCoincida() {
+        CliClient client = new CliClient(
+            (args, stdin, timeout) -> new CliResult(0, versionJson(2, "2.0.0"), "", false, 1), mapper);
+
+        CliVersionInfo info = client.version();
+
+        assertEquals("2.0.0", info.version());
+        assertEquals(2, info.schemaVersion());
+    }
+
+    @Test
+    void laSondaDeVersionFallaSiElCliDevuelveUnError() {
+        CliClient client = new CliClient(
+            (args, stdin, timeout) -> new CliResult(2, """
+                {"schemaVersion":1,"command":"version","ok":false,"data":null,
+                 "errors":[{"code":"usage.unknown_command","path":"--version",
+                            "message":"Comando desconocido."}]}
+                """, "", false, 1), mapper);
+
+        CliClientException error = assertThrows(CliClientException.class, client::version);
+
+        assertEquals("usage.unknown_command", error.code());
+    }
+
+    @Test
     void enviaElProyectoComoArgumento() {
         AtomicReference<List<String>> seen = new AtomicReference<>();
         CliClient client = new CliClient((args, stdin, timeout) -> {
@@ -180,6 +226,35 @@ class CliClientTest {
             "--header-stdin", "--mode", "instance", "--project", project.toString()), seen.get());
         assertEquals("---\nname: x\n---\n", sent.get());
         assertTrue(data.written());
+    }
+
+    @Test
+    void confirmaLaSobrescrituraDelCuerpoConOverwrite() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, saveJson(), "", false, 1);
+        }, mapper);
+        Path artifact = Path.of("tmp", "agente.md");
+
+        client.saveBody(artifact, "mi version", null, null, true);
+
+        assertEquals(List.of("save", "--path", artifact.toString(), "--stdin", "--overwrite"), seen.get());
+    }
+
+    @Test
+    void confirmaLaSobrescrituraDeLaCabeceraConOverwrite() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, saveJson(), "", false, 1);
+        }, mapper);
+        Path artifact = Path.of("tmp", "agente.md");
+
+        client.saveHeader(artifact, "---\nname: x\n---\n", null, true);
+
+        assertEquals(List.of("save", "--path", artifact.toString(),
+            "--header-stdin", "--mode", "instance", "--overwrite"), seen.get());
     }
 
     @Test
@@ -292,6 +367,81 @@ class CliClientTest {
     }
 
     @Test
+    void leeElEquipoDelProyecto() {
+        TeamData data = client(teamJson()).team(Path.of("tmp", "proyecto"));
+
+        assertEquals("abc123", data.hash());
+        assertEquals(1, data.modules().size());
+        assertEquals("alfa", data.modules().getFirst().name());
+        assertEquals("ALFA", data.modules().getFirst().mapId());
+        assertEquals("no", data.options().sprints());
+        assertEquals("alfa", data.options().readmeOwner());
+    }
+
+    @Test
+    void enviaElEstadoCompletoAEquipoConHashYDryRun() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        AtomicReference<String> sent = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            sent.set(stdin);
+            return new CliResult(0, teamUpdateJson(), "", false, 1);
+        }, mapper);
+        Path project = Path.of("tmp", "proyecto");
+        TeamUpdateRequest request = new TeamUpdateRequest(
+            new TeamData.Options("no", "strict", "contract-first", "alfa"),
+            List.of(new TeamData.Module("alfa", "ALFA", List.of("src/alfa"))));
+
+        TeamUpdateData data = client.teamUpdate(project, request, "hash1", true);
+
+        assertEquals(List.of("team-update", "--project", project.toString(), "--stdin",
+            "--expect-hash", "hash1", "--dry-run"), seen.get());
+        assertTrue(sent.get().contains("\"sprints\":\"no\""));
+        assertTrue(sent.get().contains("\"name\":\"alfa\""));
+        assertTrue(data.dryRun());
+        assertTrue(data.written());
+        assertTrue(data.diff().contains("- alfa"));
+    }
+
+    @Test
+    void leeElCatalogoConPlantilla() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            return new CliResult(0, catalogJson(), "", false, 1);
+        }, mapper);
+
+        CatalogData data = client.catalog("claude", "global", "agent", "sdd-design", null);
+
+        assertEquals(List.of("catalog", "--provider", "claude", "--scope", "global",
+            "--kind", "agent", "--name", "sdd-design"), seen.get());
+        assertEquals(1, data.entries().size());
+        assertEquals("sdd-design", data.entries().getFirst().name());
+        assertEquals("cuerpo", data.entries().getFirst().template().body());
+    }
+
+    @Test
+    void creaUnArtefactoConContenidoYSobrescritura() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        AtomicReference<String> sent = new AtomicReference<>();
+        CliClient client = new CliClient((args, stdin, timeout) -> {
+            seen.set(List.copyOf(args));
+            sent.set(stdin);
+            return new CliResult(0, createArtifactJson(), "", false, 1);
+        }, mapper);
+        Path project = Path.of("tmp", "proyecto");
+
+        CreateArtifactData data = client.createArtifact("claude", "global", "agent", "sdd-design",
+            project, "mi cuerpo", true);
+
+        assertEquals(List.of("create-artifact", "--provider", "claude", "--scope", "global",
+            "--kind", "agent", "--name", "sdd-design", "--stdin", "--overwrite",
+            "--project", project.toString()), seen.get());
+        assertEquals("mi cuerpo", sent.get());
+        assertTrue(data.custom());
+    }
+
+    @Test
     void parseaStatusDelCliRealSiElJarEstaDisponible() {
         StatusData data = realClient().status(null);
 
@@ -303,6 +453,14 @@ class CliClientTest {
         TreeData data = realClient().tree(null);
 
         assertFalse(data.global().isEmpty());
+    }
+
+    @Test
+    void compruebaLaVersionDelCliRealSiElJarEstaDisponible() {
+        CliVersionInfo info = realClient().version();
+
+        assertEquals(CliClient.EXPECTED_SCHEMA_VERSION, info.schemaVersion());
+        assertFalse(info.version().isBlank());
     }
 
     @Test
@@ -361,6 +519,13 @@ class CliClientTest {
             (args, stdin, timeout) -> new CliResult(exitCode, stdout, "", false, 1), mapper);
     }
 
+    private static String versionJson(int schemaVersion, String version) {
+        return """
+            {"schemaVersion":%d,"command":"version","ok":true,
+             "data":{"version":"%s"},"errors":[]}
+            """.formatted(schemaVersion, version);
+    }
+
     private static String statusJson() {
         return """
             {"schemaVersion":1,"command":"status","ok":true,"data":{"providers":[
@@ -397,6 +562,42 @@ class CliClientTest {
             {"schemaVersion":1,"command":"status","ok":false,"data":null,
              "errors":[{"code":"not_found.project.path","path":"C:/no-existe",
                         "message":"No existe el proyecto."}]}
+            """;
+    }
+
+    private static String catalogJson() {
+        return """
+            {"schemaVersion":1,"command":"catalog","ok":true,"data":{
+              "provider":"claude","scope":"global","kind":"agent","entries":[
+                {"name":"sdd-design","relativePath":"agents/sdd-design.md","path":"/home/.claude/agents/sdd-design.md",
+                 "module":null,"technician":null,"exists":false,
+                 "template":{"header":"---","body":"cuerpo","content":"---\\ncuerpo","files":[]}}]},"errors":[]}
+            """;
+    }
+
+    private static String createArtifactJson() {
+        return """
+            {"schemaVersion":1,"command":"create-artifact","ok":true,"data":{
+              "provider":"claude","scope":"global","kind":"agent","name":"sdd-design",
+              "path":"/home/.claude/agents/sdd-design.md","replaced":false,"custom":true,"backup":null},"errors":[]}
+            """;
+    }
+
+    private static String teamJson() {
+        return """
+            {"schemaVersion":1,"command":"team","ok":true,"data":{
+              "path":"/p/.sdd/team.md","hash":"abc123",
+              "modules":[{"name":"alfa","mapId":"ALFA","paths":["src/alfa"]}],
+              "options":{"sprints":"no","gitPolicy":"strict","contractStrategy":"contract-first","readmeOwner":"alfa"},
+              "warnings":[]},"errors":[]}
+            """;
+    }
+
+    private static String teamUpdateJson() {
+        return """
+            {"schemaVersion":1,"command":"team-update","ok":true,"data":{
+              "path":"/p/.sdd/team.md","dryRun":true,"written":true,"backup":null,"hash":"nuevo",
+              "diff":"- alfa | - | -\\n+ alfa | ALFA | src/alfa","warnings":[]},"errors":[]}
             """;
     }
 

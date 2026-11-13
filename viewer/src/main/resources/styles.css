@@ -574,6 +574,18 @@
     -fx-font-size: 11.5px;
 }
 
+.version-banner {
+    -fx-background-color: #3a1d1d;
+    -fx-border-color: #7f2d2d transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 8 18;
+}
+
+.version-banner-text {
+    -fx-text-fill: #fca5a5;
+    -fx-font-size: 12px;
+}
+
 .filter-status {
     -fx-font-size: 11.5px;
     -fx-padding: 0 2;
@@ -790,6 +802,11 @@
     -fx-font-size: 11.5px;
 }
 
+.status-versions {
+    -fx-padding: 0 8 0 0;
+    -fx-cursor: hand;
+}
+
 .status-bar .check-box {
     -fx-font-size: 11.5px;
 }
@@ -818,6 +835,128 @@
 .welcome-subtitle {
     -fx-text-fill: #9aa4b1;
     -fx-font-size: 13.5px;
+}
+
+.welcome-version {
+    -fx-font-size: 11.5px;
+    -fx-opacity: 0.85;
+}
+
+.recent-projects {
+    -fx-padding: 4 0 0 0;
+}
+
+.recent-projects .hyperlink {
+    -fx-text-fill: #7fb0ff;
+    -fx-border-color: transparent;
+    -fx-underline: false;
+    -fx-padding: 1 2 1 2;
+}
+
+.recent-projects .hyperlink:hover {
+    -fx-underline: true;
+}
+
+.team-modules {
+    -fx-padding: 4 0 4 0;
+}
+
+.team-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: #2e343d;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.step-badge {
+    -fx-text-fill: #9aa4b1;
+    -fx-background-color: #15191e;
+    -fx-border-color: #262c34;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-padding: 4 12 4 12;
+    -fx-font-size: 12px;
+}
+
+.step-badge-active {
+    -fx-text-fill: #eaf1ff;
+    -fx-background-color: #244a85;
+    -fx-border-color: #4f8cff;
+}
+
+.toast {
+    -fx-background-color: #1d242c;
+    -fx-border-color: #334152;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 10 14 10 14;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 18, 0.2, 0, 4);
+}
+
+.toast-warning {
+    -fx-border-color: #b9842f;
+    -fx-background-color: #2a2418;
+}
+
+.toast-title {
+    -fx-text-fill: #f1f5fa;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+}
+
+.toast-message {
+    -fx-text-fill: #b9c3cf;
+    -fx-font-size: 12px;
+}
+
+.detail-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.detail-section {
+    -fx-padding: 0 0 6 0;
+}
+
+.detail-item {
+    -fx-background-color: #15191e;
+    -fx-border-color: #262c34;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 8 10 8 10;
+}
+
+.detail-item-title {
+    -fx-text-fill: #e3e7ec;
+    -fx-font-weight: bold;
+}
+
+.detail-status {
+    -fx-padding: 1 8 1 8;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-size: 10.5px;
+}
+
+.detail-status-ok {
+    -fx-text-fill: #9fe0b1;
+    -fx-background-color: #173222;
+}
+
+.detail-status-warning {
+    -fx-text-fill: #f0c77b;
+    -fx-background-color: #332814;
+}
+
+.detail-status-muted {
+    -fx-text-fill: #aab4c0;
+    -fx-background-color: #232a33;
+}
+
+.detail-path {
+    -fx-text-fill: #7f8a99;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-font-size: 11px;
 }
 
 .step-card {

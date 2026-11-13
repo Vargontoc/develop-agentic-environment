@@ -1,5 +1,6 @@
 package es.vargontoc.agentic.develop.cli.application;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -12,15 +13,22 @@ import es.vargontoc.agentic.develop.cli.domain.Provider;
 import es.vargontoc.agentic.develop.cli.domain.ProviderCatalog;
 import es.vargontoc.agentic.develop.cli.domain.ProviderType;
 import es.vargontoc.agentic.develop.cli.domain.Technician;
+import es.vargontoc.agentic.develop.cli.domain.artifact.ArtifactStatus;
 import es.vargontoc.agentic.develop.cli.domain.artifact.InstalledArtifact;
 import es.vargontoc.agentic.develop.cli.domain.artifact.Inventory;
 import es.vargontoc.agentic.develop.cli.domain.errors.AppErrorCode;
+import es.vargontoc.agentic.develop.cli.domain.errors.DomainException;
 import es.vargontoc.agentic.develop.cli.domain.errors.PathDomainException;
+import es.vargontoc.agentic.develop.cli.domain.metadata.ArtifactRecord;
+import es.vargontoc.agentic.develop.cli.domain.metadata.ContentHash;
 import es.vargontoc.agentic.develop.cli.domain.team.ModuleEntry;
 import es.vargontoc.agentic.develop.cli.domain.team.TeamInfo;
 import es.vargontoc.agentic.develop.cli.domain.tree.ProjectTree;
 import es.vargontoc.agentic.develop.cli.domain.tree.TreeNode;
 import es.vargontoc.agentic.develop.cli.domain.tree.TreeNode.NodeType;
+import es.vargontoc.agentic.develop.cli.infrastructure.metadata.MetadataStore;
+import es.vargontoc.agentic.develop.cli.infrastructure.paths.PathResolver;
+import es.vargontoc.agentic.develop.cli.infrastructure.resources.HookResource;
 
 /**
  * Compone el árbol de los ámbitos global y de proyecto a partir del catálogo, el inventario y {@code team.md}.
@@ -31,11 +39,16 @@ public class ProjectTreeBuilder {
     private final ProviderCatalog providers;
     private final ArtifactInventory inventory;
     private final ProjectWorkspace workspace;
+    private final PathResolver paths;
+    private final MetadataStore metadata;
 
-    public ProjectTreeBuilder(ProviderCatalog providers, ArtifactInventory inventory, ProjectWorkspace workspace) {
+    public ProjectTreeBuilder(ProviderCatalog providers, ArtifactInventory inventory, ProjectWorkspace workspace,
+                              PathResolver paths, MetadataStore metadata) {
         this.providers = providers;
         this.inventory = inventory;
         this.workspace = workspace;
+        this.paths = paths;
+        this.metadata = metadata;
     }
 
     /** @param project proyecto a incluir, o null para devolver solo el ámbito global */
@@ -58,7 +71,11 @@ public class ProjectTreeBuilder {
         for(Provider provider : providers.availableProviders()) {
             Inventory inv = inventory.scanGlobal(provider.getType());
             problems.addAll(inv.problems());
-            nodes.add(providerNode(provider.getType(), provider.getPath(), inv.artifacts()));
+            List<TreeNode> children = new ArrayList<>(inv.artifacts().stream().map(ProjectTreeBuilder::artifactNode).toList());
+            if(provider.getType() == ProviderType.CLAUDE)
+                children.add(hookNode(provider.getType(), problems));
+            nodes.add(new TreeNode(NodeType.PROVIDER, provider.getType().id(), provider.getPath(), provider.getType(),
+                null, false, children));
         }
         return nodes;
     }
@@ -108,6 +125,38 @@ public class ProjectTreeBuilder {
     private TreeNode providerNode(ProviderType type, Path path, List<InstalledArtifact> artifacts) {
         return new TreeNode(NodeType.PROVIDER, type.id(), path, type, null, false,
             artifacts.stream().map(ProjectTreeBuilder::artifactNode).toList());
+    }
+
+    /**
+     * Nodo informativo del hook {@code sdd-specs-only} en la carpeta global de Claude (es el único proveedor con hook).
+     * Solo existe en el ámbito global; nunca se crea un nodo hook en el proyecto. Si falta, se muestra pendiente; si
+     * existe sin registro o modificado, se marca {@code legacy} (personalizado) igual que el resto de artefactos.
+     */
+    private TreeNode hookNode(ProviderType type, List<Inventory.Problem> problems) {
+        Path hook;
+        try {
+            hook = paths.hookPath(type);
+        } catch(DomainException e) {
+            problems.add(new Inventory.Problem(paths.providerHome(type).resolve("hooks"), e.code()));
+            return new TreeNode(NodeType.HOOK, HookResource.NAME, null, type, null, true, List.of());
+        }
+
+        if(!Files.isRegularFile(hook))
+            return new TreeNode(NodeType.HOOK, HookResource.NAME, hook, type, null, true, List.of());
+
+        return new TreeNode(NodeType.HOOK, HookResource.NAME, hook, type, hookStatus(hook), false, List.of());
+    }
+
+    private ArtifactStatus hookStatus(Path hook) {
+        try {
+            Optional<ArtifactRecord> record = metadata.hook(hook);
+            if(record.isEmpty())
+                return ArtifactStatus.LEGACY;
+            String onDisk = ContentHash.ofUtf8(Files.readAllBytes(hook));
+            return record.get().hash().equals(onDisk) ? ArtifactStatus.LINKED : ArtifactStatus.LEGACY;
+        } catch(IOException | RuntimeException e) {
+            return ArtifactStatus.LEGACY;
+        }
     }
 
     private static TreeNode artifactNode(InstalledArtifact artifact) {

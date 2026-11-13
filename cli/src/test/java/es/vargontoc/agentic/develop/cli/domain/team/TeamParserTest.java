@@ -89,4 +89,51 @@ class TeamParserTest {
 
         assertEquals(List.of("analista-alfa", "desarrollador-alfa", "documentador-alfa"), entry.specialists());
     }
+
+    @Test
+    void parsesOptionsAndAppliesDefaults() {
+        TeamParser.TeamDocument document = TeamParser.parseDocument(HEAD
+            + "- alfa | - | -\n\n## Opciones\n\n"
+            + "- sprints: no\n"
+            + "- git-policy: strict\n"
+            + "- contract-strategy: contract-first\n"
+            + "- readme-owner: alfa\n");
+
+        assertEquals("no", document.options().sprints());
+        assertEquals("strict", document.options().gitPolicy());
+        assertEquals("contract-first", document.options().contractStrategy());
+        assertEquals("alfa", document.options().readmeOwner());
+        assertTrue(document.warnings().isEmpty());
+    }
+
+    @Test
+    void missingOptionsSectionUsesDefaultsAndWarns() {
+        TeamParser.TeamDocument document = TeamParser.parseDocument(HEAD + "- alfa | - | -\n");
+
+        assertEquals(TeamOptions.DEFAULTS, document.options());
+        assertEquals(List.of(new TeamWarning(Type.SECTION_MISSING, 0)), document.warnings());
+    }
+
+    @Test
+    void unknownOptionOrValueWarnsAndKeepsTheDefault() {
+        TeamParser.TeamDocument document = TeamParser.parseDocument(HEAD
+            + "- alfa | - | -\n\n## Opciones\n\n"
+            + "- sprints: quizas\n"
+            + "- desconocida: x\n");
+
+        assertEquals(TeamOptions.DEFAULTS.sprints(), document.options().sprints());
+        assertEquals(List.of(
+            new TeamWarning(Type.UNKNOWN_OPTION, 14),
+            new TeamWarning(Type.UNKNOWN_OPTION, 15)), document.warnings());
+    }
+
+    @Test
+    void readmeOwnerMustBeARegisteredModule() {
+        TeamParser.TeamDocument document = TeamParser.parseDocument(HEAD
+            + "- alfa | - | -\n\n## Opciones\n\n"
+            + "- readme-owner: beta\n");
+
+        assertEquals("beta", document.options().readmeOwner());
+        assertEquals(List.of(new TeamWarning(Type.UNKNOWN_OPTION, 14)), document.warnings());
+    }
 }

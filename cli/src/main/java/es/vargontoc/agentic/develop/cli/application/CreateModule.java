@@ -5,9 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -53,10 +51,6 @@ public class CreateModule {
     private static final String CODEX_HELPER_FILE = "agents/openai.yaml";
     private static final String TEAM_FILE = ".sdd/team.md";
 
-    private static final int MIN_NAME_LENGTH = 3;
-    private static final Set<String> RESERVED_NAMES = Set.of("router");
-    private static final Pattern NAME_CHARS = Pattern.compile("[A-Za-z-]+");
-
     private final TargetOs os;
     private final PathResolver paths;
     private final ArtifactCatalog catalog;
@@ -80,21 +74,7 @@ public class CreateModule {
      * Devuelve el nombre normalizado a minúsculas.
      */
     public String normalizeName(String raw) {
-        String name = raw == null ? "" : raw.trim();
-
-        if(!NAME_CHARS.matcher(name).matches())
-            throw new DomainException(AppErrorCode.MODULE_NAME_INVALID_CHARS);
-        if(name.startsWith("-") || name.endsWith("-") || name.contains("--"))
-            throw new DomainException(AppErrorCode.MODULE_NAME_INVALID_HYPHENS);
-        if(name.length() < MIN_NAME_LENGTH)
-            throw new DomainException(AppErrorCode.MODULE_NAME_TOO_SHORT);
-
-        String normalized = name.toLowerCase(Locale.ROOT);
-        // <rol>-router es el router compartido; un módulo con ese nombre generaría el mismo fichero
-        if(RESERVED_NAMES.contains(normalized))
-            throw new DomainException(AppErrorCode.MODULE_NAME_RESERVED);
-
-        return normalized;
+        return es.vargontoc.agentic.develop.cli.domain.team.ModuleName.normalize(raw);
     }
 
     /**

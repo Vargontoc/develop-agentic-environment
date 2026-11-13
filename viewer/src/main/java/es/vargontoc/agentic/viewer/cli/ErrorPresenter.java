@@ -54,6 +54,15 @@ public final class ErrorPresenter {
         if (code.equals("conflict.artifact.already_tracked")) {
             return "Recargar el estado del artefacto.";
         }
+        if (code.equals("conflict.team.modified_externally")) {
+            return "Recargar el equipo antes de volver a guardar.";
+        }
+        if (code.equals("not_found.team.file")) {
+            return "Iniciar el proyecto para crear .sdd/team.md.";
+        }
+        if (code.startsWith("validation.team.")) {
+            return "Revisar los módulos y las opciones del formulario.";
+        }
         if (code.equals("not_found.group")) {
             return "Adoptar el artefacto en su grupo antes de propagar.";
         }

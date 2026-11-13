@@ -24,6 +24,8 @@ public final class Commands {
             .register(new ConfigureProviderCommand(services))
             .register(new StatusCommand(services))
             .register(new TreeCommand(services))
+            .register(new TeamCommand(services))
+            .register(new TeamUpdateCommand(services, input))
             .register(new DescribeCommand(services))
             .register(new CreateModuleCommand(services))
             .register(new AddTechnicianCommand(services))

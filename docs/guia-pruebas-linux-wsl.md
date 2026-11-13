@@ -117,28 +117,18 @@ file cli/src/main/resources/global/hooks/*
 Resultado esperado: el `.bat` con `CRLF line terminators` y el `.sh` sin esa mención. Eso confirma que el
 `.gitattributes` funciona. Si el `.sh` sale con CRLF, **para aquí**: el hook fallaría con `bad interpreter`.
 
-## Paso 6 — Instala las dependencias externas en el Maven de Linux
+## Paso 6 — Configura el acceso al framework en el Maven de Linux
 
-El `~/.m2` de Linux es distinto del de Windows, así que hay que repetir lo que dice el README. Desde `cli/`:
+La CLI descarga `framework-core` y `framework-json` (`0.1.0`) de GitHub Packages. El `~/.m2` de Linux es distinto
+del de Windows, así que crea ahí `~/.m2/settings.xml` con tus credenciales, como indica la guía de desarrollo
+(sección «Dependencias externas»). Comprueba que resuelve, desde `cli/`:
 
 ```bash
 cd cli
-
-mvn install:install-file \
-  -Dfile=external-libs/vargontoc-framework/pom.xml \
-  -DpomFile=external-libs/vargontoc-framework/pom.xml \
-  -Dpackaging=pom
-
-mvn install:install-file \
-  -Dfile=external-libs/vargontoc-framework/framework-core/0.1.0-SNAPSHOT/framework-core-0.1.0-SNAPSHOT.jar \
-  -DpomFile=external-libs/vargontoc-framework/framework-core/0.1.0-SNAPSHOT/framework-core-0.1.0-SNAPSHOT.pom
-
-mvn install:install-file \
-  -Dfile=external-libs/vargontoc-framework/framework-json/0.1.0-SNAPSHOT/framework-json-0.1.0-SNAPSHOT.jar \
-  -DpomFile=external-libs/vargontoc-framework/framework-json/0.1.0-SNAPSHOT/framework-json-0.1.0-SNAPSHOT.pom
+mvn dependency:resolve
 ```
 
-Cada uno debe terminar con `BUILD SUCCESS`.
+Debe terminar con `BUILD SUCCESS`.
 
 ## Paso 7 — Ejecuta la suite
 

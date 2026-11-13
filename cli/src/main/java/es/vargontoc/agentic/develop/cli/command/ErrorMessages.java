@@ -40,6 +40,11 @@ final class ErrorMessages {
             case GROUP_NOT_FOUND -> "El grupo de artefactos no existe";
             case ARTIFACT_NOT_LEGACY -> "El artefacto ya está vinculado a un grupo";
             case HEADER_MARKER_INVALID -> "Un recurso de la aplicación tiene un marcador de cabecera no válido";
+            case TEAM_FILE_NOT_FOUND -> "No existe .sdd/team.md en el proyecto";
+            case TEAM_CONFLICT -> "El equipo ha cambiado fuera de la aplicación; recarga antes de guardar";
+            case TEAM_OPTION_INVALID -> "Una opción de equipo no es válida o apunta a un módulo inexistente";
+            case TEAM_MODULE_DUPLICATE -> "Hay dos módulos con el mismo nombre";
+            case TEAM_MODULE_INVALID -> "Un módulo tiene un identificador o unas rutas no válidas";
         };
     }
 }

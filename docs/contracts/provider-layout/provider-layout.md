@@ -16,8 +16,8 @@ Raíz de usuario: `%USERPROFILE%` en Windows y `$HOME` en Linux. Sin ella la apl
 | Gemini (`gemini`) | `%USERPROFILE%\.gemini\config` | `$HOME/.gemini/config` |
 | OpenCode (`opencode`) | `%USERPROFILE%\.config\opencode` | `$XDG_CONFIG_HOME/opencode` (si es absoluta) o `$HOME/.config/opencode` |
 
-La carpeta global es la que el CLI comprueba para saber si el proveedor está instalado y donde instala el hook; los
-artefactos no cuelgan siempre de ella (ver «Ubicación de los artefactos»).
+La carpeta global es la que el CLI comprueba para saber si el proveedor está instalado; en Claude es además donde se
+instala el hook. Los artefactos no cuelgan siempre de ella (ver «Ubicación de los artefactos»).
 
 Las variables `XDG_*` solo se admiten si son rutas absolutas; si no, se ignoran. Toda ruta que se escribe se comprueba
 dentro de su ámbito tras resolver `..` y enlaces simbólicos (`validation.path.out_of_scope`). Linux distingue
@@ -65,19 +65,20 @@ Rutas lógicas, relativas a la base del proveedor y ámbito.
 | Agente | `agents/<nombre>.<md\|toml>` | `agents/<técnico>-router.md` (uno por técnico y proveedor), `agents/<técnico>-<módulo>.md` (Codex: `agents/<técnico>_<módulo>.toml`) |
 | Skill | `skills/<nombre>/` (directorio con `SKILL.md` y apoyo) | `skills/<nombre>/` |
 | Perfil | `profiles/sdd.config.toml` (solo Codex) | `profiles/<técnico>-<módulo>.toml` (solo Codex) |
-| Hook | `hooks/sdd-specs-only.bat` (Windows) o `hooks/sdd-specs-only.sh` (Linux), en la carpeta global del proveedor | — (solo ámbito global) |
+| Hook | `hooks/sdd-specs-only.bat` (Windows) o `hooks/sdd-specs-only.sh` (Linux), en la carpeta global de Claude | — (solo ámbito global) |
 
 Los nombres de agente de Codex usan `_` (`sdd_agent.toml`, `analista_core.toml`); sus grupos usan `-`.
 Lo que no figura en el catálogo (agentes y skills del usuario) no es un artefacto de la aplicación y nunca se toca.
 El hook no está en el catálogo, pero la aplicación lo instala y lo registra (ver «Hook `sdd-specs-only`»).
+El árbol (`tree`) lo muestra como un nodo `hook` bajo el nodo global de Claude; nunca en el proyecto ni en los demás proveedores.
 
 ## Hook `sdd-specs-only`
 
 `configure-provider` (y la instalación global del menú) instala el hook que restringe las escrituras de los agentes SDD,
-una vez por proveedor y después de sus agentes y skills.
+solo en la carpeta global de Claude y después de sus agentes y skills.
 
-- **Ruta:** `hooks/sdd-specs-only.bat` en Windows y `hooks/sdd-specs-only.sh` en Linux, dentro de la carpeta global del
-  proveedor (ver «Rutas globales»). Solo se instala la variante del sistema del equipo, nunca las dos. La ruta se
+- **Ruta:** `hooks/sdd-specs-only.bat` en Windows y `hooks/sdd-specs-only.sh` en Linux, dentro de la carpeta global de
+  Claude (ver «Rutas globales»). Solo se instala la variante del sistema del equipo, nunca las dos. La ruta se
   valida dentro del ámbito global, también ante una carpeta `hooks/` que sea un enlace hacia fuera: si sale, no se
   instala nada y se avisa.
 - **Contenido:** el recurso incorporado en la aplicación, tal cual. El hook no lleva marcadores ni se compone.
@@ -96,9 +97,8 @@ una vez por proveedor y después de sus agentes y skills.
 | Existe y su hash difiere del registrado | No se sobrescribe ni se cambia el registro. En `skipped` y un aviso: modificado por el usuario, no se ha actualizado. |
 | Existe sin registro (también almacén ausente o ilegible) | No se sobrescribe ni se crea registro. En `skipped` y un aviso: no se puede comprobar si fue modificado. Se repite en cada ejecución. |
 
-Los avisos no son errores: no cambian el código de salida ni detienen la instalación del resto de artefactos ni de los
-demás proveedores. Las rutas de `created`, `skipped` y `warnings` son relativas al proveedor
-(`hooks/sdd-specs-only.sh`).
+Los avisos no son errores: no cambian el código de salida ni detienen la instalación del resto de artefactos.
+Las rutas de `created`, `skipped` y `warnings` son relativas a la carpeta de Claude (`hooks/sdd-specs-only.sh`).
 
 ## Formatos
 

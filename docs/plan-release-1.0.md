@@ -1,61 +1,24 @@
 # Plan de acción: release 1.0.0
 
-Estado de partida (comprobado en el repositorio el 2026-11-08):
-
-- No hay nada en producción, así que no hay compatibilidad hacia atrás que mantener antes de la 1.0.
-- `cli/pom.xml` está en `1.0.0-SNAPSHOT` y `viewer/pom.xml` en `0.1.0-SNAPSHOT`. Los scripts de empaquetado repiten
-  `0.1.0` (`APP_VERSION`) y `viewer-0.1.0-SNAPSHOT.jar` a mano.
-- La CLI depende de `framework-core` y `framework-json` de `vargontoc-framework` en `0.1.0-SNAPSHOT`, que se instalan a
-  mano en `~/.m2` desde `cli/external-libs/`. El viewer no depende del framework.
-- No hay `.github/` (ni CI), ni `LICENSE`, ni `CHANGELOG.md`.
-- Los scripts de empaquetado ya generan la app-image y, con `--installer` / `-Installer`, un `.deb` / `.msi`
-  (**el instalador no se ha probado todavía**).
-
-## Decisiones tomadas
-
-| Tema | Decisión |
-|---|---|
-| Alcance de la 1.0 | CLI **y** Viewer. El Viewer aún tiene bugs de usabilidad y visuales que hay que revisar antes. |
-| Canal de distribución | GitHub Releases, con los instaladores adjuntos. |
-| Versionado | Semántico. Un cambio incompatible en el JSON de la CLI, en `metadata.json` (`schemaVersion`) o en el reparto de carpetas por proveedor obliga a subir la versión mayor. |
-
-## Decisión pendiente: qué hacer con `vargontoc-framework`
-
-Es un framework interno y privado, no una librería pública. El jar de la CLI es un jar con las dependencias incluidas
-(`maven-shade-plugin`), así que **quien instale la aplicación no necesita el framework**: solo lo necesita quien
-compile. Opciones:
-
-| Opción | Cómo funciona | Pros | Contras |
-|---|---|---|---|
-| **A. Mantenerlo incluido en el repositorio** (como ahora) con versión fija, sin `-SNAPSHOT` | Los jars siguen en `cli/external-libs/`; CI y personas los instalan con un script. | Sin infraestructura nueva. Compila desde cualquier clon. | El repositorio lleva binarios. Si el repositorio es público, también publicas ese código. |
-| **B. Compilarlo desde su repositorio** | CI clona `vargontoc-framework` (con una clave de acceso o token) y lo instala con `mvn install` antes de compilar. | Siempre es el código fuente real. | Necesita un secreto en CI; un clon limpio no compila sin acceso. |
-| **C. GitHub Packages (registro Maven privado)** | El framework se publica en GitHub Packages y la CLI lo descarga como dependencia normal. | Es la forma estándar para un framework interno; versiones reales. | Requiere credenciales en `settings.xml` también para el desarrollo local. |
-
-**Recomendación para la 1.0:** opción **A**, pero con la versión del framework fijada sin `-SNAPSHOT` (por ejemplo
-`0.1.0`) y un script que instale los jars. Es lo mínimo que hace reproducible la release. Pasar a C si el framework
-empieza a tener más consumidores. **Antes de elegir A, comprobar si el repositorio de GitHub es público**, porque
-entonces los jars del framework ya son públicos.
-
-Sea cual sea la opción, **no mantener el mismo número de versión con un jar que cambia** (es el problema actual del
-`-SNAPSHOT` copiado a mano).
-
 ## Fases
 
 ### Fase 0 — Preparación del repositorio
 
-- [ ] Decidir la opción del framework (A, B o C) y fijar su versión sin `-SNAPSHOT`.
-- [ ] Comprobar la visibilidad del repositorio de GitHub (público o privado).
-- [ ] Elegir y añadir `LICENSE`. Revisar el `vendor` («Agentic Development») que usan `jpackage` y los instaladores.
-- [ ] Crear en GitHub un milestone `1.0.0` y registrar ahí los bugs del Viewer como issues.
+- [x] Decidir la opción del framework: **C** (GitHub Packages, repositorio privado), versión `0.1.0`. En CI hay que dar
+      acceso al paquete (o un secreto con `read:packages`).
+- [x] Comprobar la visibilidad del repositorio de GitHub: **público** (el framework es privado).
+- [x] Elegir y añadir `LICENSE` (MIT). `vendor` de `jpackage` cambiado a «Agentic Development Environment».
+- [x] Crear en GitHub el milestone `1.0.0`.
+- [X] Registrar en él los bugs del Viewer como issues (Fase 1).
 
 ### Fase 1 — Estabilizar el Viewer
 
-- [ ] Revisar el Viewer y registrar **cada bug** (usabilidad / visual) como issue, con etiqueta y prioridad.
-- [ ] Marcar cuáles bloquean la 1.0 (los que impiden usarlo o dan datos incorrectos) y cuáles pueden esperar a 1.0.x.
-- [ ] Corregir los bloqueantes. Definir qué se considera «Viewer terminado» para cerrar esta fase.
-- [ ] Arreglar `CliClientTest.parseaTreeDelCliRealSiElJarEstaDisponible`: depende de lo que haya instalado en el `HOME`
+- [X] Revisar el Viewer y registrar **cada bug** (usabilidad / visual) como issue, con etiqueta y prioridad.
+- [X] Marcar cuáles bloquean la 1.0 (los que impiden usarlo o dan datos incorrectos) y cuáles pueden esperar a 1.0.x.
+- [X] Corregir los bloqueantes. Definir qué se considera «Viewer terminado» para cerrar esta fase.
+- [X] Arreglar `CliClientTest.parseaTreeDelCliRealSiElJarEstaDisponible`: depende de lo que haya instalado en el `HOME`
       de quien ejecuta (falla en una máquina limpia). Hacerlo independiente (`HOME` temporal o `assumeTrue`).
-- [ ] Revisar que no haya otros tests que dependan del estado de la máquina.
+- [X] Revisar que no haya otros tests que dependan del estado de la máquina.
 
 ### Fase 2 — Verificación en Linux
 
