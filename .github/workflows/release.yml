@@ -1,0 +1,162 @@
+name: Release
+
+# Se lanza al subir una etiqueta v* (v1.0.0, v1.0.0-rc.1...). Una etiqueta con sufijo (-rc.1) publica una pre-release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  # La etiqueta y la versión de los pom deben coincidir, y no puede quedar ningún -SNAPSHOT.
+  verify-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CLI_VERSION="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' cli/pom.xml | head -1 | tr -d '[:space:]')"
+          VIEWER_VERSION="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' viewer/pom.xml | head -1 | tr -d '[:space:]')"
+          echo "etiqueta=$TAG_VERSION cli=$CLI_VERSION viewer=$VIEWER_VERSION"
+          for v in "$CLI_VERSION" "$VIEWER_VERSION"; do
+            if [ "$v" != "$TAG_VERSION" ]; then
+              echo "::error::La versión del pom ($v) no coincide con la etiqueta ($TAG_VERSION). Quita -SNAPSHOT y alinea los pom antes de etiquetar."
+              exit 1
+            fi
+          done
+          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+          case "$TAG_VERSION" in *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;; *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;; esac
+
+  cli:
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # El framework es un paquete privado de GitHub Packages (secreto FRAMEWORK_READ_TOKEN, permiso read:packages).
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: cli/pom.xml
+          server-id: github
+          server-username: FRAMEWORK_READ_USER
+          server-password: FRAMEWORK_READ_TOKEN
+      - name: Construir la CLI
+        working-directory: cli
+        run: mvn -B -ntp clean package
+        env:
+          FRAMEWORK_READ_USER: ${{ github.repository_owner }}
+          FRAMEWORK_READ_TOKEN: ${{ secrets.FRAMEWORK_READ_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-jar
+          path: cli/target/agentic-develop.jar
+          if-no-files-found: error
+
+  linux:
+    needs: [verify-version, cli]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: viewer/pom.xml
+      - name: Dependencias del empaquetado
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev fakeroot binutils libxtst-dev libxrender-dev libxxf86vm-dev
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-jar
+          path: viewer/cli
+      - name: Empaquetar .deb
+        run: bash scripts/package-linux.sh --installer
+      - name: Nombrar el instalador
+        run: |
+          mkdir -p out
+          DEB="$(find viewer/target/dist/installer -maxdepth 1 -name '*.deb' | head -1)"
+          test -n "$DEB"
+          cp "$DEB" "out/agentic-viewer-${{ needs.verify-version.outputs.version }}-amd64.deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: out/*.deb
+          if-no-files-found: error
+
+  windows:
+    needs: [verify-version, cli]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: viewer/pom.xml
+      # jpackage de JDK 21 solo admite WiX 3.x.
+      - name: WiX Toolset 3.x
+        shell: pwsh
+        run: |
+          if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
+            choco install wixtoolset --version=3.14.1 --no-progress -y
+            $wix = Get-Item "${env:ProgramFiles(x86)}\WiX Toolset v3*\bin" | Select-Object -First 1
+            Add-Content $env:GITHUB_PATH $wix.FullName
+            $env:PATH = "$($wix.FullName);$env:PATH"
+          }
+          candle.exe -? | Select-Object -First 2
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-jar
+          path: viewer/cli
+      - name: Empaquetar .msi
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -Installer
+      - name: Nombrar el instalador
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          $msi = Get-ChildItem viewer/target/dist/installer -Filter *.msi | Select-Object -First 1
+          if (-not $msi) { throw "No se generó el .msi" }
+          Copy-Item $msi.FullName "out/agentic-viewer-${{ needs.verify-version.outputs.version }}.msi"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi
+          path: out/*.msi
+          if-no-files-found: error
+
+  publish:
+    needs: [verify-version, cli, linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Sumas SHA-256
+        working-directory: dist
+        run: |
+          ls -l
+          sha256sum agentic-develop.jar *.deb *.msi > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Crear la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.verify-version.outputs.prerelease }}
+        run: |
+          FLAGS=""
+          if [ "$PRERELEASE" = "true" ]; then FLAGS="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes $FLAGS

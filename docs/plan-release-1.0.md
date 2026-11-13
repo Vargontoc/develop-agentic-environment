@@ -55,7 +55,7 @@ Crear `.github/workflows/`:
 - [x] **`ci.yml`** (hecho; usa el secreto `FRAMEWORK_READ_TOKEN`): en cada push y pull request, `mvn test` de la CLI y del viewer con matriz `ubuntu-latest` +
       `windows-latest`. Debe instalar primero el framework (según la opción elegida). Aquí se detectan los fallos que
       hoy solo se ven al probar a mano en WSL.
-- [ ] **`release.yml`**: al subir una etiqueta `v*`, construir en cada sistema y subir a la GitHub Release:
+- [~] **`release.yml`** (escrito, sin ejecutar; se valida con la `rc.1`): al subir una etiqueta `v*`, construir en cada sistema y subir a la GitHub Release:
       - `agentic-develop.jar` (CLI);
       - `.deb` (job en `ubuntu-latest`, con `dpkg-dev` y `fakeroot`);
       - `.msi` (job en `windows-latest`, con WiX 3.x instalado en el paso previo);
