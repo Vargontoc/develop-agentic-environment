@@ -22,7 +22,7 @@ GitHub Packages exige credenciales incluso para leer. Añade a `~/.m2/settings.x
 <settings>
   <servers>
     <server>
-      <id>github-vargontoc-framework</id>
+      <id>github</id>
       <username>TU_USUARIO_GITHUB</username>
       <password>TOKEN_CON_read:packages</password>
     </server>

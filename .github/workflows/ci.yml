@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.module }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        module: [cli, viewer]
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # El framework es un paquete privado de GitHub Packages. FRAMEWORK_READ_TOKEN es un secreto del
+      # repositorio con un token que tenga read:packages. setup-java lo escribe en el settings.xml.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: ${{ matrix.module }}/pom.xml
+          server-id: github
+          server-username: FRAMEWORK_READ_USER
+          server-password: FRAMEWORK_READ_TOKEN
+
+      - name: Tests
+        run: mvn -B -ntp test
+        env:
+          FRAMEWORK_READ_USER: ${{ github.repository_owner }}
+          FRAMEWORK_READ_TOKEN: ${{ secrets.FRAMEWORK_READ_TOKEN }}
