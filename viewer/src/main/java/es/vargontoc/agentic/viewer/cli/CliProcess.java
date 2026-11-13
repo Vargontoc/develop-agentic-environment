@@ -7,6 +7,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -19,9 +20,20 @@ public final class CliProcess implements CliRunner {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(15);
 
     private final CliCommand command;
+    private final Map<String, String> environment;
 
     public CliProcess(CliCommand command) {
+        this(command, Map.of());
+    }
+
+    /**
+     * Permite sobrescribir variables de entorno del proceso. Las pruebas de
+     * integración lo usan para aislar {@code HOME}/{@code USERPROFILE} y no
+     * depender de los artefactos instalados en la máquina.
+     */
+    CliProcess(CliCommand command, Map<String, String> environment) {
         this.command = command;
+        this.environment = Map.copyOf(environment);
     }
 
     @Override
@@ -35,6 +47,7 @@ public final class CliProcess implements CliRunner {
         builder.redirectErrorStream(false);
         builder.environment().remove("JAVA_TOOL_OPTIONS");
         builder.environment().remove("JDK_JAVA_OPTIONS");
+        builder.environment().putAll(environment);
 
         long start = System.nanoTime();
         Process process;

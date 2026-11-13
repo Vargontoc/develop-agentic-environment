@@ -6,13 +6,19 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import es.vargontoc.agentic.viewer.cli.CliProcess.CliResult;
 import es.vargontoc.agentic.viewer.cli.model.AdoptData;
@@ -449,10 +455,30 @@ class CliClientTest {
     }
 
     @Test
-    void parseaTreeDelCliRealSiElJarEstaDisponible() {
-        TreeData data = realClient().tree(null);
+    void parseaTreeDelCliRealSiElJarEstaDisponible(@TempDir Path temp) throws IOException {
+        CliCommand command;
+        try {
+            command = CliLocator.resolve(Path.of("").toAbsolutePath());
+        } catch (IllegalStateException exception) {
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "CLI no construido: " + exception.getMessage());
+            return;
+        }
 
-        assertFalse(data.global().isEmpty());
+        Path home = temp.resolve("home");
+        Path project = temp.resolve("proyecto");
+        Files.createDirectories(home.resolve("AppData").resolve("Local"));
+        Files.createDirectories(project);
+
+        CliProcess process = new CliProcess(command, isolatedEnvironment(home));
+        CliProcess.CliResult init = process.run(
+            List.of("init", "--project", project.toString()), null, Duration.ofSeconds(15));
+        assertEquals(0, init.exitCode(), init.stderr());
+
+        TreeData data = new CliClient(process::run, mapper).tree(project);
+
+        assertFalse(data.project().isEmpty(), "El proyecto iniciado debe aparecer en el árbol");
+        assertEquals("sdd", data.project().getFirst().type());
+        assertTrue(data.global().isEmpty(), "Un HOME aislado no debe tener artefactos globales");
     }
 
     @Test
@@ -479,6 +505,17 @@ class CliClientTest {
 
         assertEquals("agent", data.kind());
         assertTrue(data.body() != null && !data.body().isEmpty());
+    }
+
+    /** Entorno mínimo para que el CLI use un home temporal en Windows y en Linux. */
+    private static Map<String, String> isolatedEnvironment(Path home) {
+        Map<String, String> environment = new HashMap<>();
+        environment.put("HOME", home.toString());
+        environment.put("USERPROFILE", home.toString());
+        environment.put("LOCALAPPDATA", home.resolve("AppData").resolve("Local").toString());
+        environment.put("XDG_CONFIG_HOME", home.resolve(".config").toString());
+        environment.put("XDG_STATE_HOME", home.resolve(".local").resolve("state").toString());
+        return environment;
     }
 
     private CliClient realClient() {
