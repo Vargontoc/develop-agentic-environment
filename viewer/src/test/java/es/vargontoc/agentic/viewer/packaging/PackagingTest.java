@@ -25,7 +25,7 @@ class PackagingTest {
     @Test
     @EnabledIfSystemProperty(named = "test.packaging", matches = "true")
     void viewerJarHasCorrectManifest() throws IOException {
-        Path viewerJar = Path.of("target/viewer-0.1.0-SNAPSHOT.jar");
+        Path viewerJar = Path.of("target/viewer-" + es.vargontoc.agentic.viewer.runtime.ViewerVersion.current() + ".jar");
         assertTrue(Files.exists(viewerJar), "El JAR del viewer debe existir");
 
         try (JarFile jar = new JarFile(viewerJar.toFile())) {

@@ -47,10 +47,18 @@ $RuntimeDir = Join-Path $PackageDir "runtime"
 $AppDir = Join-Path $PackageDir "app"
 $DistDir = Join-Path $BuildDir "dist"
 $CliJar = Join-Path (Join-Path $ViewerDir "cli") "agentic-develop.jar"
-$ViewerJar = Join-Path $BuildDir "viewer-0.1.0-SNAPSHOT.jar"
+# Una sola fuente de versión: viewer/pom.xml
+$ProjectVersion = ([xml](Get-Content -Raw (Join-Path $ViewerDir "pom.xml"))).project.version
+if ([string]::IsNullOrWhiteSpace($ProjectVersion)) {
+    Write-Error "No se pudo leer la versión de viewer/pom.xml"
+    exit 1
+}
+$ProjectVersion = $ProjectVersion.Trim()
+$ViewerJar = Join-Path $BuildDir "viewer-$ProjectVersion.jar"
 $FatJar = Join-Path $BuildDir "viewer-fat.jar"
 $AppName = "AgenticViewer"
-$AppVersion = "0.1.0"
+# jpackage solo admite versiones numericas (x.y.z): se descarta el sufijo (-SNAPSHOT, -rc.1...).
+$AppVersion = ($ProjectVersion -split '-')[0]
 
 # Verificar herramientas
 Write-Step "Verificando herramientas"

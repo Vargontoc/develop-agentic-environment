@@ -68,10 +68,17 @@ RUNTIME_DIR="$PACKAGE_DIR/runtime"
 APP_DIR="$PACKAGE_DIR/app"
 DIST_DIR="$BUILD_DIR/dist"
 CLI_JAR="$VIEWER_DIR/cli/agentic-develop.jar"
-VIEWER_JAR="$BUILD_DIR/viewer-0.1.0-SNAPSHOT.jar"
+# Una sola fuente de versión: viewer/pom.xml (el primer <version> es el del proyecto, no tiene parent).
+PROJECT_VERSION="$(sed -n 's:.*<version>\(.*\)</version>.*::p' "$VIEWER_DIR/pom.xml" | head -1 | tr -d '[:space:]')"
+if [ -z "$PROJECT_VERSION" ]; then
+    echo "Error: no se pudo leer la versión de $VIEWER_DIR/pom.xml" >&2
+    exit 1
+fi
+VIEWER_JAR="$BUILD_DIR/viewer-$PROJECT_VERSION.jar"
 FAT_JAR="$BUILD_DIR/viewer-fat.jar"
 APP_NAME="AgenticViewer"
-APP_VERSION="0.1.0"
+# jpackage solo admite versiones numericas (x.y.z): se descarta el sufijo (-SNAPSHOT, -rc.1...).
+APP_VERSION="${PROJECT_VERSION%%-*}"
 
 # Verificar herramientas
 log_step "Verificando herramientas"

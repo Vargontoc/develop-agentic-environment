@@ -40,18 +40,19 @@
 
 ### Fase 4 — Una única fuente de versión
 
-- [ ] Poner CLI y Viewer en la misma versión (`1.0.0`).
-- [ ] Hacer que los scripts de empaquetado lean la versión del `pom.xml` en vez de repetirla (`APP_VERSION`,
-      `viewer-0.1.0-SNAPSHOT.jar`). Revisar también `verify-package.ps1`.
-- [ ] `jpackage` exige una versión numérica en `--app-version` (por ejemplo `1.0.0`); no admite `-rc.1`. Para las
-      pre-releases, decidir cómo se refleja en el instalador.
+- [x] Poner CLI y Viewer en la misma versión (`1.0.0-SNAPSHOT` en desarrollo; ambos pom).
+- [x] Los scripts de empaquetado leen la versión de `viewer/pom.xml` (jar y `APP_VERSION`); `PackagingTest` usa
+      `ViewerVersion`. `verify-package.ps1` no tenía versiones fijas.
+- [x] `jpackage` exige una versión numérica en `--app-version`: los scripts descartan el sufijo (`1.0.0-rc.1` →
+      `1.0.0`). El instalador de una `rc` lleva la misma versión que la final; la `rc` se distingue por el nombre del
+      fichero y por la etiqueta de la Release.
 - [ ] Quitar `-SNAPSHOT` solo en la rama de la release.
 
 ### Fase 5 — Integración continua
 
 Crear `.github/workflows/`:
 
-- [ ] **`ci.yml`**: en cada push y pull request, `mvn test` de la CLI y del viewer con matriz `ubuntu-latest` +
+- [x] **`ci.yml`** (hecho; usa el secreto `FRAMEWORK_READ_TOKEN`): en cada push y pull request, `mvn test` de la CLI y del viewer con matriz `ubuntu-latest` +
       `windows-latest`. Debe instalar primero el framework (según la opción elegida). Aquí se detectan los fallos que
       hoy solo se ven al probar a mano en WSL.
 - [ ] **`release.yml`**: al subir una etiqueta `v*`, construir en cada sistema y subir a la GitHub Release:
