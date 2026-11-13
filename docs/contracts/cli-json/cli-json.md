@@ -3,6 +3,9 @@
 Versión del esquema: **1** (`schemaVersion`). Un cambio incompatible de cualquier estructura de este documento sube
 ese número. Añadir un campo nuevo a un `data` o un comando nuevo no es incompatible.
 
+El visor comprueba `schemaVersion` al arrancar mediante `--version` y avisa si no coincide con la versión que
+entiende. La llamada a `--version` no aplica esa validación: devuelve siempre el envelope con la versión real del CLI.
+
 El CLI sin argumentos abre el menú interactivo. Con argumentos es no interactivo: no muestra menús, no pide nada por
 consola y solo lee la entrada estándar si se le pasa `--stdin`.
 
@@ -66,7 +69,8 @@ Con un comando, `commands` solo contiene ese comando.
 
 ### `version` (`--version`)
 
-`data`: `{"version": texto}`.
+`data`: `{"version": texto}`. El envelope incluye la `schemaVersion` que habla el CLI; el visor la compara con la
+suya para mostrar la compatibilidad.
 
 ### `init`
 

@@ -466,6 +466,27 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
   - `App.loadModuleDetail`: carga `team` en segundo plano con guarda de selección; `showTechnicianDetail` resuelve el módulo padre desde el árbol.
   - Pruebas: `NodeDetailsTest`.
 
+### [x] TASK-026 Versiones visibles y compatibilidad del contrato
+
+- **Cubre:** REQ-019 (nueva), REQ-018
+- **Componente:** `cli-client`; `viewer-ui | shell`; `viewer-ui | status`
+- **Depende de:** TASK-003 (cliente del CLI)
+- **Alcance:** Mostrar la versión del visor, la del CLI y la del contrato `cli-json` en la barra de estado y en la bienvenida. Al arrancar (y al pedirlo desde Ayuda) se ejecuta `--version`, se lee `schemaVersion` del envelope y, si no coincide con la que entiende el visor, se muestra un aviso persistente no modal con la acción recomendada. «Acerca de» detalla ambas versiones y el resultado de la comprobación.
+- **Hecho cuando:** las versiones son visibles sin abrir diálogos y una incompatibilidad de contrato se advierte antes de que fallen las operaciones.
+- **Pruebas automáticas:**
+  - Caso feliz: la sonda devuelve versión y `schemaVersion`; con el mismo contrato el estado es compatible y el resumen incluye ambas versiones.
+  - Caso de error o límite: un `schemaVersion` distinto no lanza la excepción habitual de la sonda y produce un aviso de incompatibilidad; un CLI que no responde o devuelve error produce «CLI no disponible».
+- **Prueba manual:**
+  1. Arrancar el visor y comprobar la línea de versiones en la barra de estado y en la bienvenida.
+  2. Abrir Ayuda → Acerca de y revisar visor, CLI, contrato y compatibilidad.
+  3. Simular un contrato distinto y comprobar el aviso persistente y el toast; después Ayuda → Comprobar versiones.
+- **Implementación:**
+  - `viewer-version.properties` filtrado por Maven y `ViewerVersion.current()`.
+  - `CliClient.version()` devuelve `CliVersionInfo` (versión + `schemaVersion`) sin aplicar la validación habitual del contrato.
+  - `VersionStatus`: estados compatible, contrato incompatible y CLI no disponible; resumen, aviso y detalle para «Acerca de».
+  - `StatusBarView.setVersions`, `WelcomePane.setVersionInfo`, banner `version-banner` y nuevos elementos en Ayuda.
+  - Pruebas: `VersionStatusTest`, casos de versión en `CliClientTest`.
+
 ## Cobertura
 
 | Requisito | Tareas |
@@ -488,6 +509,7 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
 | REQ-016 | TASK-013 |
 | REQ-017 | TASK-014 |
 | REQ-018 | TASK-003, TASK-017 |
+| REQ-019 | TASK-026 |
 | NFR-001 | TASK-001, TASK-015 |
 | NFR-002 | TASK-016 |
 | NFR-003 | TASK-015, TASK-017 |
@@ -520,3 +542,4 @@ Plan incremental sobre JavaFX 21: primero la ventana mínima, después el proces
 - TASK-023: la creación de artefactos pasa a un asistente único de tres pasos (ámbito/proveedor/tipo, catálogo con búsqueda y multiselección, vista previa editable). Sustituye «Aplicar artefactos» por «Crear artefactos» y crea cada entrada con `create-artifact`; los perfiles y el hook siguen en «Configurar proveedores».
 - TASK-024: los éxitos de creación de módulos, técnicos, artefactos, hook y guardado de equipo ya no usan `Alert`. Se muestran como toasts no modales apilados (máximo 3, 6 s o 9 s con avisos) y como mensaje en la barra de estado. Errores y confirmaciones siguen siendo modales.
 - TASK-025: módulos y técnicos muestran una ficha real: identificador y rutas del módulo (desde `team`), técnicos con número de artefactos, y artefactos con proveedor, contexto, estado y ruta. Sin `team.md` legible se muestra lo que aporta el árbol.
+- TASK-026: la barra de estado y la bienvenida muestran «Visor · CLI · contrato». La comprobación usa `--version` y la `schemaVersion` del envelope sin bloquear la UI; si no coincide aparece un banner persistente, un toast y el detalle en «Acerca de». También está en Ayuda → Comprobar versiones.

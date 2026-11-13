@@ -3112,6 +3112,7 @@ public final class App extends Application {
         alert.initOwner(stage);
         alert.setTitle("Acerca de Agentic Viewer");
         alert.setHeaderText("Agentic Viewer");
+        alert.setResizable(true);
         Theme.apply(alert);
         String versions = versionStatus == null
             ? "Visor: " + ViewerVersion.current() + "\nCLI: comprobando…"

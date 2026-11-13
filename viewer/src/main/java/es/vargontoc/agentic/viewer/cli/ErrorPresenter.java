@@ -28,8 +28,9 @@ public final class ErrorPresenter {
                 case "client.timeout" -> "Reintentar la operación.";
                 case "client.empty_output" -> "Comprobar que el jar del CLI es el correcto.";
                 case "client.invalid_json", "client.invalid_data", "client.invalid_error" ->
-                    "Revisar la versión del CLI y del viewer.";
-                case "client.unsupported_schema" -> "Actualizar el viewer o el CLI para usar la misma versión.";
+                    "Revisar la versión del CLI y del viewer; Ayuda → Comprobar versiones muestra el detalle.";
+                case "client.unsupported_schema" ->
+                    "Actualizar el viewer o el CLI: Ayuda → Comprobar versiones muestra las versiones y el contrato.";
                 default -> "Reintentar y revisar los logs del CLI.";
             };
         }

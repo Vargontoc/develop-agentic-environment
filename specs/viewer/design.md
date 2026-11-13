@@ -243,6 +243,12 @@ Las entradas son responsabilidades lógicas; varias pueden vivir en el mismo paq
 - **Alternativas descartadas:** mantener el mensaje genérico (poco informativo) o reconstruir módulos y técnicos desde ficheros sueltos (duplicaría reglas).
 - **Cubre:** REQ-005, REQ-012.
 
+### DEC-026 Comprobar la compatibilidad con una sonda de `--version`
+
+- **Decisión:** El visor muestra su versión (recurso filtrado por Maven) y la del CLI (`--version`). Para la compatibilidad usa la `schemaVersion` del envelope de esa misma llamada, sin aplicar la validación que lanzaría `client.unsupported_schema`: así puede informar de la versión real del contrato en lugar de fallar genéricamente. La comprobación se ejecuta en segundo plano al arrancar y desde Ayuda; una discrepancia produce un banner persistente y un toast, nunca un diálogo modal.
+- **Alternativas descartadas:** deducir la compatibilidad solo del fallo de las operaciones (tarde y sin detalle) o incluir la versión del contrato en `data.version` (cambiaría el contrato sin necesidad, porque la `schemaVersion` ya está en el envelope).
+- **Cubre:** REQ-019, REQ-018.
+
 ## Riesgos
 
 - **Latencia de la JVM por comando:** se mitiga con caché, ejecución en segundo plano de `status` y `tree`, y sin sondeo.
