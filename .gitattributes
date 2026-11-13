@@ -1,3 +1,8 @@
+# Las plantillas y recursos de la CLI se comparan como texto en los tests y se copian al equipo del usuario:
+# siempre LF, para que un clon en Windows (core.autocrlf=true) no los convierta a CRLF.
+# Los hooks de abajo sobrescriben esta regla para sus propias extensiones.
+cli/src/main/resources/** text eol=lf
+
 # Los hooks se instalan tal cual en el equipo del usuario (el hash del fichero instalado es el del recurso),
 # asi que sus fines de linea deben ser los que exige su interprete, con independencia de core.autocrlf.
 # .sh: LF (con CRLF el shebang falla en Linux). .bat: CRLF (cmd.exe puede romper etiquetas y goto con LF).
