@@ -65,10 +65,12 @@ Crear `.github/workflows/`:
 
 ### Fase 6 — Documentación
 
-- [ ] `CHANGELOG.md` (formato «Keep a Changelog») con la 1.0.0.
-- [ ] Guía de instalación por sistema en el README: `.deb`, `.msi` y uso del jar de la CLI.
-- [ ] Revisar que `docs/contracts/*` y el README describen exactamente lo que hace la 1.0.
-- [ ] Documentar la política de actualización y qué cuenta como cambio incompatible (ver «Versionado»).
+- [x] `CHANGELOG.md` (formato «Keep a Changelog») con la 1.0.0.
+- [x] Guía de instalación por sistema en el README: `.deb`, `.msi` y uso del jar de la CLI.
+- [~] Revisar que `docs/contracts/*` y el README describen exactamente lo que hace la 1.0. Hecho: los 14 comandos
+      están en el contrato `cli-json` y en la guía (faltaban `team` y `team-update`). Falta una pasada final tras la
+      `rc.1` (rutas de instalación reales, comportamiento de los instaladores).
+- [x] Documentar la política de actualización y qué cuenta como cambio incompatible (`docs/versionado.md`).
 
 ### Fase 7 — Release candidate y publicación
 

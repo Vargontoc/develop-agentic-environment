@@ -110,14 +110,42 @@ Todo funciona en local. No hay cuentas, telemetría ni servicios en la nube.
 
 ## Cómo empezar
 
-### 1. Consigue la aplicación
+### 1. Instala la aplicación
 
-Si ya tienes una **versión empaquetada**, ábrela: incluye su propio Java y el CLI que necesita el
-visor, así que no tienes que instalar nada más. Salta al paso 2.
+Descarga los ficheros de la [última Release](https://github.com/Vargontoc/develop-agentic-environment/releases/latest).
+Cada Release incluye un fichero `SHA256SUMS.txt`: comprueba que la suma del fichero descargado coincide antes de
+instalarlo.
 
-Si no la tienes, puedes generarla tú mismo o ejecutarla desde el código. Para eso necesitas JDK 21 y
-Maven. Los comandos, las dependencias y el empaquetado están en la
-[guía de desarrollo](docs/guia-desarrollo.md).
+**Windows (x64)** — `agentic-viewer-<versión>.msi`
+
+1. Ejecuta el `.msi` y sigue el asistente (puedes elegir la carpeta de instalación).
+2. El instalador **no está firmado**, así que Windows SmartScreen puede mostrar «Windows protegió su PC». Pulsa
+   **Más información → Ejecutar de todas formas**.
+3. Abre **AgenticViewer** desde el menú Inicio o el acceso directo.
+
+**Linux, Debian y Ubuntu (x64)** — `agentic-viewer-<versión>-amd64.deb`
+
+```bash
+sudo apt install ./agentic-viewer-<versión>-amd64.deb
+```
+
+Después abre **AgenticViewer** desde el menú de aplicaciones (categoría *Desarrollo*). Para desinstalarlo:
+`sudo apt remove agentic-viewer`.
+
+La aplicación instalada incluye su propio Java y la CLI que necesita el visor: no tienes que instalar nada más.
+Para actualizar a una versión nueva, instala encima la nueva (ver [versionado y actualizaciones](docs/versionado.md)).
+
+**Solo la CLI** — `agentic-develop.jar`
+
+Si solo quieres la herramienta de línea de comandos, descarga el jar y ejecútalo con **Java 21 o superior**:
+
+```bash
+java -jar agentic-develop.jar          # menú interactivo
+java -jar agentic-develop.jar --help
+```
+
+**Desde el código:** si prefieres compilarlo tú, necesitas JDK 21 y Maven. Los comandos, las dependencias y el
+empaquetado están en la [guía de desarrollo](docs/guia-desarrollo.md).
 
 ### 2. Configura al menos un proveedor
 
@@ -218,12 +246,16 @@ La referencia completa de comandos, opciones, ejemplos y reglas de seguridad est
 
 ## Requisitos
 
-- **Aplicación empaquetada:** ninguno. Incluye su propio runtime de Java.
-- **Ejecutar desde el código:** JDK 21 y Maven 3.9 o superior.
-- **Sistemas:** Windows y Linux.
+- **Aplicación instalada (`.msi` o `.deb`):** ninguno. Incluye su propio runtime de Java.
+- **Solo el jar de la CLI:** Java 21 o superior.
+- **Ejecutar desde el código:** JDK 21 y Maven 3.9 o superior. La CLI descarga el framework de GitHub Packages, que
+  requiere credenciales (ver la [guía de desarrollo](docs/guia-desarrollo.md#dependencias-externas)).
+- **Sistemas:** Windows 10/11 y Linux (Debian/Ubuntu), ambos x64.
 
 ## Documentación
 
+- [Changelog](CHANGELOG.md): qué cambia en cada versión.
+- [Versionado y actualizaciones](docs/versionado.md): numeración, cambios incompatibles y cómo actualizar.
 - [Guía de desarrollo](docs/guia-desarrollo.md): compilar, probar, empaquetar y usar la CLI.
 - [Especificación del visor](specs/viewer/): requisitos, diseño y tareas.
 - [Especificación de la CLI](specs/cli/): requisitos, diseño y tareas.
@@ -236,6 +268,8 @@ La referencia completa de comandos, opciones, ejemplos y reglas de seguridad est
 
 El proyecto está en desarrollo activo. La CLI y el visor cubren el flujo descrito en este README; las
 especificaciones y los contratos se actualizan junto con el código.
+
+Este proyecto se publica bajo la [licencia MIT](LICENSE).
 
 Si quieres proponer una mejora o reportar un problema, abre un issue o un pull request. Antes de
 enviar un cambio, ejecuta las pruebas de la parte que hayas tocado:

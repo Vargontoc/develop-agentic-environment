@@ -233,6 +233,8 @@ java -jar cli/target/agentic-develop.jar --help
 | `status` | Estado de los proveedores y del proyecto. Solo lee. | `--project` |
 | `tree` | Árbol de artefactos globales y de proyecto. Solo lee. | `--project` |
 | `describe` | Cabecera, cuerpo, hash y estado de un agente o skill. Solo lee. | `--path`, `--project` |
+| `team` | Módulos y opciones de `.sdd/team.md`. Solo lee. | `--project` |
+| `team-update` | Reescribe los módulos y opciones de `.sdd/team.md`. | `--project`, `--content-file`/`--stdin`, `--expect-hash`, `--dry-run` |
 | `init` | Crea `.sdd` en un proyecto. | `--project` |
 | `configure-provider` | Instala agentes y skills globales en un proveedor. | `--provider` |
 | `create-module` | Registra un módulo y genera sus agentes y skills. | `--project`, `--module`, `--technicians`, `--providers`, `--dry-run` |
@@ -354,3 +356,5 @@ plataforma.
 - Rendimiento: `docs/performance/cli-nfr-002.md`.
 - Pruebas en Linux/WSL: `docs/guia-pruebas-linux-wsl.md`.
 - Plan de release: `docs/plan-release-1.0.md`.
+- Versionado y actualizaciones: `docs/versionado.md`.
+- Cambios por versión: `CHANGELOG.md`.
